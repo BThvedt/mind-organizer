@@ -1,0 +1,79 @@
+<?php
+
+/**
+ * @file
+ * Contains valet.module.
+ */
+
+use Drupal\Core\Cache\Cache;
+use Drupal\user\RoleInterface;
+
+/**
+ * Implements hook_page_bottom().
+ *
+ * Add valet markup to the bottom of the page automatically.
+ */
+function valet_page_bottom(array &$page_bottom) {
+  if (\Drupal::currentUser()->hasPermission('access valet')) {
+    $page_bottom['valet'] = [
+      '#type' => 'valet',
+      '#cache' => [
+        'keys' => ['valet'],
+        'contexts' => ['user.permissions'],
+        'tags' => ['valet'],
+      ],
+    ];
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function valet_theme() {
+  return [
+    'valet' => [
+      'render element' => 'element',
+    ],
+  ];
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_presave().
+ */
+function valet_user_role_presave(RoleInterface $role) {
+  valet_cache_flush();
+}
+
+/**
+ * Implements hook_modules_installed().
+ */
+function valet_modules_installed($modules, $is_syncing) {
+  valet_cache_flush();
+}
+
+/**
+ * Implements hook_modules_uninstalled().
+ */
+function valet_modules_uninstalled($modules, $is_syncing) {
+  valet_cache_flush();
+}
+
+/**
+ * Implements hook_cache_flush().
+ */
+function valet_cache_flush() {
+  Cache::invalidateTags(['valet', 'valet_resources']);
+  // Reset cache.
+  valet_reset_cache_id();
+}
+
+/**
+ * Reset the cache id.
+ */
+function valet_reset_cache_id() {
+  $set = &drupal_static(__FUNCTION__, FALSE);
+  if (!$set) {
+    $set = TRUE;
+    Drupal::state()->set('valet.cache_id', base_convert(\Drupal::time()->getRequestTime(), 10, 36));
+  }
+}

@@ -1,0 +1,27 @@
+valet.admin:
+  type: config_object
+  label: Valet Settings
+  mapping:
+    plugins:
+      type: sequence
+      label: 'Plugins'
+      sequence:
+        type: valet.resource.[%key]
+
+valet.resource.menu:
+  type: mapping
+  label: Valet Menu
+  mapping:
+    status:
+      type: boolean
+      label: Status
+    settings:
+      type: mapping
+      label: Settings
+      mapping:
+        menus:
+          type: sequence
+          label: Menus
+          sequence:
+            type: string
+            label: Menu

@@ -1,0 +1,7 @@
+plugins:
+  menu:
+    status: true
+    settings:
+      menus:
+        admin: admin
+        devel: devel

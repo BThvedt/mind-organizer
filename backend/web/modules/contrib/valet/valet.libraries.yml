@@ -1,0 +1,18 @@
+valet:
+  version: VERSION
+  js:
+    js/valet.js: { minified: true }
+  css:
+    component:
+      css/valet.css: { minified: true }
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/drupalSettings
+    - valet/autocomplete
+
+# Libraries.
+autocomplete:
+  version: VERSION
+  js:
+    lib/autocomplete/autoComplete.js: { minified: true }

@@ -1,0 +1,311 @@
+@use "sass:math";
+
+$height: 80px;
+$padding: 15px;
+$radius: 5px;
+$primary: #1987c7;
+$base: #333333;
+$light: #b2b2b2;
+$text: #000;
+
+@function gray($num) {
+  @return lighten(#000000, percentage(math.div((100 - $num), 100)));
+}
+
+@function offset($color) {
+  @if (lightness($color) > 50) {
+    @return #000;
+  } @else {
+    @return #fff;
+  }
+}
+
+.valet {
+  display: flex;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  align-items: flex-start;
+  justify-content: center;
+  background-color: rgba(gray(0), 0.7);
+  font-family: BlinkMacSystemFont, -apple-system, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
+  z-index: 9999;
+  -moz-osx-font-smoothing: grayscale;
+
+  &.valet--active {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+
+    .valet--wrapper {
+      opacity: 1;
+    }
+  }
+}
+
+.valet--wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 60px;
+  opacity: 0;
+  transition: opacity 400ms;
+}
+
+.valet--form {
+  position: relative;
+  background: linear-gradient(180deg, gray(80), gray(90));
+  border-radius: $radius;
+  padding: $padding;
+  box-shadow: 0 20px 40px -20px rgba(gray(100), 0.8);
+  border-bottom: 1px solid rgba(gray(0), 0.7);
+}
+
+.valet--search-icon {
+  position: absolute;
+  top: $padding;
+  right: calc(#{$padding} + 0.5rem);
+  display: flex;
+  align-items: center;
+  height: $height;
+
+  > svg {
+    position: relative;
+    display: block;
+    width: 50px;
+    height: auto;
+    pointer-events: none;
+    z-index: 10;
+
+    .search {
+      fill: gray(10);
+    }
+  }
+}
+
+.valet--inner {
+  position: relative;
+  z-index: 10;
+}
+
+.valet--close {
+  position: absolute;
+  top: calc(((#{$height} - 40px) / 2) + $padding);
+  left: 100%;
+  margin-left: -40px;
+  background: linear-gradient(180deg, $primary, darken($primary, 5%));
+  border-top: 1px solid lighten($primary, 5%);
+  border-bottom: 1px solid darken($primary, 10%);
+  color: offset($primary);
+  border-radius: 0 $radius $radius 0;
+  padding: calc(#{$padding} / 1.5);
+  cursor: pointer;
+  width: 40px;
+  box-sizing: border-box;
+  opacity: 0;
+
+  label {
+    display: none;
+  }
+
+  > svg {
+    display: block;
+    fill: offset($primary);
+    opacity: 0.6;
+    transition: opacity 500ms ease;
+  }
+
+  &:hover {
+
+    > svg {
+      opacity: 1;
+    }
+  }
+
+  .valet--active & {
+    transition: margin 500ms ease, opacity 500ms ease;
+    transition-delay: calc(500ms / 2);
+    margin: 0;
+    opacity: 1;
+  }
+}
+
+.valet--wrapper .valet--form .autoComplete_wrapper {
+  display: block;
+  position: relative;
+  width: 200px;
+  transition: width 200ms;
+
+  .valet--active & {
+    width: 560px;
+  }
+
+  .overview {
+    color: gray(30);
+  }
+
+  > input[type='search'].valet--input {
+    background-color: transparent;
+    box-shadow: none;
+    color: gray(0);
+    width: 100%;
+    height: $height;
+    margin: 0;
+    padding: 0 $height 0 $padding;
+    box-sizing: border-box;
+    font-size: 40px;
+    font-weight: 300;
+    line-height: 1;
+    outline: none;
+    border-radius: $radius;
+    transition: all 500ms ease;
+    border: 0;
+    outline: 0;
+
+    &::placeholder {
+      color: gray(40);
+      transition: all 300ms ease;
+      font-size: 30px;
+      font-weight: 300;
+    }
+
+    &::selection {
+      background-color: $primary;
+      color: gray(0);
+    }
+
+    &:hover {
+      color: gray(15);
+      transition: all 300ms ease;
+
+      &::placeholder {
+        color: gray(30);
+        transition: all 300ms ease;
+      }
+    }
+
+    &:focus {
+      color: gray(0);
+
+      &::selection {
+        background-color: rgba($primary, 0.15);
+      }
+    }
+  }
+
+  > ul {
+    position: relative;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    z-index: 1;
+    list-style: none;
+    outline: none;
+
+    &[hidden],
+    &:empty {
+      display: none;
+      opacity: 0;
+      transform: scale(0);
+    }
+
+    > p {
+      margin: 10px 3px 5px;
+      font-size: 12px;
+      text-align: center;
+      color: offset($base);
+    }
+
+    > li {
+      background: linear-gradient(180deg, gray(100), gray(95));
+      border: 1px solid transparent;
+      border-top: 1px solid gray(100);
+      border-bottom: 1px solid gray(85);
+      color: gray(5);
+      border-radius: $radius;
+      padding: $padding;
+      margin: $padding 0;
+      line-height: 1.2;
+      letter-spacing: 0.5px;
+
+      .icon {
+        color: lighten($primary, 30%);
+      }
+
+      .title {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 24px;
+        font-weight: 700;
+        padding-bottom: 2px;
+        opacity: 0.8;
+      }
+
+      .description {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 11px;
+        letter-spacing: 1px;
+        opacity: 0.7;
+      }
+
+      .url {
+        display: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 700;
+        font-size: 12px;
+        margin-top: 8px;
+        background: lighten($primary, 10%);
+        color: offset($primary);
+        border-radius: $radius;
+        padding: 5px;
+      }
+
+      mark {
+        background-color: transparent;
+        color: gray(0);
+      }
+
+      &:hover {
+        cursor: pointer;
+        background: linear-gradient(180deg, gray(93), gray(90));
+      }
+
+      &[aria-selected='true'] {
+        background: linear-gradient(180deg, $primary, darken($primary, 5%));
+        color: offset($primary);
+        margin-left: calc($padding * -2);
+        margin-right: calc($padding * -2);
+        padding-left: calc($padding * 3);
+        padding-right: calc($padding * 3);
+        box-shadow: 0 40px 20px -30px rgba(gray(100), 0.5), 0 10px 60px $primary;
+        border-color: $primary;
+        border-top-color: lighten($primary, 5%);
+        border-bottom-color: darken($primary, 10%);
+
+        mark {
+          color: offset($primary);
+        }
+
+        .title {
+          opacity: 0.95;
+        }
+
+        .url {
+          display: block;
+        }
+      }
+    }
+  }
+}

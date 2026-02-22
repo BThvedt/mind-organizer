@@ -1,0 +1,27 @@
+<?php
+
+/**
+ * @file
+ * Contains valet.install.
+ */
+
+/**
+ * Sets default plugins.
+ */
+function valet_update_8101(&$sandbox) {
+  $plugins = [
+    'menu' => [
+      'status' => 1,
+      'settings' => [
+        'menus' => [
+          'admin' => 'admin',
+          'devel' => 'devel',
+        ],
+      ],
+    ],
+  ];
+  \Drupal::configFactory()->getEditable('valet.admin')
+    ->set('plugins', $plugins)
+    ->save();
+  valet_cache_flush();
+}

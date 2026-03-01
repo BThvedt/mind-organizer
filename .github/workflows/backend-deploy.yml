@@ -1,0 +1,26 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            cd /home/deploy/study-app
+            git pull origin main
+            cd backend
+            docker compose -f docker-compose.prod.yml exec -T --user www-data php composer install --no-dev --no-interaction
+            docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush updatedb -y
+            docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush config:import -y
+            docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush cr

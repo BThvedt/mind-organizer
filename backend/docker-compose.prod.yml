@@ -36,3 +36,5 @@ services:
 
 volumes:
   db_data:
+    external: true
+    name: study-app_db_data

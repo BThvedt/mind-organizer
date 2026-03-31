@@ -1,0 +1,11 @@
+uuid: fec986be-98fc-471f-bb23-7f1a6787f8f5
+langcode: en
+status: true
+dependencies: {  }
+name: 'Flashcard Deck'
+type: flashcard_deck
+description: 'A collection of flashcards on a topic.'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: false

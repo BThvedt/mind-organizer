@@ -1,0 +1,11 @@
+uuid: ed2295f8-9bb6-49c1-8d19-44df8779a7e0
+langcode: en
+status: true
+dependencies: {  }
+name: Flashcard
+type: flashcard
+description: 'A single flashcard with a front (question) and back (answer).'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: false

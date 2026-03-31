@@ -1,0 +1,9 @@
+uuid: eccd11d1-5789-4335-b312-fe32e1317764
+langcode: en
+status: true
+dependencies: {  }
+name: Area
+vid: area
+description: 'Top-level subject area (e.g. Science, History, Mathematics).'
+weight: 0
+new_revision: false

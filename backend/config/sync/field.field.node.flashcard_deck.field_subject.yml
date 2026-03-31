@@ -1,0 +1,28 @@
+uuid: 84a498c8-8d32-4f3f-bc42-79098add8bb5
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_subject
+    - node.type.flashcard_deck
+    - taxonomy.vocabulary.subject
+id: node.flashcard_deck.field_subject
+field_name: field_subject
+entity_type: node
+bundle: flashcard_deck
+label: Subject
+description: 'The subject this deck belongs to (optional).'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:taxonomy_term'
+  handler_settings:
+    target_bundles:
+      subject: subject
+    sort:
+      field: name
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

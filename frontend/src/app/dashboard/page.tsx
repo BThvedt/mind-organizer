@@ -1,0 +1,135 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Header } from '@/components/header';
+import { Button } from '@/components/ui/button';
+import { BookOpen, Brain, BarChart3, Flame, Clock, Trophy, FileText } from 'lucide-react';
+
+export default function Dashboard() {
+  const router = useRouter();
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.authenticated) {
+          router.replace('/');
+        } else {
+          setAuthenticated(true);
+        }
+      });
+  }, [router]);
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.replace('/');
+  }
+
+  if (!authenticated) return null;
+
+  return (
+    <>
+      <Header
+        authenticated
+        onSignIn={() => {}}
+        onSignUp={() => {}}
+        onLogout={handleLogout}
+      />
+
+      <main className="mx-auto max-w-6xl px-6 pt-28 pb-16">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+          <p className="mt-1 text-muted-foreground">Welcome back — here&apos;s your study overview.</p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+          {[
+            { icon: <Flame className="h-5 w-5 text-primary" />, label: 'Day streak', value: '0' },
+            { icon: <Clock className="h-5 w-5 text-primary" />, label: 'Minutes studied', value: '0' },
+            { icon: <Trophy className="h-5 w-5 text-primary" />, label: 'Cards mastered', value: '0' },
+          ].map(({ icon, label, value }) => (
+            <div
+              key={label}
+              className="flex items-center gap-4 rounded-xl border border-border bg-card p-5"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                {icon}
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{value}</p>
+                <p className="text-sm text-muted-foreground">{label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick actions */}
+        <h2 className="text-lg font-semibold text-foreground mb-4">Quick actions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              icon: <Brain className="h-6 w-6 text-primary" />,
+              title: 'Study now',
+              description: 'Review cards that are due today.',
+              action: 'Start session',
+              href: null,
+            },
+            {
+              icon: <BookOpen className="h-6 w-6 text-primary" />,
+              title: 'My decks',
+              description: 'Browse and manage your flashcard decks.',
+              action: 'View decks',
+              href: '/dashboard/decks',
+            },
+            {
+              icon: <FileText className="h-6 w-6 text-primary" />,
+              title: 'My notes',
+              description: 'Write and review your Markdown study notes.',
+              action: 'View notes',
+              href: '/dashboard/notes',
+            },
+            {
+              icon: <BarChart3 className="h-6 w-6 text-primary" />,
+              title: 'Progress',
+              description: 'See your retention rate and study history.',
+              action: 'View stats',
+              href: null,
+            },
+          ].map(({ icon, title, description, action, href }) => (
+            <div
+              key={title}
+              className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                {icon}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground">{title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{description}</p>
+              </div>
+              {href ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  nativeButton={false}
+                  render={<Link href={href} />}
+                >
+                  {action}
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" className="self-start" disabled>
+                  {action}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      </main>
+    </>
+  );
+}

@@ -1,0 +1,11 @@
+services:
+  study_flashcard_generator.ai_service:
+    class: Drupal\study_flashcard_generator\Service\AiFlashcardService
+    arguments:
+      - '@entity_type.manager'
+      - '@logger.factory'
+
+  study_flashcard_generator.manual_service:
+    class: Drupal\study_flashcard_generator\Service\ManualSelectionService
+    arguments:
+      - '@logger.factory'

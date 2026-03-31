@@ -1,0 +1,109 @@
+---
+description: Full architecture reference for the Study App — stack, content model, taxonomy, API patterns, and custom module conventions.
+alwaysApply: true
+---
+
+# Study App Architecture
+
+## Stack
+
+- **Backend**: Drupal 11.3 (PHP 8.3, MariaDB 11) — `backend/`
+- **Frontend**: Next.js 16 App Router, React 19, TypeScript, Tailwind CSS v4 — `frontend/`
+- **Auth**: OAuth 2.0 password grant via `simple_oauth`; tokens stored in httpOnly cookies (`access_token`, `refresh_token`)
+- **API**: JSON:API (read/write for authenticated users); no GraphQL
+- **Production**: nginx + php-fpm + MariaDB via `backend/docker-compose.prod.yml`; local dev via DDEV
+
+## Category Taxonomy
+
+Two vocabularies with a hierarchy:
+
+```
+Area (taxonomy) ← Subject (taxonomy, field_area required)
+```
+
+- `area` — top-level grouping (e.g., "Science", "History")
+- `subject` — belongs to an area via `field_area` (entity reference → area term, required)
+
+Both `flashcard_deck` and `study_note` nodes have **optional** `field_area` and `field_subject` references. A deck/note can have: area only, subject only, both, or neither.
+
+## Content Types (all are Drupal nodes)
+
+### `flashcard_deck`
+| Field | Type | Notes |
+|-------|------|-------|
+| `title` | string | required |
+| `body` | text_with_summary | description/summary |
+| `field_area` | entity_reference → area term | optional |
+| `field_subject` | entity_reference → subject term | optional |
+
+### `flashcard`
+| Field | Type | Notes |
+|-------|------|-------|
+| `field_front` | string_long | question/prompt |
+| `field_back` | string_long | answer |
+| `field_deck` | entity_reference → flashcard_deck | required, single |
+
+### `study_note`
+| Field | Type | Notes |
+|-------|------|-------|
+| `title` | string | required |
+| `field_body` | string_long | raw markdown — Drupal stores as plain text, frontend renders |
+| `field_area` | entity_reference → area term | optional |
+| `field_subject` | entity_reference → subject term | optional |
+| `field_linked_decks` | entity_reference → flashcard_deck | multi-value, optional, **authoritative link** |
+
+## Linking Notes ↔ Decks
+
+`study_note.field_linked_decks` is the **single authoritative relationship**. To query in reverse (notes linked to a deck):
+
+```
+GET /jsonapi/node/study_note?filter[field_linked_decks.id][value]=<deck-uuid>
+```
+
+Never duplicate a separate field on `flashcard_deck` for this — use the JSON:API filter above.
+
+## Filtering Cards by User
+
+All nodes have a built-in `uid` owner field. Filter cards belonging to a user:
+
+```
+GET /jsonapi/node/flashcard?filter[uid.id][value]=<user-uuid>
+```
+
+## Markdown Storage
+
+`study_note.field_body` is a `string_long` (plain text, no Drupal text format). The frontend renders it with `react-markdown`. Do NOT install a Drupal markdown module.
+
+## Flashcard Generation — Custom Module
+
+Module path: `backend/web/modules/custom/study_flashcard_generator/`
+
+**Endpoint**: `POST /api/study/generate-flashcards` (requires auth)
+
+```json
+// Request
+{ "note_id": "<uuid>", "mode": "ai" | "manual", "selections": [{ "front": "...", "back": "..." }] }
+
+// Response
+{ "candidates": [{ "front": "...", "back": "..." }] }
+```
+
+- **AI mode**: sends `field_body` content to Anthropic Messages API (Claude 3.5 Haiku) via `ANTHROPIC_API_KEY`
+- **Manual mode**: user submits highlighted text pairs from the frontend; module returns them formatted as candidates
+- Frontend shows a review/edit screen; on confirm, POSTs to JSON:API to create `flashcard` nodes
+
+## JSON:API Write Access
+
+`jsonapi.settings.yml` has `read_only: false`. Authenticated users can create/edit/delete their own `flashcard_deck`, `flashcard`, and `study_note` nodes and taxonomy terms.
+
+## Frontend Auth Flow
+
+1. `POST /api/auth/login` (Next route) → Drupal OAuth token endpoint → sets httpOnly cookies
+2. `GET /api/auth/me` → probes Drupal JSON:API with Bearer token → returns `{ authenticated: bool }`
+3. `POST /api/auth/logout` → clears cookies
+
+Env vars: `NEXT_PUBLIC_DRUPAL_BASE_URL`, `DRUPAL_CLIENT_ID`, `DRUPAL_CLIENT_SECRET`
+
+## Config Management
+
+All Drupal configuration lives in `backend/config/sync/`. After any change via Drupal UI or Drush, export with `drush cex`. To apply written YAML to a running site, use `drush cim`.

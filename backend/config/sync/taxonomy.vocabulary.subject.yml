@@ -1,0 +1,9 @@
+uuid: 2ea70676-8a99-4411-9a76-2594cc554aca
+langcode: en
+status: true
+dependencies: {  }
+name: Subject
+vid: subject
+description: 'A subject within an area (e.g. Biology within Science).'
+weight: 0
+new_revision: false

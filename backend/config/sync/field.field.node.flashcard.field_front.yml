@@ -1,0 +1,19 @@
+uuid: 839ed831-d1c8-40fe-9aa4-c8e2fd638a4c
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_front
+    - node.type.flashcard
+id: node.flashcard.field_front
+field_name: field_front
+entity_type: node
+bundle: flashcard
+label: Front
+description: 'The question or prompt shown on the front of the card.'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string_long

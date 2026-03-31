@@ -1,0 +1,27 @@
+uuid: a17a25a4-b479-4cff-8642-f3470c0748bb
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_deck
+    - node.type.flashcard
+    - node.type.flashcard_deck
+id: node.flashcard.field_deck
+field_name: field_deck
+entity_type: node
+bundle: flashcard
+label: Deck
+description: 'The deck this flashcard belongs to.'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:node'
+  handler_settings:
+    target_bundles:
+      flashcard_deck: flashcard_deck
+    sort:
+      field: _none
+    auto_create: false
+field_type: entity_reference

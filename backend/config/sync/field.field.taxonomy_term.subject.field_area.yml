@@ -1,0 +1,28 @@
+uuid: d63ccb04-d329-406a-9f9b-739a1556666a
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.taxonomy_term.field_area
+    - taxonomy.vocabulary.area
+    - taxonomy.vocabulary.subject
+id: taxonomy_term.subject.field_area
+field_name: field_area
+entity_type: taxonomy_term
+bundle: subject
+label: Area
+description: 'The area this subject belongs to.'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:taxonomy_term'
+  handler_settings:
+    target_bundles:
+      area: area
+    sort:
+      field: name
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

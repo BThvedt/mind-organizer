@@ -1,0 +1,11 @@
+uuid: be8f1a19-4c4d-4672-a1b3-fb25e5758185
+langcode: en
+status: true
+dependencies: {  }
+name: 'Study Note'
+type: study_note
+description: 'A markdown study note that can be linked to flashcard decks.'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: false

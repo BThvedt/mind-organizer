@@ -1,0 +1,25 @@
+study_flashcard_generator.generate:
+  path: '/api/study/generate-flashcards'
+  defaults:
+    _controller: '\Drupal\study_flashcard_generator\Controller\FlashcardGeneratorController::generate'
+    _title: 'Generate Flashcards'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [POST]
+
+study_flashcard_generator.generate_from_prompt:
+  path: '/api/study/generate-from-prompt'
+  defaults:
+    _controller: '\Drupal\study_flashcard_generator\Controller\FlashcardGeneratorController::generateFromPrompt'
+    _title: 'Generate Flashcards from Prompt'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [POST]

@@ -1,0 +1,54 @@
+uuid: 8f80cda5-da14-4728-99a1-0cf4515af87d
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.study_note.field_area
+    - field.field.node.study_note.field_body
+    - field.field.node.study_note.field_linked_decks
+    - field.field.node.study_note.field_subject
+    - node.type.study_note
+  module:
+    - user
+id: node.study_note.default
+targetEntityType: node
+bundle: study_note
+mode: default
+content:
+  field_body:
+    type: basic_string
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_area:
+    type: entity_reference_label
+    label: above
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_subject:
+    type: entity_reference_label
+    label: above
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  field_linked_decks:
+    type: entity_reference_label
+    label: above
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden: {  }

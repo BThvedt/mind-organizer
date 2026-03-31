@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { AuthModals } from '@/components/auth-modals';
 import { Button } from '@/components/ui/button';
@@ -9,14 +10,21 @@ import { BookOpen, Brain, BarChart3, Zap } from 'lucide-react';
 type AuthModal = 'signin' | 'signup' | null;
 
 export default function Home() {
+  const router = useRouter();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [modal, setModal] = useState<AuthModal>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
       .then((res) => res.json())
-      .then((data) => setAuthenticated(data.authenticated));
-  }, []);
+      .then((data) => {
+        if (data.authenticated) {
+          router.replace('/dashboard');
+        } else {
+          setAuthenticated(false);
+        }
+      });
+  }, [router]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -24,7 +32,7 @@ export default function Home() {
   }
 
   function handleAuthSuccess() {
-    setAuthenticated(true);
+    router.replace('/dashboard');
   }
 
   return (
@@ -64,7 +72,7 @@ export default function Home() {
           {authenticated === null ? null : authenticated ? (
             <div className="flex items-center gap-3">
               <p className="text-muted-foreground text-sm">Welcome back!</p>
-              <Button size="lg">Go to dashboard</Button>
+              <Button size="lg" onClick={() => router.push('/dashboard')}>Go to dashboard</Button>
             </div>
           ) : (
             <div className="flex items-center gap-3">

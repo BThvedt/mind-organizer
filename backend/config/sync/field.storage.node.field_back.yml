@@ -1,0 +1,18 @@
+uuid: d81e02d9-3228-4b38-8013-4eb9a14d22fb
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node.field_back
+field_name: field_back
+entity_type: node
+type: string_long
+settings: {  }
+module: core
+locked: false
+cardinality: 1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

@@ -1,0 +1,39 @@
+uuid: 8c76e591-1140-48b1-938e-e2720b59eeb7
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.taxonomy_term.subject.field_area
+    - taxonomy.vocabulary.subject
+  module:
+    - taxonomy
+id: taxonomy_term.subject.default
+targetEntityType: taxonomy_term
+bundle: subject
+mode: default
+content:
+  field_area:
+    type: entity_reference_autocomplete
+    weight: 1
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  name:
+    type: string_textfield
+    weight: 0
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  path:
+    type: path
+    weight: 30
+    region: content
+    settings: {  }
+    third_party_settings: {  }
+hidden: {  }

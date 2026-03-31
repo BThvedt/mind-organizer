@@ -1,0 +1,46 @@
+uuid: 99921902-942e-4450-a3ef-61cc1714e0ff
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.flashcard_deck.body
+    - field.field.node.flashcard_deck.field_area
+    - field.field.node.flashcard_deck.field_subject
+    - node.type.flashcard_deck
+  module:
+    - text
+    - user
+id: node.flashcard_deck.default
+targetEntityType: node
+bundle: flashcard_deck
+mode: default
+content:
+  body:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_area:
+    type: entity_reference_label
+    label: above
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_subject:
+    type: entity_reference_label
+    label: above
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden: {  }

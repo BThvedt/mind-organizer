@@ -1,0 +1,93 @@
+uuid: 341f2ee2-1462-4fc8-9785-839de92aa910
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.study_note.field_area
+    - field.field.node.study_note.field_body
+    - field.field.node.study_note.field_linked_decks
+    - field.field.node.study_note.field_subject
+    - node.type.study_note
+  module:
+    - path
+id: node.study_note.default
+targetEntityType: node
+bundle: study_note
+mode: default
+content:
+  title:
+    type: string_textfield
+    weight: 0
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_body:
+    type: string_textarea
+    weight: 1
+    region: content
+    settings:
+      rows: 20
+      placeholder: 'Write your notes in Markdown...'
+    third_party_settings: {  }
+  field_area:
+    type: entity_reference_autocomplete
+    weight: 2
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_subject:
+    type: entity_reference_autocomplete
+    weight: 3
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_linked_decks:
+    type: entity_reference_autocomplete
+    weight: 4
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  path:
+    type: path
+    weight: 30
+    region: content
+    settings: {  }
+    third_party_settings: {  }
+  status:
+    type: boolean_checkbox
+    weight: 120
+    region: content
+    settings:
+      display_label: true
+    third_party_settings: {  }
+  uid:
+    type: entity_reference_autocomplete
+    weight: 5
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  created:
+    type: datetime_timestamp
+    weight: 10
+    region: content
+    settings: {  }
+    third_party_settings: {  }
+hidden: {  }

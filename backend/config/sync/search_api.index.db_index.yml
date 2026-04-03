@@ -1,0 +1,161 @@
+uuid: 065f624b-987f-4bd0-8e3d-1d3fc29a705f
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.body
+    - field.storage.node.field_area
+    - field.storage.node.field_body
+    - field.storage.node.field_subject
+    - search_api.server.database_server
+  module:
+    - node
+id: db_index
+name: 'DB Index'
+description: ''
+read_only: false
+field_settings:
+  aggregated_field:
+    label: 'Aggregated field'
+    property_path: aggregated_field
+    type: text
+    configuration:
+      type: union
+      fields:
+        - 'entity:node/field_back'
+        - 'entity:node/field_front'
+  body:
+    label: Description
+    datasource_id: 'entity:node'
+    property_path: body
+    type: text
+    dependencies:
+      config:
+        - field.storage.node.body
+  field_area:
+    label: Area
+    datasource_id: 'entity:node'
+    property_path: field_area
+    type: string
+    dependencies:
+      config:
+        - field.storage.node.field_area
+  field_body:
+    label: 'Note Body'
+    datasource_id: 'entity:node'
+    property_path: field_body
+    type: text
+    dependencies:
+      config:
+        - field.storage.node.field_body
+  field_subject:
+    label: Subject
+    datasource_id: 'entity:node'
+    property_path: field_subject
+    type: string
+    dependencies:
+      config:
+        - field.storage.node.field_subject
+  title:
+    label: Title
+    datasource_id: 'entity:node'
+    property_path: title
+    type: text
+    dependencies:
+      module:
+        - node
+  type:
+    label: 'Content type'
+    datasource_id: 'entity:node'
+    property_path: type
+    type: string
+    dependencies:
+      module:
+        - node
+  uid:
+    label: 'Authored by'
+    datasource_id: 'entity:node'
+    property_path: uid
+    type: string
+    dependencies:
+      module:
+        - node
+datasource_settings:
+  'entity:node':
+    bundles:
+      default: false
+      selected:
+        - flashcard
+        - flashcard_deck
+        - study_note
+    languages:
+      default: true
+      selected: {  }
+processor_settings:
+  add_url: {  }
+  aggregated_field: {  }
+  custom_value: {  }
+  entity_type: {  }
+  html_filter:
+    weights:
+      preprocess_index: -15
+      preprocess_query: -15
+    all_fields: false
+    fields:
+      - aggregated_field
+      - body
+      - field_area
+      - field_body
+      - field_subject
+      - title
+      - type
+      - uid
+    title: true
+    alt: true
+    tags:
+      b: 2.0
+      em: 1.5
+      h1: 5.0
+      h2: 3.0
+      h3: 2.0
+      strong: 2.0
+      u: 1.5
+  ignorecase:
+    weights:
+      preprocess_index: -20
+      preprocess_query: -20
+    all_fields: false
+    fields:
+      - aggregated_field
+      - body
+      - field_area
+      - field_body
+      - field_subject
+      - title
+      - type
+      - uid
+  language_with_fallback: {  }
+  rendered_item: {  }
+  tokenizer:
+    weights:
+      preprocess_index: -6
+      preprocess_query: -6
+    all_fields: false
+    fields:
+      - aggregated_field
+      - body
+      - field_body
+      - title
+    spaces: ''
+    ignored: ._-
+    overlap_cjk: 1
+    minimum_word_size: '3'
+tracker_settings:
+  default:
+    indexing_order: fifo
+options:
+  cron_limit: 50
+  delete_on_fail: true
+  index_directly: true
+  track_changes_in_references: true
+server: database_server

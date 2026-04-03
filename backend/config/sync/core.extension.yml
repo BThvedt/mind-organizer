@@ -35,11 +35,14 @@ module:
   path: 0
   path_alias: 0
   search: 0
+  search_api: 0
+  search_api_db: 0
   serialization: 0
   shortcut: 0
   simple_oauth: 0
   simple_oauth_password_grant: 0
   study_flashcard_generator: 0
+  study_search: 0
   system: 0
   taxonomy: 0
   text: 0

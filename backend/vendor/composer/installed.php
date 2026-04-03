@@ -361,6 +361,15 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
+        'drupal/search_api' => array(
+            'pretty_version' => '1.40.0',
+            'version' => '1.40.0.0',
+            'reference' => '8.x-1.40',
+            'type' => 'drupal-module',
+            'install_path' => __DIR__ . '/../../web/modules/contrib/search_api',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'drupal/simple_oauth' => array(
             'pretty_version' => '6.1.0',
             'version' => '6.1.0.0',

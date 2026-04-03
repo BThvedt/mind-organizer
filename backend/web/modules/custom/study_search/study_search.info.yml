@@ -1,0 +1,10 @@
+name: 'Study Search'
+type: module
+description: 'Exposes a search endpoint over study notes and flashcard decks via Search API.'
+package: 'Study App'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node
+  - drupal:taxonomy
+  - drupal:serialization
+  - search_api:search_api

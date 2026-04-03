@@ -1,0 +1,12 @@
+study_search.search:
+  path: '/api/study/search'
+  defaults:
+    _controller: '\Drupal\study_search\Controller\SearchController::search'
+    _title: 'Search'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]

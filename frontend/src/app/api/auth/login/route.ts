@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyTokenCookies } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const { username, password } = await request.json();
@@ -18,31 +19,12 @@ export async function POST(request: NextRequest) {
     }
   );
 
-//   const responseText = await tokenRes.text();
-//   console.log('Token response status:', tokenRes.status);
-//   console.log('Token response body:', responseText);
-
   if (!tokenRes.ok) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
 
   const tokens = await tokenRes.json();
-
   const response = NextResponse.json({ success: true });
-  response.cookies.set('access_token', tokens.access_token, {
-    httpOnly: true,
-    secure: false, // true in production
-    sameSite: 'lax',
-    maxAge: tokens.expires_in,
-    path: '/',
-  });
-  response.cookies.set('refresh_token', tokens.refresh_token, {
-    httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-    path: '/',
-  });
-
+  applyTokenCookies(response, tokens);
   return response;
 }

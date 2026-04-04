@@ -1,24 +1,53 @@
 import { cookies } from 'next/headers';
+import { refreshAccessToken, applyTokenCookies } from '@/lib/auth';
 
 const DRUPAL_BASE_URL = process.env.NEXT_PUBLIC_DRUPAL_BASE_URL!;
+
+function buildHeaders(token: string | undefined, extra?: HeadersInit): HeadersInit {
+  return {
+    'Content-Type': 'application/vnd.api+json',
+    Accept: 'application/vnd.api+json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(extra ?? {}),
+  };
+}
 
 /**
  * Server-side authenticated fetch to Drupal JSON:API.
  * Reads the access_token httpOnly cookie and attaches it as a Bearer token.
+ * Automatically attempts a silent token refresh on a 401 and retries once.
  */
 export async function drupalFetch(path: string, options?: RequestInit) {
   const cookieStore = await cookies();
   const token = cookieStore.get('access_token')?.value;
 
-  return fetch(`${DRUPAL_BASE_URL}${path}`, {
+  const res = await fetch(`${DRUPAL_BASE_URL}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/vnd.api+json',
-      Accept: 'application/vnd.api+json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options?.headers ?? {}),
-    },
+    headers: buildHeaders(token, options?.headers),
   });
+
+  // On 401, attempt a silent token refresh and retry the original request once
+  if (res.status === 401) {
+    const refreshToken = cookieStore.get('refresh_token')?.value;
+    if (refreshToken) {
+      const newTokens = await refreshAccessToken(refreshToken);
+      if (newTokens) {
+        // Persist new tokens into the cookie store so subsequent calls in the
+        // same request cycle also benefit from the fresh token
+        applyTokenCookies(
+          { cookies: { set: (name: string, value: string, opts: object) => cookieStore.set(name, value, opts) } },
+          newTokens
+        );
+
+        return fetch(`${DRUPAL_BASE_URL}${path}`, {
+          ...options,
+          headers: buildHeaders(newTokens.access_token, options?.headers),
+        });
+      }
+    }
+  }
+
+  return res;
 }
 
 /**

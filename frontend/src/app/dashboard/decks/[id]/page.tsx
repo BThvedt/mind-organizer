@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, X, Brain, Play, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, X, Brain, Play, Pencil, Trash2, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
 import { AiGenerateDialog } from '@/components/ai-generate-dialog';
+import { LinkNotesDialog } from '@/components/link-notes-dialog';
 
 interface DeckResponse {
   data: JsonApiResource;
@@ -21,6 +22,11 @@ interface DeckResponse {
 
 interface CardsResponse {
   data: JsonApiResource[];
+}
+
+interface LinkedNotesResponse {
+  data: JsonApiResource[];
+  included?: JsonApiResource[];
 }
 
 export default function DeckDetailPage({
@@ -36,6 +42,9 @@ export default function DeckDetailPage({
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
   const [cards, setCards] = useState<JsonApiResource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [linkedNotes, setLinkedNotes] = useState<JsonApiResource[]>([]);
+  const [linkedNotesIncluded, setLinkedNotesIncluded] = useState<JsonApiResource[]>([]);
+  const [loadingLinkedNotes, setLoadingLinkedNotes] = useState(true);
 
   // Delete state
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -56,6 +65,20 @@ export default function DeckDetailPage({
         else setAuthenticated(true);
       });
   }, [router]);
+
+  const loadLinkedNotes = useCallback(async () => {
+    setLoadingLinkedNotes(true);
+    try {
+      const res = await fetch(`/api/decks/${id}/notes`);
+      if (res.ok) {
+        const d: LinkedNotesResponse = await res.json();
+        setLinkedNotes(d.data ?? []);
+        setLinkedNotesIncluded(d.included ?? []);
+      }
+    } finally {
+      setLoadingLinkedNotes(false);
+    }
+  }, [id]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -80,8 +103,11 @@ export default function DeckDetailPage({
   }, [id]);
 
   useEffect(() => {
-    if (authenticated) loadData();
-  }, [authenticated, loadData]);
+    if (authenticated) {
+      loadData();
+      loadLinkedNotes();
+    }
+  }, [authenticated, loadData, loadLinkedNotes]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -369,6 +395,77 @@ export default function DeckDetailPage({
                 ))}
           </div>
         )}
+
+        {/* Linked Notes section */}
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">
+              {loadingLinkedNotes
+                ? 'Linked Notes'
+                : `Linked Notes${linkedNotes.length > 0 ? ` · ${linkedNotes.length}` : ''}`}
+            </h2>
+            <LinkNotesDialog
+              deckId={id}
+              deckAreaUuid={areaId ?? ''}
+              deckSubjectUuid={subjectId ?? ''}
+              onLinksChanged={loadLinkedNotes}
+            />
+          </div>
+
+          {loadingLinkedNotes ? (
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-14 animate-pulse rounded-xl border border-border bg-card" />
+              ))}
+            </div>
+          ) : linkedNotes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 mb-3">
+                <FileText className="h-5 w-5 text-primary" />
+              </div>
+              <p className="text-sm font-medium text-foreground">No linked notes</p>
+              <p className="mt-1 text-xs text-muted-foreground max-w-xs">
+                Link study notes to this deck to keep related content connected.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {linkedNotes.map((note) => {
+                const aRel = note.relationships?.field_area?.data;
+                const sRel = note.relationships?.field_subject?.data;
+                const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
+                const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
+                const notAreaName = aId
+                  ? (linkedNotesIncluded.find((r) => r.id === aId)?.attributes.name as string | undefined)
+                  : undefined;
+                const notSubjectName = sId
+                  ? (linkedNotesIncluded.find((r) => r.id === sId)?.attributes.name as string | undefined)
+                  : undefined;
+                return (
+                  <a
+                    key={note.id}
+                    href={`/dashboard/notes?id=${note.id}`}
+                    className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:border-ring/50 transition-colors"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <FileText className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {note.attributes.title as string}
+                      </p>
+                      {(notAreaName || notSubjectName) && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[notAreaName, notSubjectName].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </main>
     </>
   );

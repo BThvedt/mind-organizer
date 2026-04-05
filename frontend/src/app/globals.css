@@ -192,6 +192,11 @@
   text-decoration-color: var(--foreground);
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
 /* Tables */
 .prose :where(table) {
   font-size: 0.875em;

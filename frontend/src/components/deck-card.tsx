@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Layers, BookOpen, Pencil } from 'lucide-react';
+import { Layers, BookOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { JsonApiResource } from '@/lib/drupal';
@@ -66,16 +66,6 @@ export function DeckCard({ deck, included = [], cardCount = 0 }: DeckCardProps) 
           {cardCount} {cardCount === 1 ? 'card' : 'cards'}
         </span>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={<Link href={`/dashboard/decks/${deck.id}/edit`} />}
-            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Pencil className="h-3 w-3" />
-            Edit
-          </Button>
           {cardCount > 0 && (
             <Button
               size="sm"

@@ -44,6 +44,13 @@ export async function PATCH(
         : null,
     };
   }
+  if ('linkedDeckUuids' in body) {
+    relationships.field_linked_decks = {
+      data: Array.isArray(body.linkedDeckUuids)
+        ? body.linkedDeckUuids.map((id: string) => ({ type: 'node--flashcard_deck', id }))
+        : [],
+    };
+  }
 
   const document = {
     data: {

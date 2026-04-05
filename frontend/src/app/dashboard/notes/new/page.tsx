@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import { LinkDecksDialog } from '@/components/link-decks-dialog';
 import { ArrowLeft, Save, Eye, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +26,7 @@ export default function NewNotePage() {
   const [body, setBody] = useState('');
   const [areaUuid, setAreaUuid] = useState('');
   const [subjectUuid, setSubjectUuid] = useState('');
+  const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
 
   // UI state
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
@@ -62,6 +64,7 @@ export default function NewNotePage() {
           fieldBody: body,
           areaUuid: areaUuid || undefined,
           subjectUuid: subjectUuid || undefined,
+          linkedDeckUuids: linkedDeckIds.length > 0 ? linkedDeckIds : undefined,
         }),
       });
 
@@ -188,13 +191,21 @@ export default function NewNotePage() {
         <div className="border-t border-border bg-background px-4 py-3">
           <div className="mx-auto max-w-screen-2xl">
             <Label className="text-xs text-muted-foreground mb-2 block">Categorise</Label>
-            <AreaSubjectSelector
-              areaUuid={areaUuid}
-              subjectUuid={subjectUuid}
-              onAreaChange={setAreaUuid}
-              onSubjectChange={setSubjectUuid}
-              layout="row"
-            />
+            <div className="flex flex-wrap items-end gap-3">
+              <AreaSubjectSelector
+                areaUuid={areaUuid}
+                subjectUuid={subjectUuid}
+                onAreaChange={setAreaUuid}
+                onSubjectChange={setSubjectUuid}
+                layout="row"
+              />
+              <LinkDecksDialog
+                selectedIds={linkedDeckIds}
+                onChange={setLinkedDeckIds}
+                noteAreaUuid={areaUuid}
+                noteSubjectUuid={subjectUuid}
+              />
+            </div>
           </div>
         </div>
       </div>

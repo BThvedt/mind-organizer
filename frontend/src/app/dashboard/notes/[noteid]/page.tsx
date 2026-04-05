@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import { LinkDecksDialog } from '@/components/link-decks-dialog';
 import { ArrowLeft, Pencil, Eye, Save, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
@@ -37,6 +38,7 @@ export default function EditNotePage({
   const [body, setBody] = useState('');
   const [areaUuid, setAreaUuid] = useState('');
   const [subjectUuid, setSubjectUuid] = useState('');
+  const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -69,8 +71,10 @@ export default function EditNotePage({
           setBody((note.attributes.field_body as string) ?? '');
           const areaRel = note.relationships?.field_area?.data;
           const subjectRel = note.relationships?.field_subject?.data;
+          const linkedDecksRel = note.relationships?.field_linked_decks?.data;
           setAreaUuid(areaRel && !Array.isArray(areaRel) ? areaRel.id : '');
           setSubjectUuid(subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : '');
+          setLinkedDeckIds(Array.isArray(linkedDecksRel) ? linkedDecksRel.map((r) => r.id) : []);
         }
       })
       .finally(() => setLoading(false));
@@ -97,6 +101,7 @@ export default function EditNotePage({
           fieldBody: body,
           areaUuid: areaUuid || null,
           subjectUuid: subjectUuid || null,
+          linkedDeckUuids: linkedDeckIds,
         }),
       });
       if (!res.ok) {
@@ -288,13 +293,21 @@ export default function EditNotePage({
         <div className="border-t border-border bg-background px-4 py-3">
           <div className="mx-auto max-w-screen-2xl">
             <Label className="text-xs text-muted-foreground mb-2 block">Categorise</Label>
-            <AreaSubjectSelector
-              areaUuid={areaUuid}
-              subjectUuid={subjectUuid}
-              onAreaChange={(uuid) => { setAreaUuid(uuid); setSubjectUuid(''); }}
-              onSubjectChange={setSubjectUuid}
-              layout="row"
-            />
+            <div className="flex flex-wrap items-end gap-3">
+              <AreaSubjectSelector
+                areaUuid={areaUuid}
+                subjectUuid={subjectUuid}
+                onAreaChange={(uuid) => { setAreaUuid(uuid); setSubjectUuid(''); }}
+                onSubjectChange={setSubjectUuid}
+                layout="row"
+              />
+              <LinkDecksDialog
+                selectedIds={linkedDeckIds}
+                onChange={setLinkedDeckIds}
+                noteAreaUuid={areaUuid}
+                noteSubjectUuid={subjectUuid}
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -16,7 +16,6 @@ import { Layers, ArrowLeft, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
 import Link from 'next/link';
-
 interface DeckListResponse {
   data: JsonApiResource[];
   included?: JsonApiResource[];

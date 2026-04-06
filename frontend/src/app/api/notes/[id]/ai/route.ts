@@ -21,7 +21,7 @@ const SYSTEM_PROMPTS = {
 
   'generate-deck': [
     'You are a study assistant. The user will provide the body of a study note.',
-    'Generate up to 10 flashcard pairs that cover the most important concepts from the note.',
+    'Generate flashcard pairs that cover the most important concepts from the note.',
     'Prefer concise, testable questions on the front and clear, direct answers on the back.',
     '',
     'Return ONLY a valid JSON array with no extra text, where each element is an object with exactly two string keys:',
@@ -48,6 +48,7 @@ export async function POST(
   const action: string = body.action ?? '';
   const noteBody: string = (body.noteBody ?? '').trim();
   const prompt: string = (body.prompt ?? '').trim();
+  const limit: number = Math.min(20, Math.max(1, Number(body.limit ?? 10)));
 
   if (!['format', 'add-content', 'generate-deck'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
@@ -64,6 +65,19 @@ export async function POST(
       ? `Note:\n${noteBody}\n\nInstruction: ${prompt}`
       : noteBody;
 
+  const systemPrompt =
+    action === 'generate-deck'
+      ? [
+          'You are a study assistant. The user will provide the body of a study note.',
+          `Generate up to ${limit} flashcard pairs that cover the most important concepts from the note.`,
+          'Prefer concise, testable questions on the front and clear, direct answers on the back.',
+          '',
+          'Return ONLY a valid JSON array with no extra text, where each element is an object with exactly two string keys:',
+          '"front" (the question or prompt) and "back" (the answer or explanation).',
+          'Example: [{"front": "What is X?", "back": "X is ..."}]',
+        ].join('\n')
+      : SYSTEM_PROMPTS[action as keyof typeof SYSTEM_PROMPTS];
+
   try {
     const res = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
@@ -75,7 +89,7 @@ export async function POST(
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPTS[action as keyof typeof SYSTEM_PROMPTS],
+        system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       }),
     });
@@ -119,7 +133,7 @@ export async function POST(
             (item as Record<string, unknown>).front !== '' &&
             (item as Record<string, unknown>).back !== ''
         )
-        .slice(0, 10)
+        .slice(0, limit)
         .map(({ front, back }) => ({ front: front.trim(), back: back.trim() }));
 
       return NextResponse.json({ candidates });

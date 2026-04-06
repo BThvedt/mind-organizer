@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,6 +29,7 @@ type Step =
   | 'confirm-format'
   | 'add-content'
   | 'confirm-add'
+  | 'generate-deck-config'
   | 'deck-review';
 
 interface Candidate {
@@ -58,6 +59,8 @@ export function NoteAiDialog({
   onBodyChange,
   onLinksChange,
 }: NoteAiDialogProps) {
+  const generateLimitInputRef = useRef<HTMLInputElement>(null);
+
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('menu');
 
@@ -78,6 +81,8 @@ export function NoteAiDialog({
   const [autoLink, setAutoLink] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [generateLimitValue, setGenerateLimitValue] = useState(5);
+  const [generateIsAuto, setGenerateIsAuto] = useState(false);
 
   function reset() {
     setStep('menu');
@@ -91,6 +96,8 @@ export function NoteAiDialog({
     setAutoLink(true);
     setSaving(false);
     setSaveError('');
+    setGenerateLimitValue(5);
+    setGenerateIsAuto(false);
   }
 
   function handleOpenChange(next: boolean) {
@@ -173,7 +180,7 @@ export function NoteAiDialog({
       const res = await fetch(`/api/notes/${noteId}/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate-deck', noteBody }),
+        body: JSON.stringify({ action: 'generate-deck', noteBody, limit: generateIsAuto ? 10 : generateLimitValue }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? 'Generation failed.'); return; }
@@ -320,7 +327,7 @@ export function NoteAiDialog({
               </button>
 
               <button
-                onClick={handleGenerateDeck}
+                onClick={() => { setError(''); setStep('generate-deck-config'); }}
                 disabled={loading}
                 className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-ring/50 hover:bg-muted/40 disabled:opacity-50"
               >
@@ -331,9 +338,6 @@ export function NoteAiDialog({
                     Create a flashcard deck based on the content of this note.
                   </p>
                 </div>
-                {loading && (
-                  <Loader2 className="h-4 w-4 animate-spin ml-auto shrink-0 mt-0.5 text-muted-foreground" />
-                )}
               </button>
             </div>
 
@@ -453,6 +457,89 @@ export function NoteAiDialog({
                 Back
               </Button>
               <Button onClick={applyAddContent}>Apply</Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {/* ── Generate deck config ── */}
+        {step === 'generate-deck-config' && (
+          <div className="flex flex-col gap-4">
+            <DialogHeader>
+              <DialogTitle>Generate deck from note</DialogTitle>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Number of cards to generate</Label>
+              <div className="flex items-center gap-2">
+                <div
+                  onClick={() => {
+                    if (generateIsAuto) {
+                      setGenerateIsAuto(false);
+                      setTimeout(() => generateLimitInputRef.current?.focus(), 0);
+                    }
+                  }}
+                  className={generateIsAuto ? 'cursor-text' : undefined}
+                >
+                  <Input
+                    ref={generateLimitInputRef}
+                    type="number"
+                    min={1}
+                    max={15}
+                    value={generateLimitValue}
+                    onChange={(e) => {
+                      const v = Math.min(15, Math.max(1, parseInt(e.target.value, 10) || 1));
+                      setGenerateLimitValue(v);
+                    }}
+                    disabled={generateIsAuto}
+                    className="w-20 h-8 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGenerateIsAuto((a) => !a)}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-sm font-medium border transition-colors',
+                    generateIsAuto
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-ring/50'
+                  )}
+                >
+                  Auto
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {generateIsAuto
+                  ? 'AI will generate cards (max 10).'
+                  : `AI will try to generate ${generateLimitValue} card${generateLimitValue === 1 ? '' : 's'} from this note.`}
+              </p>
+            </div>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <DialogFooter showCloseButton>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => { setError(''); setStep('menu'); }}
+                className="mr-auto gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <Button onClick={handleGenerateDeck} disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Generate
+                  </>
+                )}
+              </Button>
             </DialogFooter>
           </div>
         )}

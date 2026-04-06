@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Sparkles, Loader2, ChevronLeft } from 'lucide-react';
@@ -30,11 +31,15 @@ interface AiGenerateDialogProps {
 }
 
 export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
+  const limitInputRef = useRef<HTMLInputElement>(null);
+
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'prompt' | 'review'>('prompt');
 
   // Step 1
   const [prompt, setPrompt] = useState('');
+  const [limitValue, setLimitValue] = useState(5);
+  const [isAuto, setIsAuto] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState('');
 
@@ -46,6 +51,8 @@ export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
   function reset() {
     setStep('prompt');
     setPrompt('');
+    setLimitValue(5);
+    setIsAuto(false);
     setGenerating(false);
     setGenError('');
     setCandidates([]);
@@ -68,7 +75,7 @@ export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
       const res = await fetch(`/api/decks/${deckId}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim(), limit: 10 }),
+        body: JSON.stringify({ prompt: prompt.trim(), limit: isAuto ? 10 : limitValue }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -164,7 +171,52 @@ export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
                 autoFocus
                 className="resize-none"
               />
-              <p className="text-xs text-muted-foreground">Limit: 10 cards per generation</p>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Number of cards to generate</Label>
+              <div className="flex items-center gap-2">
+                <div
+                  onClick={() => {
+                    if (isAuto) {
+                      setIsAuto(false);
+                      setTimeout(() => limitInputRef.current?.focus(), 0);
+                    }
+                  }}
+                  className={isAuto ? 'cursor-text' : undefined}
+                >
+                  <Input
+                    ref={limitInputRef}
+                    type="number"
+                    min={1}
+                    max={15}
+                    value={limitValue}
+                    onChange={(e) => {
+                      const v = Math.min(15, Math.max(1, parseInt(e.target.value, 10) || 1));
+                      setLimitValue(v);
+                    }}
+                    disabled={isAuto}
+                    className="w-20 h-8 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAuto((a) => !a)}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-sm font-medium border transition-colors',
+                    isAuto
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-ring/50'
+                  )}
+                >
+                  Auto
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isAuto
+                  ? 'AI will generate cards (max 10).'
+                  : `AI will try to generate ${limitValue} card${limitValue === 1 ? '' : 's'}.`}
+              </p>
             </div>
 
             {genError && <p className="text-sm text-destructive">{genError}</p>}

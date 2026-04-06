@@ -27,7 +27,7 @@ export async function POST(
 
   const body = await request.json();
   const prompt: string = (body.prompt ?? '').trim();
-  const limit: number = Math.min(10, Math.max(1, Number(body.limit ?? 10)));
+  const limit: number = Math.min(20, Math.max(1, Number(body.limit ?? 10)));
 
   if (!prompt) {
     return NextResponse.json({ error: 'prompt is required.' }, { status: 400 });

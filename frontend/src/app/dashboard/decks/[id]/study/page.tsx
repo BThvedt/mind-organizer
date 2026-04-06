@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback, use } from 'react';
+import { useEffect, useState, useCallback, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, X, RotateCcw, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
+import { logSession } from '@/lib/sessions';
 
 type Result = 'correct' | 'incorrect';
 
@@ -46,6 +47,8 @@ export default function StudyPage({
   const [results, setResults] = useState<Map<string, Result>>(new Map());
   const [done, setDone] = useState(false);
   const [sessionCards, setSessionCards] = useState<JsonApiResource[]>([]);
+  const sessionStartedAt = useRef<string | null>(null);
+  const sessionLogged = useRef(false);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -71,6 +74,8 @@ export default function StudyPage({
         const loaded = c.data ?? [];
         setCards(loaded);
         setSessionCards(loaded);
+        sessionStartedAt.current = new Date().toISOString();
+        sessionLogged.current = false;
       }
       setLoading(false);
     });
@@ -117,23 +122,49 @@ export default function StudyPage({
     });
   }, [index]);
 
+  const logCurrentSession = useCallback(() => {
+    if (sessionLogged.current || !sessionStartedAt.current || results.size === 0) return;
+    sessionLogged.current = true;
+    const correct = [...results.values()].filter((v) => v === 'correct').length;
+    const incorrect = [...results.values()].filter((v) => v === 'incorrect').length;
+    logSession({
+      startedAt: sessionStartedAt.current,
+      endedAt: new Date().toISOString(),
+      cardsReviewed: correct + incorrect,
+      correctCount: correct,
+      incorrectCount: incorrect,
+      type: 'deck',
+      deckId: id,
+    });
+  }, [results, id]);
+
+  useEffect(() => {
+    if (done) logCurrentSession();
+  }, [done, logCurrentSession]);
+
   const restartAll = useCallback(() => {
+    logCurrentSession();
     setSessionCards(cards);
     setIndex(0);
     setRevealed(false);
     setResults(new Map());
     setDone(false);
-  }, [cards]);
+    sessionStartedAt.current = new Date().toISOString();
+    sessionLogged.current = false;
+  }, [cards, logCurrentSession]);
 
   const restartMissed = useCallback(() => {
     const missed = sessionCards.filter((c) => results.get(c.id) !== 'correct');
     if (missed.length === 0) return;
+    logCurrentSession();
     setSessionCards(missed);
     setIndex(0);
     setRevealed(false);
     setResults(new Map());
     setDone(false);
-  }, [sessionCards, results]);
+    sessionStartedAt.current = new Date().toISOString();
+    sessionLogged.current = false;
+  }, [sessionCards, results, logCurrentSession]);
 
   // Keyboard controls
   useEffect(() => {

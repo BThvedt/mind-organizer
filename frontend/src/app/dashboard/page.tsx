@@ -7,11 +7,14 @@ import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { BookOpen, Brain, BarChart3, Flame, Clock, Trophy, FileText } from 'lucide-react';
 import { loadSRSPool, countMastered } from '@/lib/srs';
+import { getStreak, getTotalMinutes } from '@/lib/sessions';
 
 export default function Dashboard() {
   const router = useRouter();
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [mastered, setMastered] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [minutesStudied, setMinutesStudied] = useState(0);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -22,6 +25,8 @@ export default function Dashboard() {
         } else {
           setAuthenticated(true);
           setMastered(countMastered(loadSRSPool()));
+          setStreak(getStreak());
+          setMinutesStudied(getTotalMinutes());
         }
       });
   }, [router]);
@@ -51,8 +56,8 @@ export default function Dashboard() {
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
           {[
-            { icon: <Flame className="h-5 w-5 text-primary" />, label: 'Day streak', value: '0' },
-            { icon: <Clock className="h-5 w-5 text-primary" />, label: 'Minutes studied', value: '0' },
+            { icon: <Flame className="h-5 w-5 text-primary" />, label: 'Day streak', value: String(streak) },
+            { icon: <Clock className="h-5 w-5 text-primary" />, label: 'Minutes studied', value: String(minutesStudied) },
             { icon: <Trophy className="h-5 w-5 text-primary" />, label: 'Cards mastered', value: String(mastered) },
           ].map(({ icon, label, value }) => (
             <div
@@ -100,7 +105,7 @@ export default function Dashboard() {
               title: 'Progress',
               description: 'See your retention rate and study history.',
               action: 'View stats',
-              href: null,
+              href: '/dashboard/progress',
             },
           ].map(({ icon, title, description, action, href }) => (
             <div

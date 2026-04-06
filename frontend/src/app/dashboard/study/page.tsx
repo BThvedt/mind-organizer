@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
 } from '@/lib/srs';
 import type { StudyCard, SRSPool } from '@/lib/srs';
 import type { JsonApiResource, JsonApiRelData } from '@/lib/drupal';
+import { logSession } from '@/lib/sessions';
 
 type Result = 'correct' | 'incorrect';
 
@@ -140,6 +141,8 @@ export default function StudyNowPage() {
   const [revealed, setRevealed] = useState(false);
   const [results, setResults] = useState<Map<string, Result>>(new Map());
   const [done, setDone] = useState(false);
+  const sessionStartedAt = useRef<string | null>(null);
+  const sessionLogged = useRef(false);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -209,6 +212,8 @@ export default function StudyNowPage() {
     setResults(new Map());
     setDone(false);
     setSessionStarted(true);
+    sessionStartedAt.current = new Date().toISOString();
+    sessionLogged.current = false;
   }, [pool, allCards, filterAreaId, filterSubjectId]);
 
   const flip = useCallback(() => setRevealed((r) => !r), []);
@@ -264,11 +269,31 @@ export default function StudyNowPage() {
     });
   }, [index]);
 
+  const logCurrentSession = useCallback(() => {
+    if (sessionLogged.current || !sessionStartedAt.current || results.size === 0) return;
+    sessionLogged.current = true;
+    const correct = [...results.values()].filter((v) => v === 'correct').length;
+    const incorrect = [...results.values()].filter((v) => v === 'incorrect').length;
+    logSession({
+      startedAt: sessionStartedAt.current,
+      endedAt: new Date().toISOString(),
+      cardsReviewed: correct + incorrect,
+      correctCount: correct,
+      incorrectCount: incorrect,
+      type: 'srs',
+    });
+  }, [results]);
+
+  useEffect(() => {
+    if (done) logCurrentSession();
+  }, [done, logCurrentSession]);
+
   const restartSession = useCallback(() => {
+    logCurrentSession();
     setSessionStarted(false);
     setDone(false);
     setResults(new Map());
-  }, []);
+  }, [logCurrentSession]);
 
   // ── Keyboard controls ─────────────────────────────────────────────────────
 

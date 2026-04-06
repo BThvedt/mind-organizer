@@ -84,11 +84,17 @@ class SearchController extends ControllerBase {
     // Area / subject filters (only apply to non-flashcard types since
     // flashcards don't carry these fields — the parent deck does).
     $index_fields = $index->getFields();
+    $current_uid = (int) $this->currentUser()->id();
+
     $area_tid = NULL;
     if ($area_uuid !== '' && isset($index_fields['field_area'])) {
       $area_terms = $this->entityTypeManager()
         ->getStorage('taxonomy_term')
-        ->loadByProperties(['uuid' => $area_uuid, 'vid' => 'area']);
+        ->loadByProperties([
+          'uuid' => $area_uuid,
+          'vid' => 'area',
+          'field_owner' => $current_uid,
+        ]);
       if (!empty($area_terms)) {
         $area_tid = (int) reset($area_terms)->id();
       }
@@ -98,7 +104,11 @@ class SearchController extends ControllerBase {
     if ($subject_uuid !== '' && isset($index_fields['field_subject'])) {
       $subject_terms = $this->entityTypeManager()
         ->getStorage('taxonomy_term')
-        ->loadByProperties(['uuid' => $subject_uuid, 'vid' => 'subject']);
+        ->loadByProperties([
+          'uuid' => $subject_uuid,
+          'vid' => 'subject',
+          'field_owner' => $current_uid,
+        ]);
       if (!empty($subject_terms)) {
         $subject_tid = (int) reset($subject_terms)->id();
       }

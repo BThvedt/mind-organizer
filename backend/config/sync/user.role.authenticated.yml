@@ -27,6 +27,8 @@ permissions:
   - 'create terms in area'
   - 'create terms in subject'
   - 'delete own files'
+  - 'delete terms in area'
+  - 'delete terms in subject'
   - 'delete own flashcard content'
   - 'delete own flashcard_deck content'
   - 'delete own study_note content'

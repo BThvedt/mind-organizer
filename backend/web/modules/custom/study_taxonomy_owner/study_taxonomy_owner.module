@@ -1,0 +1,99 @@
+<?php
+
+/**
+ * @file
+ * Enforces per-user ownership on area and subject taxonomy terms.
+ */
+
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Access\AccessResultInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\taxonomy\TermInterface;
+
+const STUDY_TAXONOMY_OWNER_VOCABULARIES = ['area', 'subject'];
+
+/**
+ * Implements hook_taxonomy_term_presave().
+ *
+ * - New terms: auto-sets field_owner to the current user.
+ * - Existing terms: resets field_owner to its original value if a non-admin
+ *   attempts to change it (prevents owner tampering via JSON:API PATCH).
+ */
+function study_taxonomy_owner_taxonomy_term_presave(TermInterface $term): void {
+  if (!in_array($term->bundle(), STUDY_TAXONOMY_OWNER_VOCABULARIES, TRUE)) {
+    return;
+  }
+  if (!$term->hasField('field_owner')) {
+    return;
+  }
+
+  if ($term->isNew()) {
+    if ($term->get('field_owner')->isEmpty()) {
+      $term->set('field_owner', \Drupal::currentUser()->id());
+    }
+    return;
+  }
+
+  if (isset($term->original)
+    && !$term->original->get('field_owner')->isEmpty()
+    && !\Drupal::currentUser()->hasPermission('administer taxonomy')) {
+    $term->set('field_owner', $term->original->get('field_owner')->target_id);
+  }
+}
+
+/**
+ * Implements hook_taxonomy_term_access().
+ *
+ * Restricts view/update/delete of area and subject terms to their owner.
+ * Returns neutral for owners (letting core permissions still apply) and
+ * forbidden for non-owners.
+ */
+function study_taxonomy_owner_taxonomy_term_access(TermInterface $term, string $operation, AccountInterface $account): AccessResultInterface {
+  if (!in_array($term->bundle(), STUDY_TAXONOMY_OWNER_VOCABULARIES, TRUE)) {
+    return AccessResult::neutral();
+  }
+
+  if ($account->hasPermission('administer taxonomy')) {
+    return AccessResult::neutral();
+  }
+
+  // New (unsaved) entities don't have field_owner yet — the presave hook
+  // sets it. Defer to core's checkCreateAccess for creation permission.
+  if ($term->isNew()) {
+    return AccessResult::neutral();
+  }
+
+  if (!$term->hasField('field_owner') || $term->get('field_owner')->isEmpty()) {
+    return AccessResult::forbidden('Term has no owner.')
+      ->addCacheableDependency($term)
+      ->cachePerUser();
+  }
+
+  $is_owner = (int) $term->get('field_owner')->target_id === (int) $account->id();
+
+  if ($is_owner) {
+    return AccessResult::neutral()
+      ->addCacheableDependency($term)
+      ->cachePerUser();
+  }
+
+  return AccessResult::forbidden('You do not own this taxonomy term.')
+    ->addCacheableDependency($term)
+    ->cachePerUser();
+}
+
+/**
+ * Implements hook_jsonapi_entity_filter_access().
+ *
+ * Grants authenticated users the ability to filter taxonomy term collections
+ * (required for field_owner-based queries to work in JSON:API).
+ */
+function study_taxonomy_owner_jsonapi_entity_filter_access(EntityTypeInterface $entity_type, AccountInterface $account): array {
+  if ($entity_type->id() === 'taxonomy_term') {
+    return [
+      JSONAPI_FILTER_AMONG_PUBLISHED => AccessResult::allowedIfHasPermission($account, 'access content'),
+    ];
+  }
+  return [];
+}

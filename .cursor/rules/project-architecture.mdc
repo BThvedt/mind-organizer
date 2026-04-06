@@ -26,6 +26,16 @@ Area (taxonomy) ← Subject (taxonomy, field_area required)
 
 Both `flashcard_deck` and `study_note` nodes have **optional** `field_area` and `field_subject` references. A deck/note can have: area only, subject only, both, or neither.
 
+### Per-User Ownership
+
+Area and subject terms are **scoped per user** via `field_owner` (entity reference → user). Each user sees only their own terms.
+
+- **Module**: `study_taxonomy_owner` (`backend/web/modules/custom/study_taxonomy_owner/`)
+- `hook_taxonomy_term_presave()` auto-sets `field_owner` to the current user on new terms
+- `hook_taxonomy_term_access()` restricts view/update/delete to the term owner (admins bypass)
+- `hook_entity_field_access()` makes `field_owner` read-only for non-admins
+- **Frontend must always filter** by owner: `filter[field_owner.id][value]=<user-uuid>` (for performance — the access hook enforces security regardless)
+
 ## Content Types (all are Drupal nodes)
 
 ### `flashcard_deck`

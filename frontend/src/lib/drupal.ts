@@ -15,25 +15,41 @@ function buildHeaders(token: string | undefined, extra?: HeadersInit): HeadersIn
 /**
  * Server-side authenticated fetch to Drupal JSON:API.
  * Reads the access_token httpOnly cookie and attaches it as a Bearer token.
- * Automatically attempts a silent token refresh on a 401 and retries once.
+ * Proactively refreshes when the access_token is missing but refresh_token
+ * exists, and also retries once on a 401 response.
  */
 export async function drupalFetch(path: string, options?: RequestInit) {
   const cookieStore = await cookies();
-  const token = cookieStore.get('access_token')?.value;
+  let token = cookieStore.get('access_token')?.value;
+
+  // Proactive refresh: access_token expired/missing but refresh_token remains.
+  // Without this, the request would reach Drupal as anonymous and return 403
+  // (not 401), bypassing the reactive refresh below.
+  if (!token) {
+    const refreshToken = cookieStore.get('refresh_token')?.value;
+    if (refreshToken) {
+      const newTokens = await refreshAccessToken(refreshToken);
+      if (newTokens) {
+        applyTokenCookies(
+          { cookies: { set: (name: string, value: string, opts: object) => cookieStore.set(name, value, opts) } },
+          newTokens
+        );
+        token = newTokens.access_token;
+      }
+    }
+  }
 
   const res = await fetch(`${DRUPAL_BASE_URL}${path}`, {
     ...options,
     headers: buildHeaders(token, options?.headers),
   });
 
-  // On 401, attempt a silent token refresh and retry the original request once
+  // Reactive refresh: token was present but Drupal rejected it (e.g. revoked).
   if (res.status === 401) {
     const refreshToken = cookieStore.get('refresh_token')?.value;
     if (refreshToken) {
       const newTokens = await refreshAccessToken(refreshToken);
       if (newTokens) {
-        // Persist new tokens into the cookie store so subsequent calls in the
-        // same request cycle also benefit from the fresh token
         applyTokenCookies(
           { cookies: { set: (name: string, value: string, opts: object) => cookieStore.set(name, value, opts) } },
           newTokens

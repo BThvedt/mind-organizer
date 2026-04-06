@@ -1,0 +1,9 @@
+name: 'Study Taxonomy Owner'
+type: module
+description: 'Enforces per-user ownership on area and subject taxonomy terms.'
+package: 'Study App'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:taxonomy
+  - drupal:user
+  - drupal:jsonapi

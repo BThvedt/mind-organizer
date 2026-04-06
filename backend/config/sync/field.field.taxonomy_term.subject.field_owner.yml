@@ -1,0 +1,25 @@
+uuid: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.taxonomy_term.field_owner
+    - taxonomy.vocabulary.subject
+  module:
+    - user
+id: taxonomy_term.subject.field_owner
+field_name: field_owner
+entity_type: taxonomy_term
+bundle: subject
+label: Owner
+description: 'The user who owns this term.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:user'
+  handler_settings:
+    include_anonymous: false
+    auto_create: false
+field_type: entity_reference

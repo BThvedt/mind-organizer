@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { drupalFetch } from '@/lib/drupal';
+import { drupalFetch, getCurrentUserUuid } from '@/lib/drupal';
 
 /**
  * GET /api/taxonomy?type=areas
@@ -9,8 +9,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
 
+  const userUuid = await getCurrentUserUuid();
+  if (!userUuid) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const ownerFilter = `&filter[field_owner.id][value]=${userUuid}`;
+
   if (type === 'areas') {
-    const res = await drupalFetch('/jsonapi/taxonomy_term/area?sort=name&page[limit]=100');
+    const res = await drupalFetch(
+      `/jsonapi/taxonomy_term/area?sort=name&page[limit]=100${ownerFilter}`
+    );
     if (!res.ok) {
       return NextResponse.json({ error: 'Failed to fetch areas' }, { status: res.status });
     }
@@ -19,9 +27,9 @@ export async function GET(request: NextRequest) {
 
   if (type === 'subjects') {
     const area = searchParams.get('area');
-    const filter = area ? `&filter[field_area.id][value]=${area}` : '';
+    const areaFilter = area ? `&filter[field_area.id][value]=${area}` : '';
     const res = await drupalFetch(
-      `/jsonapi/taxonomy_term/subject?sort=name&page[limit]=100${filter}`
+      `/jsonapi/taxonomy_term/subject?sort=name&page[limit]=100${ownerFilter}${areaFilter}`
     );
     if (!res.ok) {
       return NextResponse.json({ error: 'Failed to fetch subjects' }, { status: res.status });
@@ -36,6 +44,9 @@ export async function GET(request: NextRequest) {
  * POST /api/taxonomy
  * Body: { type: 'area', name: string }
  *       { type: 'subject', name: string, areaUuid: string }
+ *
+ * field_owner is set server-side by the study_taxonomy_owner module's
+ * presave hook — no need to include it in the JSON:API document.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();

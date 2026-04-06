@@ -43,6 +43,7 @@ module:
   simple_oauth_password_grant: 0
   study_flashcard_generator: 0
   study_search: 0
+  study_taxonomy_owner: 0
   system: 0
   taxonomy: 0
   text: 0

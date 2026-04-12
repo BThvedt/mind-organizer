@@ -13,7 +13,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Sparkles, Loader2, ChevronLeft } from 'lucide-react';
+import { Sparkles, Loader2, ChevronLeft, WifiOff } from 'lucide-react';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
 
 interface Candidate {
@@ -32,6 +33,7 @@ interface AiGenerateDialogProps {
 
 export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
   const limitInputRef = useRef<HTMLInputElement>(null);
+  const { isOnline } = useOnlineStatus();
 
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'prompt' | 'review'>('prompt');
@@ -143,9 +145,15 @@ export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
+        disabled={!isOnline}
         render={
-          <Button variant="outline" size="sm">
-            <Sparkles className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!isOnline}
+            title={isOnline ? undefined : "AI generation requires an internet connection"}
+          >
+            {isOnline ? <Sparkles className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
             AI
           </Button>
         }

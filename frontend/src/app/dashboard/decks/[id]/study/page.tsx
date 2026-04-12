@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, X, RotateCcw, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react';
@@ -39,7 +40,6 @@ export default function StudyPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [deckTitle, setDeckTitle] = useState('');
   const [cards, setCards] = useState<JsonApiResource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,14 +60,7 @@ export default function StudyPage({
   const slideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   useEffect(() => {
     if (!authenticated) return;

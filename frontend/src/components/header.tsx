@@ -11,8 +11,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { BookOpen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings } from 'lucide-react';
+import { BookOpen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff } from 'lucide-react';
 import { SearchDialog } from '@/components/search-dialog';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -25,11 +26,12 @@ interface HeaderProps {
 export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const pathname = usePathname();
+  const { isOnline } = useOnlineStatus();
 
   // Open search with "/" key (unless focus is on an input/textarea)
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === '/' && !searchOpen) {
+      if (e.key === '/' && !searchOpen && isOnline) {
         const tag = (e.target as HTMLElement).tagName;
         if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
           e.preventDefault();
@@ -39,7 +41,7 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [searchOpen]);
+  }, [searchOpen, isOnline]);
 
   const logoContent = (
     <>
@@ -105,15 +107,24 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                   <span className="hidden sm:inline">Todos</span>
                 </Link>
                 <button
-                  onClick={() => setSearchOpen(true)}
-                  className="flex items-center gap-2 h-8 rounded-lg border border-border bg-muted/50 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  aria-label="Search"
+                  onClick={() => isOnline && setSearchOpen(true)}
+                  disabled={!isOnline}
+                  className={cn(
+                    "flex items-center gap-2 h-8 rounded-lg border border-border bg-muted/50 px-3 text-sm transition-colors",
+                    isOnline
+                      ? "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      : "opacity-50 cursor-not-allowed"
+                  )}
+                  aria-label={isOnline ? "Search" : "Search unavailable offline"}
+                  title={isOnline ? undefined : "Search requires an internet connection"}
                 >
-                  <Search className="h-3.5 w-3.5" />
+                  {isOnline ? <Search className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
                   <span className="hidden sm:inline">Search</span>
-                  <kbd className="hidden sm:inline-flex h-5 items-center rounded border border-border bg-background px-1.5 text-[10px] font-mono">
-                    /
-                  </kbd>
+                  {isOnline && (
+                    <kbd className="hidden sm:inline-flex h-5 items-center rounded border border-border bg-background px-1.5 text-[10px] font-mono">
+                      /
+                    </kbd>
+                  )}
                 </button>
               </>
             )}

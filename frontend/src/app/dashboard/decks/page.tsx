@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/header';
 import { DeckCard } from '@/components/deck-card';
 import { DeckCreateDialog } from '@/components/deck-create-dialog';
@@ -27,7 +28,6 @@ interface CardsResponse {
 
 export default function DecksPage() {
   const router = useRouter();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [decks, setDecks] = useState<JsonApiResource[]>([]);
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({});
@@ -35,14 +35,7 @@ export default function DecksPage() {
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterSubjectId, setFilterSubjectId] = useState('');
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   const loadDecks = useCallback(async () => {
     setLoading(true);

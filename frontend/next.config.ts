@@ -1,9 +1,6 @@
-import type { NextConfig } from "next";
+import { withSerwist } from "@serwist/turbopack";
 
-const nextConfig: NextConfig = {
-  /* config options here */
+export default withSerwist({
   reactCompiler: true,
-  allowedDevOrigins: ['http://localhost:3000', 'http://127.0.0.1:3000']
-};
-
-export default nextConfig;
+  allowedDevOrigins: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+});

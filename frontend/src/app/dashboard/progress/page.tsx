@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { ActivityHeatmap } from '@/components/activity-heatmap';
@@ -29,7 +30,7 @@ function formatTime(minutes: number): string {
 
 export default function ProgressPage() {
   const router = useRouter();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const authenticated = useAuth();
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [streak, setStreak] = useState(0);
   const [totalMinutes, setTotalMinutes] = useState(0);
@@ -40,31 +41,23 @@ export default function ProgressPage() {
   const [dueToday, setDueToday] = useState(0);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) {
-          router.replace('/');
-        } else {
-          setAuthenticated(true);
+    if (!authenticated) return;
 
-          const loadedPool = loadSRSPool();
-          setSessions(loadSessions());
-          setStreak(getStreak());
-          setTotalMinutes(getTotalMinutes());
-          setRetention(getRetentionRate(30));
-          setMastered(countMastered(loadedPool));
+    const loadedPool = loadSRSPool();
+    setSessions(loadSessions());
+    setStreak(getStreak());
+    setTotalMinutes(getTotalMinutes());
+    setRetention(getRetentionRate(30));
+    setMastered(countMastered(loadedPool));
 
-          const entries = Object.values(loadedPool);
-          setNewCount(entries.filter((d) => !d.retired && d.repetitions === 0).length);
-          setLearningCount(entries.filter((d) => !d.retired && d.repetitions > 0).length);
+    const entries = Object.values(loadedPool);
+    setNewCount(entries.filter((e) => !e.retired && e.repetitions === 0).length);
+    setLearningCount(entries.filter((e) => !e.retired && e.repetitions > 0).length);
 
-          const today = new Date().toISOString().slice(0, 10);
-          const due = entries.filter((d) => !d.retired && d.nextReviewAt <= today).length;
-          setDueToday(due);
-        }
-      });
-  }, [router]);
+    const today = new Date().toISOString().slice(0, 10);
+    const due = entries.filter((e) => !e.retired && e.nextReviewAt <= today).length;
+    setDueToday(due);
+  }, [authenticated]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });

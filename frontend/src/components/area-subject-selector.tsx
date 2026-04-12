@@ -31,6 +31,7 @@ interface TaxonomyComboboxProps {
   placeholder?: string;
   onCreate?: (name: string) => Promise<string | null>;
   compact?: boolean;
+  onError?: (msg: string) => void;
 }
 
 function TaxonomyCombobox({
@@ -42,10 +43,12 @@ function TaxonomyCombobox({
   placeholder = 'None',
   onCreate,
   compact = false,
+  onError,
 }: TaxonomyComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const selectedLabel = value
     ? (options.find((o) => o.id === value)?.attributes.name ?? placeholder)
@@ -65,7 +68,10 @@ function TaxonomyCombobox({
 
   function handleOpenChange(isOpen: boolean) {
     setOpen(isOpen);
-    if (!isOpen) setSearch('');
+    if (!isOpen) {
+      setSearch('');
+      setCreateError('');
+    }
   }
 
   function handleSelect(uuid: string) {
@@ -77,9 +83,21 @@ function TaxonomyCombobox({
   async function handleCreate() {
     if (!canCreate || !onCreate) return;
     setCreating(true);
+    setCreateError('');
+    onError?.('');
     try {
       const newId = await onCreate(search.trim());
-      if (newId) handleSelect(newId);
+      if (newId) {
+        handleSelect(newId);
+      } else {
+        const msg = 'Failed to create. You may be offline.';
+        setCreateError(msg);
+        onError?.(msg);
+      }
+    } catch {
+      const msg = 'You appear to be offline. Please try again later.';
+      setCreateError(msg);
+      onError?.(msg);
     } finally {
       setCreating(false);
     }
@@ -140,6 +158,10 @@ function TaxonomyCombobox({
               )}
             </CommandGroup>
 
+            {createError && (
+              <p className="px-3 py-2 text-xs text-destructive">{createError}</p>
+            )}
+
             {canCreate && (
               <>
                 <CommandSeparator />
@@ -183,6 +205,7 @@ export function AreaSubjectSelector({
   const [subjects, setSubjects] = useState<TaxonomyTerm[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(true);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [taxonomyError, setTaxonomyError] = useState('');
 
   useEffect(() => {
     fetch('/api/taxonomy?type=areas')
@@ -204,13 +227,19 @@ export function AreaSubjectSelector({
   }, [areaUuid]);
 
   async function createArea(name: string): Promise<string | null> {
-    const res = await fetch('/api/taxonomy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'area', name }),
-    });
+    const res = await Promise.race([
+      fetch('/api/taxonomy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'area', name }),
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000),
+      ),
+    ]);
     if (!res.ok) return null;
     const data = await res.json();
+    if (data.queued) return null;
     const newTerm: TaxonomyTerm = { id: data.data.id, attributes: { name } };
     setAreas((prev) =>
       [...prev, newTerm].sort((a, b) =>
@@ -222,13 +251,19 @@ export function AreaSubjectSelector({
 
   async function createSubject(name: string): Promise<string | null> {
     if (!areaUuid) return null;
-    const res = await fetch('/api/taxonomy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'subject', name, areaUuid }),
-    });
+    const res = await Promise.race([
+      fetch('/api/taxonomy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'subject', name, areaUuid }),
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000),
+      ),
+    ]);
     if (!res.ok) return null;
     const data = await res.json();
+    if (data.queued) return null;
     const newTerm: TaxonomyTerm = { id: data.data.id, attributes: { name } };
     setSubjects((prev) =>
       [...prev, newTerm].sort((a, b) =>
@@ -261,6 +296,7 @@ export function AreaSubjectSelector({
           placeholder="No area"
           onCreate={createArea}
           compact={compact}
+          onError={setTaxonomyError}
         />
       </div>
 
@@ -275,8 +311,13 @@ export function AreaSubjectSelector({
           placeholder={!areaUuid ? 'Select an area first' : 'No subject'}
           onCreate={areaUuid ? createSubject : undefined}
           compact={compact}
+          onError={setTaxonomyError}
         />
       </div>
+
+      {taxonomyError && (
+        <p className="text-sm text-destructive">{taxonomyError}</p>
+      )}
     </div>
   );
 }

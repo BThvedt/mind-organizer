@@ -38,6 +38,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,16 +85,28 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
       }
       debounceRef.current = setTimeout(async () => {
         setLoading(true);
+        setSearchError('');
         try {
           const params = new URLSearchParams({ q, type });
           if (area) params.set('area', area);
           if (subject) params.set('subject', subject);
-          const res = await fetch(`/api/search?${params}`);
+          const res = await Promise.race([
+            fetch(`/api/search?${params}`),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('timeout')), 5000),
+            ),
+          ]);
           if (res.ok) {
             const data = await res.json();
             setResults(data.results ?? []);
             setTotal(data.total ?? 0);
+          } else {
+            setResults([]);
+            setSearchError('Search is unavailable offline.');
           }
+        } catch {
+          setResults([]);
+          setSearchError('Search is unavailable offline.');
         } finally {
           setLoading(false);
           setSearched(true);
@@ -237,7 +250,13 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
             </p>
           )}
 
-          {searched && results.length === 0 && !loading && (
+          {searchError && !loading && (
+            <div className="flex flex-col items-center gap-2 py-12 text-center text-sm text-muted-foreground">
+              <p>{searchError}</p>
+            </div>
+          )}
+
+          {!searchError && searched && results.length === 0 && !loading && (
             <p className="py-12 text-center text-sm text-muted-foreground">
               No results for{' '}
               <span className="font-medium text-foreground">"{query}"</span>

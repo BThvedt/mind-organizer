@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, X, RotateCcw, ChevronLeft, ChevronRight, Shuffle, BookMarked } from 'lucide-react';
@@ -121,7 +122,6 @@ function SetupScreen({
 
 export default function StudyNowPage() {
   const router = useRouter();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
 
   // Raw card data from API
   const [allCards, setAllCards] = useState<StudyCard[]>([]);
@@ -146,14 +146,7 @@ export default function StudyNowPage() {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   // ── Load cards + enrol into SRS pool ─────────────────────────────────────
 

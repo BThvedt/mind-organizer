@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { FlashcardItem } from '@/components/flashcard-item';
@@ -37,7 +38,6 @@ export default function DeckDetailPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [deck, setDeck] = useState<JsonApiResource | null>(null);
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
   const [cards, setCards] = useState<JsonApiResource[]>([]);
@@ -55,14 +55,7 @@ export default function DeckDetailPage({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   const loadLinkedNotes = useCallback(async () => {
     try {

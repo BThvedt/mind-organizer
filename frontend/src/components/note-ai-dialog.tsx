@@ -21,7 +21,9 @@ import {
   WandSparkles,
   PlusCircle,
   Layers,
+  WifiOff,
 } from 'lucide-react';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
 
 type Step =
@@ -61,6 +63,7 @@ export function NoteAiDialog({
 }: NoteAiDialogProps) {
   const generateLimitInputRef = useRef<HTMLInputElement>(null);
 
+  const { isOnline } = useOnlineStatus();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('menu');
 
@@ -274,9 +277,15 @@ export function NoteAiDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
+        disabled={!isOnline}
         render={
-          <Button variant="outline" size="sm">
-            <Sparkles className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!isOnline}
+            title={isOnline ? undefined : "AI features require an internet connection"}
+          >
+            {isOnline ? <Sparkles className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
             AI
           </Button>
         }

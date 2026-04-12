@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
@@ -11,24 +12,21 @@ import { getStreak, getTotalMinutes } from '@/lib/sessions';
 
 export default function Dashboard() {
   const router = useRouter();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const authenticated = useAuth();
   const [mastered, setMastered] = useState(0);
   const [streak, setStreak] = useState(0);
   const [minutesStudied, setMinutesStudied] = useState(0);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.authenticated) {
-          router.replace('/');
-        } else {
-          setAuthenticated(true);
-          setMastered(countMastered(loadSRSPool()));
-          setStreak(getStreak());
-          setMinutesStudied(getTotalMinutes());
-        }
-      });
+    if (authenticated) {
+      setMastered(countMastered(loadSRSPool()));
+      setStreak(getStreak());
+      setMinutesStudied(getTotalMinutes());
+    }
+  }, [authenticated]);
+
+  useEffect(() => {
+    router.prefetch('/dashboard/todos');
   }, [router]);
 
   async function handleLogout() {

@@ -28,6 +28,7 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
   const [subjectUuid, setSubjectUuid] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [queued, setQueued] = useState(false);
 
   const reset = () => {
     setTitle('');
@@ -35,6 +36,7 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
     setAreaUuid('');
     setSubjectUuid('');
     setError('');
+    setQueued(false);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -52,20 +54,35 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
     setError('');
 
     try {
-      const res = await fetch('/api/decks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          areaUuid: areaUuid || undefined,
-          subjectUuid: subjectUuid || undefined,
+      const res = await Promise.race([
+        fetch('/api/decks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim() || undefined,
+            areaUuid: areaUuid || undefined,
+            subjectUuid: subjectUuid || undefined,
+          }),
         }),
-      });
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 8000),
+        ),
+      ]);
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? 'Failed to create deck.');
+        try {
+          const data = await res.json();
+          setError(data.error ?? 'Failed to create deck.');
+        } catch {
+          setQueued(true);
+        }
+        return;
+      }
+
+      const data = await res.json();
+      if (data.queued) {
+        setQueued(true);
         return;
       }
 
@@ -73,7 +90,7 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
       reset();
       onCreated();
     } catch {
-      setError('An unexpected error occurred.');
+      setQueued(true);
     } finally {
       setSaving(false);
     }
@@ -127,12 +144,23 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
             />
 
             {error && <p className="text-sm text-destructive">{error}</p>}
+            {queued && (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-200">
+                Deck saved offline. It will appear once you reconnect.
+              </div>
+            )}
           </div>
 
           <DialogFooter showCloseButton>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Creating…' : 'Create deck'}
-            </Button>
+            {queued ? (
+              <Button type="button" onClick={() => { setOpen(false); reset(); }}>
+                Done
+              </Button>
+            ) : (
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Creating…' : 'Create deck'}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

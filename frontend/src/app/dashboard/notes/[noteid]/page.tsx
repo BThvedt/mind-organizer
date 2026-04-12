@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,7 +32,6 @@ export default function EditNotePage({
   const { noteid } = use(params);
   const router = useRouter();
 
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -43,18 +43,12 @@ export default function EditNotePage({
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [queued, setQueued] = useState(false);
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   useEffect(() => {
     if (!authenticated) return;
@@ -93,26 +87,41 @@ export default function EditNotePage({
     }
     setSaving(true);
     setSaveError('');
+    setQueued(false);
     try {
-      const res = await fetch(`/api/notes/${noteid}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          fieldBody: body,
-          areaUuid: areaUuid || null,
-          subjectUuid: subjectUuid || null,
-          linkedDeckUuids: linkedDeckIds,
+      const res = await Promise.race([
+        fetch(`/api/notes/${noteid}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim(),
+            fieldBody: body,
+            areaUuid: areaUuid || null,
+            subjectUuid: subjectUuid || null,
+            linkedDeckUuids: linkedDeckIds,
+          }),
         }),
-      });
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 8000),
+        ),
+      ]);
       if (!res.ok) {
-        const data = await res.json();
-        setSaveError(data.error ?? 'Failed to save note.');
+        try {
+          const data = await res.json();
+          setSaveError(data.error ?? 'Failed to save note.');
+        } catch {
+          setQueued(true);
+        }
+        return;
+      }
+      const data = await res.json();
+      if (data.queued) {
+        setQueued(true);
         return;
       }
       router.push(`/dashboard/notes?id=${noteid}`);
     } catch {
-      setSaveError('An unexpected error occurred.');
+      setQueued(true);
     } finally {
       setSaving(false);
     }
@@ -278,8 +287,13 @@ export default function EditNotePage({
           </div>
         </div>
 
-        {saveError && (
+        {saveError && !queued && (
           <p className="px-4 pb-2 text-xs text-destructive">{saveError}</p>
+        )}
+        {queued && (
+          <div className="mx-4 mb-2 rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200">
+            Changes saved offline. They will sync when you reconnect.
+          </div>
         )}
       </div>
 

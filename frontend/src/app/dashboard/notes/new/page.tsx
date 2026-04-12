@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -19,7 +20,6 @@ type MobileTab = 'write' | 'preview';
 
 export default function NewNotePage() {
   const router = useRouter();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -32,15 +32,9 @@ export default function NewNotePage() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [queued, setQueued] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -56,27 +50,43 @@ export default function NewNotePage() {
     setError('');
 
     try {
-      const res = await fetch('/api/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          fieldBody: body,
-          areaUuid: areaUuid || undefined,
-          subjectUuid: subjectUuid || undefined,
-          linkedDeckUuids: linkedDeckIds.length > 0 ? linkedDeckIds : undefined,
+      const res = await Promise.race([
+        fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim(),
+            fieldBody: body,
+            areaUuid: areaUuid || undefined,
+            subjectUuid: subjectUuid || undefined,
+            linkedDeckUuids: linkedDeckIds.length > 0 ? linkedDeckIds : undefined,
+          }),
         }),
-      });
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 8000),
+        ),
+      ]);
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? 'Failed to save note.');
+        try {
+          const data = await res.json();
+          setError(data.error ?? 'Failed to save note.');
+        } catch {
+          setQueued(true);
+        }
+        return;
+      }
+
+      const data = await res.json();
+      if (data.queued) {
+        setError('');
+        setQueued(true);
         return;
       }
 
       router.push('/dashboard/notes');
     } catch {
-      setError('An unexpected error occurred.');
+      setQueued(true);
     } finally {
       setSaving(false);
     }
@@ -138,6 +148,11 @@ export default function NewNotePage() {
         </div>
         {error && (
           <p className="px-4 pb-2 text-xs text-destructive">{error}</p>
+        )}
+        {queued && (
+          <div className="mx-4 mb-2 rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200">
+            Note saved offline. It will appear once you reconnect.
+          </div>
         )}
       </div>
 

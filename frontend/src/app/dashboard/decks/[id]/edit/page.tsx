@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
@@ -25,7 +26,6 @@ export default function EditDeckPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -37,14 +37,7 @@ export default function EditDeckPage({
   const [areaUuid, setAreaUuid] = useState('');
   const [subjectUuid, setSubjectUuid] = useState('');
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   useEffect(() => {
     if (!authenticated) return;

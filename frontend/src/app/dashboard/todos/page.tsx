@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
@@ -171,7 +172,6 @@ function TodosPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [lists, setLists] = useState<JsonApiResource[]>([]);
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,6 +193,7 @@ function TodosPageContent() {
     return `${month}-${day}-${year} Todos`;
   }
   const [creating, setCreating] = useState(false);
+  const [createQueued, setCreateQueued] = useState(false);
 
   // Add-item state
   const [newItemText, setNewItemText] = useState('');
@@ -271,11 +272,13 @@ function TodosPageContent() {
         r.id === itemId ? { ...r, attributes: { ...r.attributes, field_notes: text } } : r
       )
     );
-    await fetch(`/api/todo-items/${itemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes: text }),
-    });
+    try {
+      await fetch(`/api/todo-items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: text }),
+      });
+    } catch { /* queued */ }
   }
 
   // Add-item priority state
@@ -283,14 +286,7 @@ function TodosPageContent() {
   const [newItemNotesOpen, setNewItemNotesOpen] = useState(false);
   const [newItemNotes, setNewItemNotes] = useState('');
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   useEffect(() => {
     const id = searchParams.get('id');
@@ -303,12 +299,19 @@ function TodosPageContent() {
   const loadLists = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/todos');
+      const res = await Promise.race([
+        fetch('/api/todos'),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 8000),
+        ),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setLists(data.data ?? []);
         setIncluded(data.included ?? []);
       }
+    } catch {
+      // Offline or timeout — keep whatever state we have
     } finally {
       setLoading(false);
     }
@@ -337,19 +340,32 @@ function TodosPageContent() {
     e.preventDefault();
     if (!newListTitle.trim()) return;
     setCreating(true);
+    setCreateQueued(false);
     try {
-      const res = await fetch('/api/todos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newListTitle.trim() }),
-      });
+      const res = await Promise.race([
+        fetch('/api/todos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newListTitle.trim() }),
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 8000),
+        ),
+      ]);
       if (res.ok) {
         const data = await res.json();
+        if (data.queued) {
+          setCreateQueued(true);
+          return;
+        }
         setCreateOpen(false);
         setNewListTitle('');
+        setCreateQueued(false);
         await loadLists();
         selectList(data.data.id);
       }
+    } catch {
+      setCreateQueued(true);
     } finally {
       setCreating(false);
     }
@@ -359,13 +375,20 @@ function TodosPageContent() {
 
   async function handleDeleteList(listId: string) {
     if (!confirm('Delete this list and all its items?')) return;
-    await fetch(`/api/todos/${listId}`, { method: 'DELETE' });
+    setLists((prev) => prev.filter((l) => l.id !== listId));
     if (selectedId === listId) {
       setSelectedId(null);
       setMobileShowDetail(false);
       router.replace('/dashboard/todos', { scroll: false });
     }
-    await loadLists();
+    try {
+      await Promise.race([
+        fetch(`/api/todos/${listId}`, { method: 'DELETE' }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+      ]);
+    } catch {
+      // Queued by SW for later sync
+    }
   }
 
   // ── Add item ────────────────────────────────────────────────────────────────
@@ -383,42 +406,98 @@ function TodosPageContent() {
     }
     document.addEventListener('mousedown', onClickElsewhere);
 
+    const text = newItemText.trim();
+    const priority = newItemPriority || null;
+    const notes = newItemNotes.trim() || null;
+
     try {
-      const res = await fetch(`/api/todos/${selectedId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: newItemText.trim(), priority: newItemPriority || null, notes: newItemNotes.trim() || null }),
-      });
+      const res = await Promise.race([
+        fetch(`/api/todos/${selectedId}/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, priority, notes }),
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 8000),
+        ),
+      ]);
       if (res.ok) {
+        const data = await res.json();
         setNewItemText('');
         setNewItemNotes('');
         setNewItemNotesOpen(false);
-        await loadLists();
+        setNewItemPriority('');
+        if (data.queued) {
+          addItemOptimistic(text, priority, notes);
+        } else {
+          await loadLists();
+        }
         if (!clickedElsewhereRef.current) {
           setTimeout(() => addItemInputRef.current?.focus(), 0);
         }
       }
+    } catch {
+      setNewItemText('');
+      setNewItemNotes('');
+      setNewItemNotesOpen(false);
+      setNewItemPriority('');
+      addItemOptimistic(text, priority, notes);
     } finally {
       document.removeEventListener('mousedown', onClickElsewhere);
       setAddingItem(false);
     }
   }
 
+  function addItemOptimistic(text: string, priority: string | null, notes: string | null) {
+    if (!selectedId) return;
+    const tempId = `temp-${Date.now()}`;
+    const tempItem: JsonApiResource = {
+      type: 'node--todo_item',
+      id: tempId,
+      attributes: {
+        field_item_text: text,
+        field_completed: false,
+        field_priority: priority ?? '',
+        field_notes: notes ?? '',
+      },
+      relationships: {},
+    };
+    setIncluded((prev) => [...prev, tempItem]);
+    setLists((prev) =>
+      prev.map((l) => {
+        if (l.id !== selectedId) return l;
+        const existingItems = Array.isArray(l.relationships?.field_items?.data)
+          ? l.relationships.field_items.data
+          : [];
+        return {
+          ...l,
+          relationships: {
+            ...l.relationships,
+            field_items: {
+              data: [...existingItems, { type: 'node--todo_item', id: tempId }],
+            },
+          },
+        };
+      })
+    );
+  }
+
   async function commitTitleEdit() {
     const title = editingTitleText.trim();
     setEditingTitle(false);
     if (!title || !selectedList || title === selectedList.attributes.title) return;
-    // Optimistic update in lists
     setLists((prev) =>
       prev.map((l) =>
         l.id === selectedList.id ? { ...l, attributes: { ...l.attributes, title } } : l
       )
     );
-    await fetch(`/api/todos/${selectedList.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
-    });
+    try {
+      await fetch(`/api/todos/${selectedList.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+    } catch { /* queued */ }
   }
 
   function startEditing(item: JsonApiResource) {
@@ -436,11 +515,13 @@ function TodosPageContent() {
         r.id === itemId ? { ...r, attributes: { ...r.attributes, field_item_text: text } } : r
       )
     );
-    await fetch(`/api/todo-items/${itemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
+    try {
+      await fetch(`/api/todo-items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+    } catch { /* queued */ }
   }
 
   async function handlePriorityChange(itemId: string, priority: Priority) {
@@ -451,18 +532,19 @@ function TodosPageContent() {
           : r
       )
     );
-    await fetch(`/api/todo-items/${itemId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ priority }),
-    });
+    try {
+      await fetch(`/api/todo-items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority }),
+      });
+    } catch { /* queued */ }
   }
 
   // ── Toggle item ─────────────────────────────────────────────────────────────
 
   async function handleToggleItem(itemId: string, currentCompleted: boolean) {
     setTogglingIds((s) => new Set(s).add(itemId));
-    // Optimistic update in included
     setIncluded((prev) =>
       prev.map((r) =>
         r.id === itemId
@@ -476,7 +558,7 @@ function TodosPageContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !currentCompleted }),
       });
-    } finally {
+    } catch { /* queued */ } finally {
       setTogglingIds((s) => {
         const next = new Set(s);
         next.delete(itemId);
@@ -489,14 +571,29 @@ function TodosPageContent() {
 
   async function handleDeleteItem(itemId: string) {
     if (!selectedId) return;
+    const listId = selectedId;
     setDeletingIds((s) => new Set(s).add(itemId));
+    setIncluded((prev) => prev.filter((r) => r.id !== itemId));
+    setLists((prev) =>
+      prev.map((l) => {
+        if (l.id !== listId) return l;
+        const items = Array.isArray(l.relationships?.field_items?.data)
+          ? l.relationships.field_items.data.filter((r: { id: string }) => r.id !== itemId)
+          : [];
+        return { ...l, relationships: { ...l.relationships, field_items: { data: items } } };
+      })
+    );
     try {
-      await fetch(`/api/todo-items/${itemId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listId: selectedId }),
-      });
-      await loadLists();
+      await Promise.race([
+        fetch(`/api/todo-items/${itemId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ listId }),
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+      ]);
+    } catch {
+      // Queued by SW for later sync
     } finally {
       setDeletingIds((s) => {
         const next = new Set(s);
@@ -589,11 +686,13 @@ function TodosPageContent() {
       )
     );
 
-    await fetch(`/api/todos/${selectedList.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemOrder: reordered }),
-    });
+    try {
+      await fetch(`/api/todos/${selectedList.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemOrder: reordered }),
+      });
+    } catch { /* queued */ }
   }
 
   if (!authenticated) return null;
@@ -1066,13 +1165,13 @@ function TodosPageContent() {
       </div>
 
       {/* Create list dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={(next) => { setCreateOpen(next); if (!next) setCreateQueued(false); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New todo list</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateList}>
-            <div className="py-4">
+            <div className="py-4 space-y-3">
               <Input
                 value={newListTitle}
                 onChange={(e) => setNewListTitle(e.target.value)}
@@ -1085,7 +1184,6 @@ function TodosPageContent() {
                     setNewListTitle('');
                     setTitleHighlighted(false);
                   } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
-                    // Move cursor to end so the character appends rather than replaces
                     const input = e.currentTarget;
                     input.setSelectionRange(input.value.length, input.value.length);
                     setTitleHighlighted(false);
@@ -1095,16 +1193,29 @@ function TodosPageContent() {
                 }}
                 placeholder="List name…"
                 autoFocus
-                disabled={creating}
+                disabled={creating || createQueued}
               />
+              {createQueued && (
+                <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-200">
+                  List saved offline. It will appear once you reconnect.
+                </div>
+              )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={!newListTitle.trim() || creating}>
-                Create
-              </Button>
+              {createQueued ? (
+                <Button type="button" onClick={() => { setCreateOpen(false); setCreateQueued(false); }}>
+                  Done
+                </Button>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={!newListTitle.trim() || creating}>
+                    {creating ? 'Creating…' : 'Create'}
+                  </Button>
+                </>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>

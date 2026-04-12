@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UserCircle, KeyRound, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { UserCircle, KeyRound, CheckCircle, AlertCircle, Loader2, WifiOff } from 'lucide-react';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
 
 interface ProfileData {
@@ -40,8 +42,9 @@ function StatusMessage({ status }: { status: Status }) {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [profileFailed, setProfileFailed] = useState(false);
+  const { isOnline } = useOnlineStatus();
 
   const [username, setUsername] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<Status>({ type: 'idle' });
@@ -51,17 +54,7 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordStatus, setPasswordStatus] = useState<Status>({ type: 'idle' });
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.authenticated) {
-          router.replace('/');
-        } else {
-          setAuthenticated(true);
-        }
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   useEffect(() => {
     if (!authenticated) return;
@@ -70,6 +63,10 @@ export default function ProfilePage() {
       .then((data: ProfileData) => {
         setProfile(data);
         setUsername(data.name);
+        setProfileFailed(false);
+      })
+      .catch(() => {
+        setProfileFailed(true);
       });
   }, [authenticated]);
 
@@ -83,18 +80,26 @@ export default function ProfilePage() {
     if (!username.trim()) return;
     setUsernameStatus({ type: 'loading' });
 
-    const res = await fetch('/api/auth/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: username.trim() }),
-    });
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: username.trim() }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-    const data = await res.json();
-    if (res.ok) {
-      setProfile((p) => p ? { ...p, name: data.name } : p);
-      setUsernameStatus({ type: 'success', message: 'Username updated successfully.' });
-    } else {
-      setUsernameStatus({ type: 'error', message: data.error ?? 'Failed to update username.' });
+      const data = await res.json();
+      if (res.ok) {
+        setProfile((p) => p ? { ...p, name: data.name } : p);
+        setUsernameStatus({ type: 'success', message: 'Username updated successfully.' });
+      } else {
+        setUsernameStatus({ type: 'error', message: data.error ?? 'Failed to update username.' });
+      }
+    } catch {
+      setUsernameStatus({ type: 'error', message: 'You appear to be offline. Please try again when you have a connection.' });
     }
   }
 
@@ -113,24 +118,68 @@ export default function ProfilePage() {
 
     setPasswordStatus({ type: 'loading' });
 
-    const res = await fetch('/api/auth/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-    const data = await res.json();
-    if (res.ok) {
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setPasswordStatus({ type: 'success', message: 'Password updated successfully.' });
-    } else {
-      setPasswordStatus({ type: 'error', message: data.error ?? 'Failed to update password.' });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setPasswordStatus({ type: 'success', message: 'Password updated successfully.' });
+      } else {
+        setPasswordStatus({ type: 'error', message: data.error ?? 'Failed to update password.' });
+      }
+    } catch {
+      setPasswordStatus({ type: 'error', message: 'You appear to be offline. Please try again when you have a connection.' });
     }
   }
 
-  if (!authenticated || !profile) return null;
+  if (!authenticated) return null;
+
+  if (!profile) {
+    if (profileFailed) {
+      return (
+        <>
+          <Header
+            authenticated
+            onSignIn={() => {}}
+            onSignUp={() => {}}
+            onLogout={handleLogout}
+          />
+          <main className="mx-auto max-w-2xl px-6 pt-28 pb-16">
+            <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+              <WifiOff className="h-12 w-12 text-muted-foreground" />
+              <h2 className="text-xl font-semibold text-foreground">
+                Profile not available offline
+              </h2>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Your profile data hasn&apos;t been cached yet. It will load
+                automatically when you reconnect.
+              </p>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => history.back()}>
+                  Go back
+                </Button>
+                <Button onClick={() => location.reload()}>
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </main>
+        </>
+      );
+    }
+    return null;
+  }
 
   return (
     <>

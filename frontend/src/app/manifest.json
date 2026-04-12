@@ -1,0 +1,23 @@
+{
+  "name": "Study App",
+  "short_name": "Study",
+  "description": "Flashcards, notes, and spaced repetition for effective studying",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#0a0a0a",
+  "background_color": "#0a0a0a",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait"
+}

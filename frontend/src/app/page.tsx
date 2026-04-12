@@ -23,6 +23,9 @@ export default function Home() {
         } else {
           setAuthenticated(false);
         }
+      })
+      .catch(() => {
+        setAuthenticated(false);
       });
   }, [router]);
 

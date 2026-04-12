@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -55,7 +56,6 @@ function NotesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [notes, setNotes] = useState<JsonApiResource[]>([]);
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,14 +64,7 @@ function NotesPageContent() {
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterSubjectId, setFilterSubjectId] = useState('');
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.authenticated) router.replace('/');
-        else setAuthenticated(true);
-      });
-  }, [router]);
+  const authenticated = useAuth();
 
   // Restore selection from URL on first load
   useEffect(() => {
@@ -99,6 +92,10 @@ function NotesPageContent() {
   useEffect(() => {
     if (authenticated) loadNotes();
   }, [authenticated, loadNotes]);
+
+  useEffect(() => {
+    router.prefetch('/dashboard/notes/new');
+  }, [router]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });

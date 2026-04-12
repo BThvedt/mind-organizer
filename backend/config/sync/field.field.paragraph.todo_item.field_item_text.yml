@@ -1,0 +1,19 @@
+uuid: f9a801e7-24ae-4962-9772-1e997f7e417b
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_item_text
+    - paragraphs.paragraphs_type.todo_item
+id: paragraph.todo_item.field_item_text
+field_name: field_item_text
+entity_type: paragraph
+bundle: todo_item
+label: 'Item Text'
+description: 'The text of this todo item.'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string_long

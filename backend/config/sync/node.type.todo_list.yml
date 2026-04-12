@@ -1,0 +1,11 @@
+uuid: 156c7ced-0a9f-4861-a69f-53402162d96b
+langcode: en
+status: true
+dependencies: {  }
+name: 'Todo List'
+type: todo_list
+description: 'A named list of todo items.'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: false

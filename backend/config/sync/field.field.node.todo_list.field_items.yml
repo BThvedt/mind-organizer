@@ -1,0 +1,32 @@
+uuid: 171f810c-db22-4f0e-a3b7-2a550de71e22
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_items
+    - node.type.todo_list
+    - paragraphs.paragraphs_type.todo_item
+  module:
+    - entity_reference_revisions
+    - paragraphs
+id: node.todo_list.field_items
+field_name: field_items
+entity_type: node
+bundle: todo_list
+label: Items
+description: 'The todo items in this list.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:paragraph'
+  handler_settings:
+    target_bundles:
+      todo_item: todo_item
+    negate: 0
+    target_bundles_drag_drop:
+      todo_item:
+        weight: 0
+        enabled: true
+field_type: entity_reference_revisions

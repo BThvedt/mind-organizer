@@ -109,7 +109,7 @@ export default function ProgressPage() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Progress</h1>
-            <p className="mt-1 text-muted-foreground">Your study history and performance.</p>
+            <p className="mt-1 text-muted-foreground">Your study history and performance. See your retention rate and study history with stats!</p>
           </div>
         </div>
 

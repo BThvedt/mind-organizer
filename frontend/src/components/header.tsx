@@ -4,7 +4,14 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Search, Layers, FileText } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { BookOpen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings } from 'lucide-react';
 import { SearchDialog } from '@/components/search-dialog';
 import { cn } from '@/lib/utils';
 
@@ -85,6 +92,18 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                   <FileText className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Notes</span>
                 </Link>
+                <Link
+                  href="/dashboard/todos"
+                  className={cn(
+                    'flex items-center gap-1.5 h-8 rounded-lg px-3 text-sm font-medium transition-colors',
+                    pathname.startsWith('/dashboard/todos')
+                      ? 'text-foreground bg-muted'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Todos</span>
+                </Link>
                 <button
                   onClick={() => setSearchOpen(true)}
                   className="flex items-center gap-2 h-8 rounded-lg border border-border bg-muted/50 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -100,9 +119,36 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
             )}
 
             {authenticated ? (
-              <Button variant="outline" size="sm" onClick={onLogout}>
-                Log out
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className="flex items-center justify-center h-8 w-8 rounded-full border border-border bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="User menu"
+                >
+                  <User className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem>
+                    <Link href="/dashboard/profile" className="flex items-center gap-2 w-full">
+                      <Settings className="h-4 w-4" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/dashboard/progress" className="flex items-center gap-2 w-full">
+                      <BarChart2 className="h-4 w-4" />
+                      Progress
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={onLogout}
+                    className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <>
                 <Button variant="ghost" size="sm" onClick={onSignIn}>

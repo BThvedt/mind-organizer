@@ -1,0 +1,50 @@
+uuid: 835ea9fa-bfac-47c2-a956-5ddf452d7ec6
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.paragraph.todo_item.field_completed
+    - field.field.paragraph.todo_item.field_item_text
+    - field.field.paragraph.todo_item.field_notes
+    - field.field.paragraph.todo_item.field_priority
+    - paragraphs.paragraphs_type.todo_item
+  module:
+    - options
+    - paragraphs
+id: paragraph.todo_item.default
+targetEntityType: paragraph
+bundle: todo_item
+mode: default
+content:
+  field_completed:
+    type: boolean_checkbox
+    weight: 1
+    region: content
+    settings:
+      display_label: true
+    third_party_settings: {  }
+  field_item_text:
+    type: string_textarea
+    weight: 0
+    region: content
+    settings:
+      rows: 2
+      placeholder: ''
+    third_party_settings: {  }
+  field_notes:
+    type: string_textarea
+    weight: 3
+    region: content
+    settings:
+      rows: 3
+      placeholder: ''
+    third_party_settings: {  }
+  field_priority:
+    type: options_select
+    weight: 2
+    region: content
+    settings: {}
+    third_party_settings: {  }
+hidden:
+  created: true
+  status: true

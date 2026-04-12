@@ -1,0 +1,27 @@
+uuid: 3ab3f429-16c8-4fe3-94b0-fa7599259f49
+langcode: en
+status: true
+dependencies:
+  module:
+    - options
+    - paragraphs
+id: paragraph.field_priority
+field_name: field_priority
+entity_type: paragraph
+type: list_string
+settings:
+  allowed_values:
+    - value: high
+      label: High
+    - value: med
+      label: Medium
+    - value: low
+      label: Low
+  allowed_values_function: ''
+module: options
+locked: false
+cardinality: 1
+translatable: true
+indexes: {}
+persist_with_no_fields: false
+custom_storage: false

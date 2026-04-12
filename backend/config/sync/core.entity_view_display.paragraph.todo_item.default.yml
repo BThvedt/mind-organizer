@@ -1,0 +1,51 @@
+uuid: 3e363011-70ec-4966-b3b6-df4de631084b
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.paragraph.todo_item.field_completed
+    - field.field.paragraph.todo_item.field_item_text
+    - field.field.paragraph.todo_item.field_notes
+    - field.field.paragraph.todo_item.field_priority
+    - paragraphs.paragraphs_type.todo_item
+  module:
+    - options
+    - paragraphs
+id: paragraph.todo_item.default
+targetEntityType: paragraph
+bundle: todo_item
+mode: default
+content:
+  field_completed:
+    type: boolean
+    label: above
+    settings:
+      format: default
+      format_custom_false: ''
+      format_custom_true: ''
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_item_text:
+    type: basic_string
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_notes:
+    type: basic_string
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  field_priority:
+    type: list_default
+    label: above
+    settings: {  }
+    third_party_settings: {  }
+    weight: 2
+    region: content
+hidden:
+  search_api_excerpt: true

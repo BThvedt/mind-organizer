@@ -1,0 +1,70 @@
+<?php
+
+/**
+ * @file
+ * Grants per-user access to todo_item paragraph entities via their parent node.
+ */
+
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Access\AccessResultInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\node\Entity\Node;
+
+/**
+ * Implements hook_entity_access().
+ *
+ * Allows the owner of a todo_list node to update and delete its todo_item
+ * paragraphs. Paragraphs have no uid of their own, so ownership is determined
+ * by loading the parent node.
+ */
+function study_todo_entity_access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResultInterface {
+  if ($entity->getEntityTypeId() !== 'paragraph' || $entity->bundle() !== 'todo_item') {
+    return AccessResult::neutral();
+  }
+
+  if (!in_array($operation, ['update', 'delete'], TRUE)) {
+    return AccessResult::neutral();
+  }
+
+  if ($account->isAnonymous()) {
+    return AccessResult::forbidden()->cachePerUser();
+  }
+
+  $parent_type = $entity->get('parent_type')->value;
+  $parent_id = $entity->get('parent_id')->value;
+
+  if ($parent_type !== 'node' || empty($parent_id)) {
+    // Orphan paragraph (not yet attached) — allow; it will be attached
+    // immediately by the BFF route.
+    return AccessResult::allowed()->cachePerUser();
+  }
+
+  $node = Node::load($parent_id);
+  if (!$node) {
+    return AccessResult::neutral();
+  }
+
+  if ((int) $node->getOwnerId() === (int) $account->id()) {
+    return AccessResult::allowed()
+      ->addCacheableDependency($node)
+      ->cachePerUser();
+  }
+
+  return AccessResult::forbidden('You do not own the parent todo list.')
+    ->addCacheableDependency($node)
+    ->cachePerUser();
+}
+
+/**
+ * Implements hook_entity_create_access().
+ *
+ * Allows authenticated users to create todo_item paragraphs.
+ */
+function study_todo_entity_create_access(AccountInterface $account, array $context, string $entity_bundle): AccessResultInterface {
+  if (($context['entity_type_id'] ?? '') !== 'paragraph' || $entity_bundle !== 'todo_item') {
+    return AccessResult::neutral();
+  }
+
+  return AccessResult::allowedIfHasPermission($account, 'access content');
+}

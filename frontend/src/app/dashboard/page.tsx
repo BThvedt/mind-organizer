@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Brain, BarChart3, Flame, Clock, Trophy, FileText } from 'lucide-react';
+import { BookOpen, Brain, Flame, Clock, Trophy, FileText, CheckSquare } from 'lucide-react';
 import { loadSRSPool, countMastered } from '@/lib/srs';
 import { getStreak, getTotalMinutes } from '@/lib/sessions';
 
@@ -101,11 +101,11 @@ export default function Dashboard() {
               href: '/dashboard/notes',
             },
             {
-              icon: <BarChart3 className="h-6 w-6 text-primary" />,
-              title: 'Progress',
-              description: 'See your retention rate and study history.',
-              action: 'View stats',
-              href: '/dashboard/progress',
+              icon: <CheckSquare className="h-6 w-6 text-primary" />,
+              title: 'Todo lists',
+              description: 'Track tasks and study goals with todo lists.',
+              action: 'View todos',
+              href: '/dashboard/todos',
             },
           ].map(({ icon, title, description, action, href }) => (
             <div

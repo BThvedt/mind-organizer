@@ -1,0 +1,28 @@
+uuid: 6e4685b4-6826-47d3-89e2-94f6f4d47f5e
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_subject
+    - node.type.todo_list
+    - taxonomy.vocabulary.subject
+id: node.todo_list.field_subject
+field_name: field_subject
+entity_type: node
+bundle: todo_list
+label: Subject
+description: 'The subject this list belongs to (optional).'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:taxonomy_term'
+  handler_settings:
+    target_bundles:
+      subject: subject
+    sort:
+      field: name
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

@@ -1,0 +1,7 @@
+name: 'Study Todo'
+type: module
+description: 'Grants authenticated users access to their own todo_item paragraph entities.'
+package: 'Study App'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:paragraphs

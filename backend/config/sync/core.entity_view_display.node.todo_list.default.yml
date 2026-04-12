@@ -1,0 +1,49 @@
+uuid: 76085c01-1267-47af-b3b6-0c511ac00d1c
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.todo_list.field_area
+    - field.field.node.todo_list.field_items
+    - field.field.node.todo_list.field_subject
+    - node.type.todo_list
+  module:
+    - entity_reference_revisions
+    - paragraphs
+    - user
+id: node.todo_list.default
+targetEntityType: node
+bundle: todo_list
+mode: default
+content:
+  field_area:
+    type: entity_reference_label
+    label: above
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_items:
+    type: entity_reference_revisions_entity_view
+    label: above
+    settings:
+      view_mode: default
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  field_subject:
+    type: entity_reference_label
+    label: above
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden:
+  search_api_excerpt: true

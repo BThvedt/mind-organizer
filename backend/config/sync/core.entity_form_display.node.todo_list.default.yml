@@ -1,0 +1,94 @@
+uuid: 5a70425f-6040-4d80-802b-2953e0438c65
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.todo_list.field_area
+    - field.field.node.todo_list.field_items
+    - field.field.node.todo_list.field_subject
+    - node.type.todo_list
+  module:
+    - entity_reference_revisions
+    - paragraphs
+    - path
+id: node.todo_list.default
+targetEntityType: node
+bundle: todo_list
+mode: default
+content:
+  created:
+    type: datetime_timestamp
+    weight: 10
+    region: content
+    settings: {  }
+    third_party_settings: {  }
+  field_area:
+    type: entity_reference_autocomplete
+    weight: 2
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_items:
+    type: paragraphs
+    weight: 4
+    region: content
+    settings:
+      title: Item
+      title_plural: Items
+      edit_mode: open
+      closed_mode: summary
+      autocollapse: none
+      closed_mode_threshold: 0
+      add_mode: button
+      form_display_mode: default
+      default_paragraph_type: todo_item
+      features: {  }
+    third_party_settings: {  }
+  field_subject:
+    type: entity_reference_autocomplete
+    weight: 3
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  path:
+    type: path
+    weight: 30
+    region: content
+    settings: {  }
+    third_party_settings: {  }
+  status:
+    type: boolean_checkbox
+    weight: 120
+    region: content
+    settings:
+      display_label: true
+    third_party_settings: {  }
+  title:
+    type: string_textfield
+    weight: 0
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  uid:
+    type: entity_reference_autocomplete
+    weight: 5
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+hidden:
+  promote: true
+  sticky: true

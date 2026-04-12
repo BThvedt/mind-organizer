@@ -1,0 +1,21 @@
+uuid: 6d2ddbb1-3221-4fdb-ae3d-9fe67c0446be
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_priority
+    - paragraphs.paragraphs_type.todo_item
+  module:
+    - options
+id: paragraph.todo_item.field_priority
+field_name: field_priority
+entity_type: paragraph
+bundle: todo_item
+label: Priority
+description: 'The priority level of this todo item.'
+required: false
+translatable: true
+default_value: {}
+default_value_callback: ''
+settings: {}
+field_type: list_string

@@ -1,0 +1,19 @@
+uuid: 671b2b2f-cf21-4202-abef-51796404916b
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_notes
+    - paragraphs.paragraphs_type.todo_item
+id: paragraph.todo_item.field_notes
+field_name: field_notes
+entity_type: paragraph
+bundle: todo_item
+label: Notes
+description: 'Optional notes or detail for this todo item.'
+required: false
+translatable: true
+default_value: {}
+default_value_callback: ''
+settings: {}
+field_type: string_long

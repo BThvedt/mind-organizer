@@ -1,0 +1,10 @@
+uuid: df9d77fa-c0e2-4b12-81a7-5dd868fe72c6
+langcode: en
+status: true
+dependencies: {  }
+id: todo_item
+label: 'Todo Item'
+icon_uuid: null
+icon_default: null
+description: 'A single item in a todo list.'
+behavior_plugins: {  }

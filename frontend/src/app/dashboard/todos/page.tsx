@@ -799,7 +799,7 @@ function TodosPageContent() {
                         </span>
                       )}
                     </div>
-                    {list.attributes.created && (
+                    {!!list.attributes.created && (
                       <p className="text-[11px] text-muted-foreground mb-1">
                         {formatDate(list.attributes.created as string)}
                       </p>

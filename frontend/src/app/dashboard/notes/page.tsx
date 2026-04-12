@@ -172,6 +172,7 @@ function NotesPageContent() {
   const areaRel = selectedNote?.relationships?.field_area?.data;
   const subjectRel = selectedNote?.relationships?.field_subject?.data;
   const linkedDecksRel = selectedNote?.relationships?.field_linked_decks?.data;
+  const linkedNotesRel = selectedNote?.relationships?.field_linked_notes?.data;
 
   const areaId = areaRel && !Array.isArray(areaRel) ? areaRel.id : null;
   const subjectId = subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : null;
@@ -185,6 +186,11 @@ function NotesPageContent() {
   const linkedDecks = Array.isArray(linkedDecksRel)
     ? (linkedDecksRel
         .map((rel) => included.find((r) => r.id === rel.id))
+        .filter(Boolean) as JsonApiResource[])
+    : [];
+  const linkedNotes = Array.isArray(linkedNotesRel)
+    ? (linkedNotesRel
+        .map((rel) => included.find((r) => r.id === rel.id) ?? notes.find((n) => n.id === rel.id))
         .filter(Boolean) as JsonApiResource[])
     : [];
 
@@ -468,6 +474,28 @@ function NotesPageContent() {
                         <Layers className="h-3.5 w-3.5 text-muted-foreground" />
                         {deck.attributes.title as string}
                       </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Linked notes */}
+              {linkedNotes.length > 0 && (
+                <section className={cn("pt-8 border-t border-border", linkedDecks.length > 0 ? "mt-6" : "mt-12")}>
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <FileText className="h-4 w-4" />
+                    Linked notes
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {linkedNotes.map((note) => (
+                      <button
+                        key={note.id}
+                        onClick={() => { setSelectedId(note.id); setMobileShowReader(true); }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-ring/50 hover:bg-card/80"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                        {note.attributes.title as string}
+                      </button>
                     ))}
                   </div>
                 </section>

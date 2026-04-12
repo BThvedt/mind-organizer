@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
 import { LinkDecksDialog } from '@/components/link-decks-dialog';
+import { LinkRelatedNotesDialog } from '@/components/link-related-notes-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { ArrowLeft, Pencil, Eye, Save, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,7 @@ export default function EditNotePage({
   const [areaUuid, setAreaUuid] = useState('');
   const [subjectUuid, setSubjectUuid] = useState('');
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
+  const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -70,6 +72,8 @@ export default function EditNotePage({
           setAreaUuid(areaRel && !Array.isArray(areaRel) ? areaRel.id : '');
           setSubjectUuid(subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : '');
           setLinkedDeckIds(Array.isArray(linkedDecksRel) ? linkedDecksRel.map((r) => r.id) : []);
+          const linkedNotesRel = note.relationships?.field_linked_notes?.data;
+          setLinkedNoteIds(Array.isArray(linkedNotesRel) ? linkedNotesRel.map((r) => r.id) : []);
         }
       })
       .finally(() => setLoading(false));
@@ -99,6 +103,7 @@ export default function EditNotePage({
             areaUuid: areaUuid || null,
             subjectUuid: subjectUuid || null,
             linkedDeckUuids: linkedDeckIds,
+            linkedNoteUuids: linkedNoteIds,
           }),
         }),
         new Promise<never>((_, reject) =>
@@ -242,6 +247,13 @@ export default function EditNotePage({
           <LinkDecksDialog
             selectedIds={linkedDeckIds}
             onChange={setLinkedDeckIds}
+            noteAreaUuid={areaUuid}
+            noteSubjectUuid={subjectUuid}
+          />
+          <LinkRelatedNotesDialog
+            selectedIds={linkedNoteIds}
+            onChange={setLinkedNoteIds}
+            excludeNoteId={noteid}
             noteAreaUuid={areaUuid}
             noteSubjectUuid={subjectUuid}
           />

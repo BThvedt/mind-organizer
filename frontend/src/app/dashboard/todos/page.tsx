@@ -21,7 +21,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select';
-import { ArrowLeft, Plus, Trash2, ChevronLeft, CheckSquare, X, ChevronDown, GripVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, ChevronLeft, CheckSquare, X, ChevronDown, GripVertical, Check } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -994,11 +994,18 @@ function TodosPageContent() {
                     style={{ width: `${Math.min(100, (items.length / 8) * 100)}%` }}
                   >
                     <div
-                      className="h-full rounded-full bg-primary transition-all duration-300"
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        completedCount === items.length ? "bg-green-500" : "bg-primary"
+                      )}
                       style={{ width: `${Math.round((completedCount / items.length) * 100)}%` }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className={cn(
+                    "text-xs transition-colors duration-300",
+                    completedCount === items.length ? "text-green-500 font-medium flex items-center gap-1" : "text-muted-foreground"
+                  )}>
+                    {completedCount === items.length && <Check className="h-3 w-3" />}
                     {completedCount} of {items.length} completed
                   </p>
                 </div>

@@ -1,0 +1,27 @@
+uuid: b7e4a219-3d85-4f61-ac72-9f3c5e0d8a17
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_linked_notes
+    - node.type.study_note
+id: node.study_note.field_linked_notes
+field_name: field_linked_notes
+entity_type: node
+bundle: study_note
+label: 'Related Notes'
+description: 'Other study notes related to this one.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:node'
+  handler_settings:
+    target_bundles:
+      study_note: study_note
+    sort:
+      field: title
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

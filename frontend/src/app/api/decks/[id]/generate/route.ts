@@ -28,15 +28,28 @@ export async function POST(
   const body = await request.json();
   const prompt: string = (body.prompt ?? '').trim();
   const limit: number = Math.min(20, Math.max(1, Number(body.limit ?? 10)));
+  const existingCards: { front: string; back: string }[] = Array.isArray(body.existingCards)
+    ? body.existingCards
+    : [];
 
   if (!prompt) {
     return NextResponse.json({ error: 'prompt is required.' }, { status: 400 });
   }
 
+  const existingCardsSection =
+    existingCards.length > 0
+      ? [
+          '',
+          'The deck already contains the following cards. Do NOT generate cards that duplicate or closely restate any of these:',
+          ...existingCards.map((c, i) => `${i + 1}. Q: ${c.front} | A: ${c.back}`),
+        ].join('\n')
+      : '';
+
   const systemPrompt = [
     'You are a study assistant. The user wants to create flashcards about the following topic or content.',
     `Generate up to ${limit} flashcard pairs that cover the most important concepts.`,
     'Prefer concise, testable questions on the front and clear, direct answers on the back.',
+    existingCardsSection,
     '',
     'Return ONLY a valid JSON array with no extra text, where each element is an object with exactly two string keys:',
     '"front" (the question or prompt) and "back" (the answer or explanation).',

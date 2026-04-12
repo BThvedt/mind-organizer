@@ -1,0 +1,27 @@
+uuid: c5d8b362-7a91-4e23-bf84-1a6e9d2f7c53
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_linked_decks
+    - node.type.flashcard_deck
+id: node.flashcard_deck.field_linked_decks
+field_name: field_linked_decks
+entity_type: node
+bundle: flashcard_deck
+label: 'Related Decks'
+description: 'Other flashcard decks related to this one.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:node'
+  handler_settings:
+    target_bundles:
+      flashcard_deck: flashcard_deck
+    sort:
+      field: title
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

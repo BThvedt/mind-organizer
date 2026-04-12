@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
 import { AiGenerateDialog } from '@/components/ai-generate-dialog';
 import { LinkNotesDialog } from '@/components/link-notes-dialog';
+import { LinkRelatedDecksDialog } from '@/components/link-related-decks-dialog';
 
 interface DeckResponse {
   data: JsonApiResource;
@@ -43,6 +44,7 @@ export default function DeckDetailPage({
   const [cards, setCards] = useState<JsonApiResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
+  const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
 
   // Delete state
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -63,6 +65,18 @@ export default function DeckDetailPage({
       if (res.ok) {
         const d: LinkedNotesResponse = await res.json();
         setLinkedNoteIds((d.data ?? []).map((n: JsonApiResource) => n.id as string));
+      }
+    } catch {
+      // non-critical
+    }
+  }, [id]);
+
+  const loadLinkedDecks = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/decks/${id}/linked-decks`);
+      if (res.ok) {
+        const d = await res.json();
+        setLinkedDeckIds((d.data ?? []).map((deck: JsonApiResource) => deck.id as string));
       }
     } catch {
       // non-critical
@@ -95,8 +109,9 @@ export default function DeckDetailPage({
     if (authenticated) {
       loadData();
       loadLinkedNotes();
+      loadLinkedDecks();
     }
-  }, [authenticated, loadData, loadLinkedNotes]);
+  }, [authenticated, loadData, loadLinkedNotes, loadLinkedDecks]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -269,13 +284,27 @@ export default function DeckDetailPage({
 
                   {/* Row 2: tools + management */}
                   <div className="flex items-center gap-2">
-                    <AiGenerateDialog deckId={id} onSaved={loadData} />
+                    <AiGenerateDialog
+                      deckId={id}
+                      onSaved={loadData}
+                      existingCards={cards.map((c) => ({
+                        front: (c.attributes.field_front as string) ?? '',
+                        back: (c.attributes.field_back as string) ?? '',
+                      }))}
+                    />
                     <LinkNotesDialog
                       deckId={id}
                       deckAreaUuid={areaId ?? ''}
                       deckSubjectUuid={subjectId ?? ''}
                       onLinksChanged={loadLinkedNotes}
                       initialLinkedNoteIds={linkedNoteIds}
+                    />
+                    <LinkRelatedDecksDialog
+                      deckId={id}
+                      deckAreaUuid={areaId ?? ''}
+                      deckSubjectUuid={subjectId ?? ''}
+                      onLinksChanged={loadLinkedDecks}
+                      initialLinkedDeckIds={linkedDeckIds}
                     />
                     <Button
                       variant="outline"

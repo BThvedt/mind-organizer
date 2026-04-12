@@ -8,7 +8,7 @@ export async function GET(
   const { id } = await params;
 
   const res = await drupalFetch(
-    `/jsonapi/node/study_note/${id}?include=field_area,field_subject,field_linked_decks`
+    `/jsonapi/node/study_note/${id}?include=field_area,field_subject,field_linked_decks,field_linked_notes`
   );
 
   if (!res.ok) {
@@ -48,6 +48,13 @@ export async function PATCH(
     relationships.field_linked_decks = {
       data: Array.isArray(body.linkedDeckUuids)
         ? body.linkedDeckUuids.map((id: string) => ({ type: 'node--flashcard_deck', id }))
+        : [],
+    };
+  }
+  if ('linkedNoteUuids' in body) {
+    relationships.field_linked_notes = {
+      data: Array.isArray(body.linkedNoteUuids)
+        ? body.linkedNoteUuids.map((id: string) => ({ type: 'node--study_note', id }))
         : [],
     };
   }

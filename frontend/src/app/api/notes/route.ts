@@ -10,7 +10,7 @@ export async function GET() {
   const res = await drupalFetch(
     `/jsonapi/node/study_note` +
       `?filter[uid.id][value]=${userUuid}` +
-      `&include=field_area,field_subject,field_linked_decks` +
+      `&include=field_area,field_subject,field_linked_decks,field_linked_notes` +
       `&sort=-changed` +
       `&page[limit]=50`
   );

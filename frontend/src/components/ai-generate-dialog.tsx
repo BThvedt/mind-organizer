@@ -29,9 +29,10 @@ interface EditableCandidate extends Candidate {
 interface AiGenerateDialogProps {
   deckId: string;
   onSaved: () => void;
+  existingCards?: { front: string; back: string }[];
 }
 
-export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
+export function AiGenerateDialog({ deckId, onSaved, existingCards = [] }: AiGenerateDialogProps) {
   const limitInputRef = useRef<HTMLInputElement>(null);
   const { isOnline } = useOnlineStatus();
 
@@ -77,7 +78,7 @@ export function AiGenerateDialog({ deckId, onSaved }: AiGenerateDialogProps) {
       const res = await fetch(`/api/decks/${deckId}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim(), limit: isAuto ? 10 : limitValue }),
+        body: JSON.stringify({ prompt: prompt.trim(), limit: isAuto ? 10 : limitValue, existingCards }),
       });
       const data = await res.json();
       if (!res.ok) {

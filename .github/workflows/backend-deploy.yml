@@ -17,7 +17,7 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            cd /home/deploy/study-app
+            cd /home/deploy/mind-organizer
             git pull origin main
             cd backend
             docker compose -f docker-compose.prod.yml exec -T php chown -R www-data:www-data web/sites/default/files

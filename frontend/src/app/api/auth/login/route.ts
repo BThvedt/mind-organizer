@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
         client_secret: process.env.DRUPAL_CLIENT_SECRET!,
         username,
         password,
-        scope: 'study_app',
+        scope: 'mind_organizer',
       }),
     }
   );

@@ -15,7 +15,7 @@ label: Priority
 description: 'The priority level of this todo item.'
 required: false
 translatable: true
-default_value: {}
+default_value: {  }
 default_value_callback: ''
-settings: {}
+settings: {  }
 field_type: list_string

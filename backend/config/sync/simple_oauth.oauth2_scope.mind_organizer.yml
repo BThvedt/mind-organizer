@@ -1,0 +1,29 @@
+uuid: be463fbe-9eaa-4368-80be-909968cc3edd
+langcode: en
+status: true
+dependencies:
+  config:
+    - user.role.authenticated
+  module:
+    - simple_oauth
+id: mind_organizer
+name: mind_organizer
+description: 'Grants all authenticated-role permissions to the "Mind Organizer" frontend app'
+grant_types:
+  authorization_code:
+    status: false
+    description: ''
+  client_credentials:
+    status: false
+    description: ''
+  refresh_token:
+    status: true
+    description: 'Refresh token grant'
+  password:
+    status: true
+    description: 'Password grant for frontend login.'
+umbrella: false
+parent: null
+granularity_id: role
+granularity_configuration:
+  role: authenticated

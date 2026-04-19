@@ -22,7 +22,7 @@ export async function refreshAccessToken(
         refresh_token: refreshToken,
         client_id: process.env.DRUPAL_CLIENT_ID!,
         client_secret: process.env.DRUPAL_CLIENT_SECRET!,
-        scope: 'study_app',
+        scope: 'mind_organizer',
       }),
     });
 

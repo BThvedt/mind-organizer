@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { FolderOpen, Pencil, Trash2, Plus, Check, X } from 'lucide-react';
+import { FolderOpen, FolderMinus, Pencil, Trash2, Plus, Check, X } from 'lucide-react';
 import Link from 'next/link';
 import { toSlug } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
@@ -315,6 +315,17 @@ export default function AreasPage() {
                 </Card>
               );
             })}
+            {/* Uncategorized card */}
+            <Link href="/dashboard/areas/uncategorized" className="block">
+              <Card className="border-dashed opacity-70 hover:opacity-100 transition-opacity">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-muted-foreground flex items-center gap-2">
+                    <FolderMinus className="h-4 w-4 shrink-0" />
+                    Uncategorized Content
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </Link>
           </div>
         )}
       </main>

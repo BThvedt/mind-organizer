@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Request;
  *
  * Query parameters:
  *   q       (string, required) — search term, minimum 2 characters
- *   type    (string, default "all") — "all" | "note" | "deck"
+ *   type    (string, default "all") — "all" | "note" | "deck" | "todo"
  *   area    (string, optional) — area taxonomy term UUID
  *   subject (string, optional) — subject taxonomy term UUID
  *
@@ -23,7 +23,7 @@ use Symfony\Component\HttpFoundation\Request;
  *     "results": [
  *       {
  *         "uuid":    "<node-uuid>",
- *         "type":    "study_note" | "flashcard_deck",
+ *         "type":    "study_note" | "flashcard_deck" | "todo_list",
  *         "title":   "...",
  *         "area":    { "uuid": "...", "name": "..." } | null,
  *         "subject": { "uuid": "...", "name": "..." } | null
@@ -32,15 +32,19 @@ use Symfony\Component\HttpFoundation\Request;
  *     "total": <int>
  *   }
  *
- * Prerequisites — the Search API index (machine name: "study_content") must
+ * Prerequisites — the Search API index (machine name: "db_index") must
  * have the following fields:
  *   Fulltext : title, field_body (study_note), body (flashcard_deck),
- *              plus the aggregated card-content field
+ *              plus the aggregated card-content field (flashcard fields and
+ *              todo_list paragraph item text/notes)
  *   String   : type, uid
  *   Entity reference (integer IDs):
  *              field_area, field_subject
  *              (These are the entity-reference fields themselves, not the
  *               "→ name" sub-fields. Add them separately in the Fields tab.)
+ *
+ * After importing index config (e.g. drush cim), reindex `db_index` in the
+ * Search API admin UI so existing content is searchable.
  */
 class SearchController extends ControllerBase {
 
@@ -79,6 +83,9 @@ class SearchController extends ControllerBase {
       $conditions->addCondition('type', 'flashcard_deck');
       $conditions->addCondition('type', 'flashcard');
       $query->addConditionGroup($conditions);
+    }
+    elseif ($type === 'todo') {
+      $query->addCondition('type', 'todo_list');
     }
 
     // Area / subject filters (only apply to non-flashcard types since

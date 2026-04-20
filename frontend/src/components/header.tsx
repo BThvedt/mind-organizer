@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff } from 'lucide-react';
+import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff, BookOpen } from 'lucide-react';
 import { SearchDialog } from '@/components/search-dialog';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
@@ -142,17 +142,23 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                 >
                   <User className="h-4 w-4" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem>
-                    <Link href="/dashboard/profile" className="flex items-center gap-2 w-full">
-                      <Settings className="h-4 w-4" />
-                      Profile
-                    </Link>
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="end" className="w-44 pt-2">
                   <DropdownMenuItem>
                     <Link href="/dashboard/stats" className="flex items-center gap-2 w-full">
                       <BarChart2 className="h-4 w-4" />
                       Study Stats
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/dashboard/areas" className="flex items-center gap-2 w-full">
+                      <BookOpen className="h-4 w-4" />
+                      Areas
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/dashboard/profile" className="flex items-center gap-2 w-full">
+                      <Settings className="h-4 w-4" />
+                      Profile
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

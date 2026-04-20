@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { FileText, Layers, Search, X, Loader2 } from 'lucide-react';
+import { CheckSquare, FileText, Layers, Search, X, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
@@ -12,8 +12,8 @@ import {
   userFacingMessageForApiError,
 } from '@/lib/api-client-messages';
 
-type ResultType = 'study_note' | 'flashcard_deck';
-type FilterType = 'all' | 'note' | 'deck';
+type ResultType = 'study_note' | 'flashcard_deck' | 'todo_list';
+type FilterType = 'all' | 'note' | 'deck' | 'todo';
 
 interface SearchResult {
   uuid: string;
@@ -150,9 +150,25 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
   if (!open) return null;
 
   function getResultHref(result: SearchResult) {
-    return result.type === 'study_note'
-      ? `/dashboard/notes?id=${result.uuid}`
-      : `/dashboard/decks/${result.uuid}`;
+    if (result.type === 'study_note') {
+      return `/dashboard/notes?id=${result.uuid}`;
+    }
+    if (result.type === 'todo_list') {
+      return `/dashboard/todos?id=${result.uuid}`;
+    }
+    return `/dashboard/decks/${result.uuid}`;
+  }
+
+  function resultKindLabel(type: ResultType) {
+    if (type === 'study_note') return 'Note';
+    if (type === 'todo_list') return 'Todo list';
+    return 'Deck';
+  }
+
+  function resultArrowLabel(type: ResultType) {
+    if (type === 'study_note') return '→ Note';
+    if (type === 'todo_list') return '→ Todos';
+    return '→ Deck';
   }
 
   return (
@@ -182,7 +198,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search notes and decks…"
+            placeholder="Search notes, decks, and todo lists…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {query ? (
@@ -204,7 +220,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
         <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
           {/* Type pills */}
           <div className="flex items-center rounded-lg border border-border overflow-hidden text-xs bg-background">
-            {(['all', 'note', 'deck'] as FilterType[]).map((t) => (
+            {(['all', 'note', 'deck', 'todo'] as FilterType[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setFilterType(t)}
@@ -215,7 +231,13 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {t === 'all' ? 'All' : t === 'note' ? 'Notes' : 'Decks'}
+                {t === 'all'
+                  ? 'All'
+                  : t === 'note'
+                    ? 'Notes'
+                    : t === 'deck'
+                      ? 'Decks'
+                      : 'Todos'}
               </button>
             ))}
           </div>
@@ -296,6 +318,8 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
                     <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
                       {result.type === 'study_note' ? (
                         <FileText className="h-3.5 w-3.5 text-primary" />
+                      ) : result.type === 'todo_list' ? (
+                        <CheckSquare className="h-3.5 w-3.5 text-primary" />
                       ) : (
                         <Layers className="h-3.5 w-3.5 text-primary" />
                       )}
@@ -306,7 +330,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="text-xs text-muted-foreground">
-                          {result.type === 'study_note' ? 'Note' : 'Deck'}
+                          {resultKindLabel(result.type)}
                         </span>
                         {result.area && (
                           <Badge
@@ -327,7 +351,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
                       </div>
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground mt-0.5">
-                      {result.type === 'study_note' ? '→ Note' : '→ Deck'}
+                      {resultArrowLabel(result.type)}
                     </span>
                   </Link>
                 </li>

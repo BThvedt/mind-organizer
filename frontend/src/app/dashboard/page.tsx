@@ -6,7 +6,7 @@ import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Brain, FileText, CheckSquare } from 'lucide-react';
+import { Layers, Brain, FileText, CheckSquare } from 'lucide-react';
 
 /** Accounts newer than this after registration are greeted with "Welcome" (not "Welcome back"). */
 const NEW_ACCOUNT_MAX_AGE_MS = 72 * 60 * 60 * 1000;
@@ -104,7 +104,7 @@ export default function Dashboard() {
               href: '/dashboard/notes',
             },
             {
-              icon: <BookOpen className="h-6 w-6 text-primary" />,
+              icon: <Layers className="h-6 w-6 text-primary" />,
               title: 'My decks',
               description: 'Browse and manage your flashcard decks.',
               action: 'View decks',

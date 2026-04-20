@@ -6,10 +6,14 @@ dependencies:
     - field.storage.node.body
     - field.storage.node.field_area
     - field.storage.node.field_body
+    - field.storage.node.field_items
     - field.storage.node.field_subject
+    - field.storage.paragraph.field_item_text
+    - field.storage.paragraph.field_notes
     - search_api.server.database_server
   module:
     - node
+    - paragraphs
 id: db_index
 name: 'DB Index'
 description: ''
@@ -24,6 +28,8 @@ field_settings:
       fields:
         - 'entity:node/field_back'
         - 'entity:node/field_front'
+        - 'entity:node/field_items:entity:field_item_text'
+        - 'entity:node/field_items:entity:field_notes'
   body:
     label: Description
     datasource_id: 'entity:node'
@@ -88,6 +94,7 @@ datasource_settings:
         - flashcard
         - flashcard_deck
         - study_note
+        - todo_list
     languages:
       default: true
       selected: {  }

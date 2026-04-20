@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { drupalFetch, getCurrentUserUuid } from '@/lib/drupal';
 
 /**
- * GET /api/search?q=...&type=all|note|deck&area=<uuid>&subject=<uuid>
+ * GET /api/search?q=...&type=all|note|deck|todo&area=<uuid>&subject=<uuid>
  * Proxies to the custom Drupal search endpoint.
  */
 export async function GET(request: NextRequest) {

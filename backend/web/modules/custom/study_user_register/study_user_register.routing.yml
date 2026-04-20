@@ -1,0 +1,8 @@
+study_user_register.register:
+  path: '/api/user/register'
+  defaults:
+    _controller: '\Drupal\study_user_register\Controller\UserRegisterController::register'
+    _title: 'Register'
+  requirements:
+    _access: 'TRUE'
+  methods: [POST]

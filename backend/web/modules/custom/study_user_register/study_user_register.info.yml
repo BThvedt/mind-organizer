@@ -1,0 +1,8 @@
+name: 'Study User Register'
+type: module
+description: 'Provides a public registration endpoint for the Mind Organizer frontend.'
+package: 'Mind Organizer'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:user
+  - drupal:serialization

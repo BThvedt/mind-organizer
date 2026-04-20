@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +62,7 @@ export default function ProfilePage() {
   const [passwordStatus, setPasswordStatus] = useState<Status>({ type: 'idle' });
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
 
   useEffect(() => {
     if (!authenticated) return;
@@ -79,6 +80,7 @@ export default function ProfilePage() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

@@ -162,7 +162,11 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
                 Done
               </Button>
             ) : (
-              <Button type="submit" disabled={saving}>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/30 border-transparent shadow-none [a]:hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+              >
                 {saving ? 'Creating…' : 'Create deck'}
               </Button>
             )}

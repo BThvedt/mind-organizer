@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { ActivityHeatmap } from '@/components/activity-heatmap';
@@ -31,6 +31,7 @@ function formatTime(minutes: number): string {
 export default function StudyStatsPage() {
   const router = useRouter();
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [streak, setStreak] = useState(0);
   const [totalMinutes, setTotalMinutes] = useState(0);
@@ -61,6 +62,7 @@ export default function StudyStatsPage() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

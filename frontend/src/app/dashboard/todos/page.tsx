@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import Link from 'next/link';
 import { Header } from '@/components/header';
@@ -307,6 +307,7 @@ function TodosPageContent() {
   const [newItemNotes, setNewItemNotes] = useState('');
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
   const { isOnline } = useOnlineStatus();
 
   useEffect(() => {
@@ -346,6 +347,7 @@ function TodosPageContent() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 
@@ -1334,7 +1336,11 @@ function TodosPageContent() {
                   <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={!newListTitle.trim() || creating}>
+                  <Button
+                    type="submit"
+                    disabled={!newListTitle.trim() || creating}
+                    className="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/30 border-transparent shadow-none [a]:hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                  >
                     {creating ? 'Creating…' : 'Create'}
                   </Button>
                 </>

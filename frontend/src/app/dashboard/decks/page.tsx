@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import { Header } from '@/components/header';
 import { DeckCard } from '@/components/deck-card';
 import { DeckCreateDialog } from '@/components/deck-create-dialog';
@@ -36,6 +36,7 @@ export default function DecksPage() {
   const [filterSubjectId, setFilterSubjectId] = useState('');
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
 
   const loadDecks = useCallback(async () => {
     setLoading(true);
@@ -73,6 +74,7 @@ export default function DecksPage() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -66,6 +66,7 @@ function NotesPageContent() {
   const [filterSubjectId, setFilterSubjectId] = useState('');
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
 
   // Restore selection from URL on first load
   useEffect(() => {
@@ -96,10 +97,12 @@ function NotesPageContent() {
 
   useEffect(() => {
     router.prefetch('/dashboard/notes/new');
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

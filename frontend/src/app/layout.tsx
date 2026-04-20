@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import { SerwistProvider } from "./serwist";
+import { AuthProvider } from "@/hooks/useAuth";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import "./globals.css";
 
@@ -47,10 +48,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${poppins.variable} dark`}>
       <body className="antialiased">
-        <SerwistProvider swUrl="/serwist/sw.js">
-          {children}
-          <OfflineIndicator />
-        </SerwistProvider>
+        <AuthProvider>
+          <SerwistProvider
+            swUrl="/serwist/sw.js"
+            // Service worker + Serwist's history hooks fight Turbopack/HMR in dev (wrong routes, panics).
+            disable={process.env.NODE_ENV === 'development'}
+          >
+            {children}
+            <OfflineIndicator />
+          </SerwistProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -79,6 +79,7 @@ export default function EditNotePage({
   const [savedSnapshot, setSavedSnapshot] = useState<NoteSnapshot | null>(null);
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
   const { isOnline } = useOnlineStatus();
 
   const draftRef = useRef({
@@ -133,6 +134,7 @@ export default function EditNotePage({
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

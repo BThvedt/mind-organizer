@@ -6,42 +6,38 @@ import { Header } from '@/components/header';
 import { AuthModals } from '@/components/auth-modals';
 import { Button } from '@/components/ui/button';
 import { BookOpen, ListTodo, Sparkles, Zap } from 'lucide-react';
+import { useAuth, useMarkSignedOut, useRefreshSession } from '@/hooks/useAuth';
 
 type AuthModal = 'signin' | 'signup' | null;
 
 export default function Home() {
   const router = useRouter();
-  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const auth = useAuth();
+  const markSignedOut = useMarkSignedOut();
+  const refreshSession = useRefreshSession();
   const [modal, setModal] = useState<AuthModal>(null);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.authenticated) {
-          router.replace('/dashboard');
-        } else {
-          setAuthenticated(false);
-        }
-      })
-      .catch(() => {
-        setAuthenticated(false);
-      });
-  }, [router]);
+    if (auth === true) {
+      router.replace('/dashboard');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
-    setAuthenticated(false);
+    markSignedOut();
   }
 
-  function handleAuthSuccess() {
+  async function handleAuthSuccess() {
+    await refreshSession();
     router.replace('/dashboard');
   }
 
   return (
     <>
       <Header
-        authenticated={!!authenticated}
+        authenticated={auth === true}
         onSignIn={() => setModal('signin')}
         onSignUp={() => setModal('signup')}
         onLogout={handleLogout}
@@ -71,7 +67,7 @@ export default function Home() {
             one place, and enhanced with latest tech.
           </p>
 
-          {authenticated === null ? null : authenticated ? (
+          {auth === null ? null : auth ? (
             <div className="flex items-center gap-3">
               <p className="text-muted-foreground text-sm">Welcome back!</p>
               <Button size="lg" onClick={() => router.push('/dashboard')}>Go to dashboard</Button>

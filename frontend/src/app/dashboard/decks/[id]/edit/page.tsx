@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ export default function EditDeckPage({
   const [subjectUuid, setSubjectUuid] = useState('');
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
 
   useEffect(() => {
     if (!authenticated) return;
@@ -154,6 +155,7 @@ export default function EditDeckPage({
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

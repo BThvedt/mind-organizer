@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -39,9 +39,11 @@ export default function NewNotePage() {
   const [queued, setQueued] = useState(false);
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 
@@ -154,7 +156,12 @@ export default function NewNotePage() {
             </button>
           </div>
 
-          <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || !isDirty}
+            className="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/30 border-transparent shadow-none [a]:hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+          >
             <Save className="h-4 w-4" />
             {saving ? 'Saving…' : 'Save note'}
           </Button>

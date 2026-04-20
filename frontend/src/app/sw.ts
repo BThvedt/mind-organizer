@@ -44,24 +44,12 @@ const imageCache = new CacheFirst({
 const authMutationNetworkOnly = new NetworkOnly();
 const aiNetworkOnly = new NetworkOnly();
 
-const authMeCache = new NetworkFirst({
-  cacheName: "auth-me",
-  plugins: [new ExpirationPlugin({ maxAgeSeconds: 24 * 60 * 60 })],
-  networkTimeoutSeconds: 5,
-});
-
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: false,
   runtimeCaching: [
-    {
-      matcher: ({ request, url }) =>
-        request.method === "GET" &&
-        (url.pathname === "/api/auth/me" || url.pathname === "/api/auth/profile"),
-      handler: authMeCache,
-    },
     {
       matcher: ({ url }) => url.pathname.startsWith("/api/auth"),
       handler: authMutationNetworkOnly,

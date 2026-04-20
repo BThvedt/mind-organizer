@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { FlashcardItem } from '@/components/flashcard-item';
@@ -75,6 +75,7 @@ export default function DeckDetailPage({
   const [dirtyEditCardIds, setDirtyEditCardIds] = useState<Set<string>>(new Set());
 
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
   const { isOnline } = useOnlineStatus();
 
   const reportCardEditDirty = useCallback((cardId: string, dirty: boolean) => {
@@ -142,6 +143,7 @@ export default function DeckDetailPage({
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

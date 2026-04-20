@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ type GreetingState =
 export default function Dashboard() {
   const router = useRouter();
   const authenticated = useAuth();
+  const markSignedOut = useMarkSignedOut();
   const [greeting, setGreeting] = useState<GreetingState>({ status: 'loading' });
 
   useEffect(() => {
@@ -45,10 +46,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     router.prefetch('/dashboard/todos');
-  }, [router]);
+    // `useRouter()` identity can change between renders; listing it re-runs prefetch endlessly in dev.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    markSignedOut();
     router.replace('/');
   }
 

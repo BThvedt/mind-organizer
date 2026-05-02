@@ -346,8 +346,8 @@ export default function HelpPage() {
             <ArrowLeft className="h-4 w-4" />
             <span className="sr-only">Back to dashboard</span>
           </Button>
-          <div className="flex items-center gap-2">
-            <HelpCircle className="h-7 w-7 text-primary shrink-0" />
+          <div className="flex items-start gap-2">
+            <HelpCircle className="mt-1 h-7 w-7 text-primary shrink-0" />
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground">Help</h1>
               <p className="mt-1 text-muted-foreground">

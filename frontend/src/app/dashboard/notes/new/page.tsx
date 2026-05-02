@@ -3,6 +3,7 @@
 // Autosave (every 5 min when dirty) runs only on the edit page after the note exists — not here before the first save.
 
 import { useEffect, useState } from 'react';
+import { useMarkdownEditor } from '@/hooks/use-markdown-editor';
 import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -28,6 +29,7 @@ export default function NewNotePage() {
   // Form state
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const { ref: editorRef, onKeyDown: editorKeyDown } = useMarkdownEditor(body, setBody);
   const [areaUuid, setAreaUuid] = useState('');
   const [subjectUuid, setSubjectUuid] = useState('');
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
@@ -193,8 +195,10 @@ export default function NewNotePage() {
             )}
           >
             <Textarea
+              ref={editorRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
+              onKeyDown={editorKeyDown}
               placeholder="Write your notes in Markdown…"
               className="flex-1 resize-none rounded-none border-0 bg-transparent font-mono text-sm leading-relaxed focus-visible:ring-0 p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
             />

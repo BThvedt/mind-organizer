@@ -1,0 +1,23 @@
+uuid: 8b4d3c0f-2a9f-5d6b-c0e9-f7a5b3d2e4c6
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node.field_share_token
+field_name: field_share_token
+entity_type: node
+type: string
+settings:
+  max_length: 64
+  is_ascii: true
+  case_sensitive: true
+module: core
+locked: false
+cardinality: 1
+translatable: false
+indexes:
+  value:
+    - value
+persist_with_no_fields: false
+custom_storage: false

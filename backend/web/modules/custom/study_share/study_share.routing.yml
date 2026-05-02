@@ -1,0 +1,48 @@
+study_share.note:
+  path: '/api/share/note/{token}'
+  defaults:
+    _controller: '\Drupal\study_share\Controller\ShareController::viewNote'
+    _title: 'Shared note'
+  requirements:
+    _access: 'TRUE'
+    token: '[A-Za-z0-9_\-]+'
+  options:
+    no_cache: TRUE
+  methods: [GET]
+
+study_share.deck:
+  path: '/api/share/deck/{token}'
+  defaults:
+    _controller: '\Drupal\study_share\Controller\ShareController::viewDeck'
+    _title: 'Shared deck'
+  requirements:
+    _access: 'TRUE'
+    token: '[A-Za-z0-9_\-]+'
+  options:
+    no_cache: TRUE
+  methods: [GET]
+
+study_share.todo:
+  path: '/api/share/todo/{token}'
+  defaults:
+    _controller: '\Drupal\study_share\Controller\ShareController::viewTodo'
+    _title: 'Shared todo list'
+  requirements:
+    _access: 'TRUE'
+    token: '[A-Za-z0-9_\-]+'
+  options:
+    no_cache: TRUE
+  methods: [GET]
+
+study_share.todo_item_toggle:
+  path: '/api/share/todo/{token}/items/{item_uuid}'
+  defaults:
+    _controller: '\Drupal\study_share\Controller\ShareController::toggleTodoItem'
+    _title: 'Toggle shared todo item'
+  requirements:
+    _access: 'TRUE'
+    token: '[A-Za-z0-9_\-]+'
+    item_uuid: '[0-9a-f\-]+'
+  options:
+    no_cache: TRUE
+  methods: [PATCH]

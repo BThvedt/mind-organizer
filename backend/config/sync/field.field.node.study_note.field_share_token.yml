@@ -1,0 +1,21 @@
+uuid: ad6f5e21-4c11-4f8d-e201-b9c7d5f4a6e8
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_share_token
+    - node.type.study_note
+id: node.study_note.field_share_token
+field_name: field_share_token
+entity_type: node
+bundle: study_note
+label: 'Share token'
+description: 'Random URL-safe token used to publicly access this note. Generated automatically when sharing is enabled.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  max_length: 64
+  case_sensitive: true
+field_type: string

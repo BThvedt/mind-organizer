@@ -1,0 +1,21 @@
+uuid: cf8b7a43-6e33-41af-0423-d1e9f7b6c8a0
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_share_token
+    - node.type.flashcard_deck
+id: node.flashcard_deck.field_share_token
+field_name: field_share_token
+entity_type: node
+bundle: flashcard_deck
+label: 'Share token'
+description: 'Random URL-safe token used to publicly access this deck. Generated automatically when sharing is enabled.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  max_length: 64
+  case_sensitive: true
+field_type: string

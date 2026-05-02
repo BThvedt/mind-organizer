@@ -1,0 +1,23 @@
+uuid: 9c5e4d10-3b00-4e7c-d1f0-a8b6c4e3f5d7
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_is_shared
+    - node.type.study_note
+id: node.study_note.field_is_shared
+field_name: field_is_shared
+entity_type: node
+bundle: study_note
+label: 'Publicly shared'
+description: 'When enabled, this note is viewable at a public share URL.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

@@ -1,0 +1,23 @@
+uuid: d09c8b54-7f44-42b0-9534-e2f0a8c7d9b1
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_is_shared
+    - node.type.todo_list
+id: node.todo_list.field_is_shared
+field_name: field_is_shared
+entity_type: node
+bundle: todo_list
+label: 'Publicly shared'
+description: 'When enabled, this todo list is viewable at a public share URL. Anonymous viewers can check off items but cannot add or delete them.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

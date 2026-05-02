@@ -46,6 +46,7 @@ module:
   study_flashcard_cascade: 0
   study_flashcard_generator: 0
   study_search: 0
+  study_share: 0
   study_taxonomy_owner: 0
   study_todo: 0
   system: 0

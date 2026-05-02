@@ -1,0 +1,77 @@
+<?php
+
+/**
+ * @file
+ * Manages public sharing for study_note, flashcard_deck, and todo_list nodes.
+ */
+
+use Drupal\Component\Utility\Crypt;
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Access\AccessResultInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FieldItemListInterface;
+use Drupal\Core\Session\AccountInterface;
+
+/**
+ * Bundles that participate in public sharing.
+ */
+const STUDY_SHARE_BUNDLES = ['study_note', 'flashcard_deck', 'todo_list'];
+
+/**
+ * Implements hook_node_presave().
+ *
+ * Generates a fresh share token when a node transitions from not-shared to
+ * shared, and clears the token when transitioning back to private. Clearing
+ * intentionally invalidates any previously copied URL so the next share
+ * produces a brand-new link.
+ */
+function study_share_node_presave(EntityInterface $node): void {
+  if (!in_array($node->bundle(), STUDY_SHARE_BUNDLES, TRUE)) {
+    return;
+  }
+  if (!$node->hasField('field_is_shared') || !$node->hasField('field_share_token')) {
+    return;
+  }
+
+  $is_shared = !$node->get('field_is_shared')->isEmpty()
+    && (bool) $node->get('field_is_shared')->value;
+
+  $was_shared = isset($node->original)
+    && $node->original->hasField('field_is_shared')
+    && !$node->original->get('field_is_shared')->isEmpty()
+    && (bool) $node->original->get('field_is_shared')->value;
+
+  // New node going public, or transitioning private -> public.
+  if ($is_shared && (!isset($node->original) || !$was_shared || $node->get('field_share_token')->isEmpty())) {
+    // 32 random bytes -> ~43 chars URL-safe base64. Strip padding.
+    $token = rtrim(strtr(Crypt::randomBytesBase64(32), '+/', '-_'), '=');
+    $node->set('field_share_token', $token);
+    return;
+  }
+
+  // Transitioning public -> private: invalidate the URL by clearing the token.
+  if (!$is_shared && $was_shared) {
+    $node->set('field_share_token', NULL);
+  }
+}
+
+/**
+ * Implements hook_entity_field_access().
+ *
+ * Makes field_share_token read-only for everyone except admins. The frontend
+ * reads the token after toggling field_is_shared; it must never be writable
+ * by the client (the hook above generates it server-side).
+ */
+function study_share_entity_field_access(string $operation, FieldDefinitionInterface $field_definition, AccountInterface $account, ?FieldItemListInterface $items = NULL): AccessResultInterface {
+  if ($field_definition->getName() !== 'field_share_token') {
+    return AccessResult::neutral();
+  }
+  if ($operation !== 'edit') {
+    return AccessResult::neutral();
+  }
+  if ($account->hasPermission('administer nodes')) {
+    return AccessResult::neutral();
+  }
+  return AccessResult::forbidden('field_share_token is generated server-side and cannot be set directly.');
+}

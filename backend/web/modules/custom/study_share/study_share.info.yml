@@ -1,0 +1,9 @@
+name: 'Study Share'
+type: module
+description: 'Adds public share links for study notes, flashcard decks, and todo lists. Generates per-node tokens and exposes anonymous read endpoints (plus a write endpoint for toggling todo items).'
+package: 'Mind Organizer'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node
+  - drupal:serialization
+  - paragraphs:paragraphs

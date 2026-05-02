@@ -1,0 +1,23 @@
+uuid: be7a6f32-5d22-401e-f312-c0d8e6a5b7f9
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_is_shared
+    - node.type.flashcard_deck
+id: node.flashcard_deck.field_is_shared
+field_name: field_is_shared
+entity_type: node
+bundle: flashcard_deck
+label: 'Publicly shared'
+description: 'When enabled, this deck is viewable at a public share URL (study mode).'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

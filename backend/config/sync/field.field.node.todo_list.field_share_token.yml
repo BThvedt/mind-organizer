@@ -1,0 +1,21 @@
+uuid: e1ad9c65-8055-43c1-a645-f3a1b9d8eac2
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_share_token
+    - node.type.todo_list
+id: node.todo_list.field_share_token
+field_name: field_share_token
+entity_type: node
+bundle: todo_list
+label: 'Share token'
+description: 'Random URL-safe token used to publicly access this todo list. Generated automatically when sharing is enabled.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  max_length: 64
+  case_sensitive: true
+field_type: string

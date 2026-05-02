@@ -1,13 +1,20 @@
 services:
   web:
     image: nginx:alpine
-    ports:
-      - "80:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mindorganizer.rule=Host(`mindorganizer.do-bkend.click`)"
+      - "traefik.http.routers.mindorganizer.entrypoints=websecure"
+      - "traefik.http.routers.mindorganizer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mindorganizer.loadbalancer.server.port=80"
     volumes:
       - .:/var/www/html
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - php
+    networks:
+      - default
+      - traefik-public
 
   php:
     build:
@@ -40,3 +47,7 @@ volumes:
   db_data:
     external: true
     name: mind-organizer_db_data
+
+networks:
+  traefik-public:
+    external: true

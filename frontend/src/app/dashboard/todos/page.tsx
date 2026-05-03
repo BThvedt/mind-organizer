@@ -94,7 +94,7 @@ function DragHandle() {
     <button
       type="button"
       {...listeners}
-      className="flex-none cursor-grab active:cursor-grabbing text-muted-foreground opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity touch-none"
+      className="flex-none mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity touch-none"
       aria-label="Drag to reorder"
     >
       <GripVertical className="h-4 w-4" />
@@ -1270,13 +1270,13 @@ function TodosPageContent() {
 
                     return (
                       <SortableTodoItem key={item.id} id={item.id} isDeleting={isDeleting} isExpanded={isExpanded}>
-                        <div className="flex items-center gap-3 px-3 py-2.5 group">
+                        <div className="flex items-start gap-3 px-3 py-2.5 group">
                         <DragHandle />
                         <button
                           onClick={() => handleToggleItem(item.id, completed)}
                           disabled={isToggling}
                           className={cn(
-                            'flex-none w-5 h-5 rounded border-2 transition-colors flex items-center justify-center',
+                            'flex-none w-5 h-5 mt-0.5 rounded border-2 transition-colors flex items-center justify-center',
                             completed
                               ? 'bg-primary border-primary'
                               : 'border-muted-foreground/40 hover:border-primary'

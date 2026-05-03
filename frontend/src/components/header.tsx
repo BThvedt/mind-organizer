@@ -76,16 +76,16 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
             {authenticated && (
               <>
                 <Link
-                  href="/dashboard/decks"
+                  href="/dashboard/todos"
                   className={cn(
                     'flex items-center gap-1.5 h-8 rounded-lg px-3 text-sm font-medium transition-colors',
-                    pathname.startsWith('/dashboard/decks')
+                    pathname.startsWith('/dashboard/todos')
                       ? 'text-foreground bg-muted'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                 >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Decks</span>
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Todos</span>
                 </Link>
                 <Link
                   href="/dashboard/notes"
@@ -100,16 +100,16 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                   <span className="hidden sm:inline">Notes</span>
                 </Link>
                 <Link
-                  href="/dashboard/todos"
+                  href="/dashboard/decks"
                   className={cn(
                     'flex items-center gap-1.5 h-8 rounded-lg px-3 text-sm font-medium transition-colors',
-                    pathname.startsWith('/dashboard/todos')
+                    pathname.startsWith('/dashboard/decks')
                       ? 'text-foreground bg-muted'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                 >
-                  <CheckSquare className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Todos</span>
+                  <Layers className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Decks</span>
                 </Link>
                 <button
                   onClick={() => isOnline && setSearchOpen(true)}

@@ -366,6 +366,7 @@ function NotesPageContent() {
                   <button
                     key={note.id}
                     onClick={() => selectNote(note.id)}
+                    onDoubleClick={() => router.push(`/dashboard/notes/${note.id}`)}
                     className={cn(
                       'w-full text-left px-4 py-3 border-b border-border transition-colors',
                       isSelected

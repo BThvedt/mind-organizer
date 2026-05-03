@@ -256,6 +256,7 @@ export default function DecksPage() {
                     deck={deck}
                     included={included}
                     cardCount={cardCounts[deck.id] ?? 0}
+                    onDoubleClick={() => router.push(`/dashboard/decks/${deck.id}`)}
                   />
                 ))}
           </div>

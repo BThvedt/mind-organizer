@@ -8,9 +8,10 @@ interface DeckCardProps {
   deck: JsonApiResource;
   included?: JsonApiResource[];
   cardCount?: number;
+  onDoubleClick?: () => void;
 }
 
-export function DeckCard({ deck, included = [], cardCount = 0 }: DeckCardProps) {
+export function DeckCard({ deck, included = [], cardCount = 0, onDoubleClick }: DeckCardProps) {
   const title = deck.attributes.title as string;
   const description = (deck.attributes.body as { value?: string } | null)?.value ?? '';
 
@@ -28,7 +29,7 @@ export function DeckCard({ deck, included = [], cardCount = 0 }: DeckCardProps) 
     : undefined;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 transition-colors hover:border-ring/50">
+    <div onDoubleClick={onDoubleClick} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 transition-colors hover:border-ring/50">
       {/* Header — clicking the title/icon area navigates to deck detail */}
       <Link href={`/dashboard/decks/${deck.id}`} className="group flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">

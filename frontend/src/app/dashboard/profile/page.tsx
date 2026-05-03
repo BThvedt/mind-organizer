@@ -7,7 +7,7 @@ import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UserCircle, KeyRound, CheckCircle, AlertCircle, Loader2, WifiOff } from 'lucide-react';
+import { UserCircle, KeyRound, CheckCircle, AlertCircle, Loader2, WifiOff, Settings } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
 import {
@@ -233,8 +233,13 @@ export default function ProfilePage() {
 
       <main className="mx-auto max-w-2xl px-6 pt-28 pb-16">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Profile</h1>
-          <p className="mt-1 text-muted-foreground">Manage your account details.</p>
+          <div className="flex items-start gap-2">
+            <Settings className="mt-1 h-7 w-7 text-primary shrink-0" />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Profile</h1>
+              <p className="mt-1 text-muted-foreground">Manage your account details.</p>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-6">

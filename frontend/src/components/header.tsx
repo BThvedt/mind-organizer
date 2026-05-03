@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff, BookOpen, HelpCircle } from 'lucide-react';
+import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff, BookOpen, HelpCircle, Share2 } from 'lucide-react';
 import { SearchDialog } from '@/components/search-dialog';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
@@ -54,7 +54,7 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
+        <div className="w-full px-6 h-16 flex items-center justify-between">
           {authenticated ? (
             <Link
               href="/dashboard"
@@ -153,6 +153,12 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                     <Link href="/dashboard/areas" className="flex items-center gap-2 w-full">
                       <BookOpen className="h-4 w-4" />
                       Areas
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/dashboard/shared" className="flex items-center gap-2 w-full">
+                      <Share2 className="h-4 w-4" />
+                      Shared
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>

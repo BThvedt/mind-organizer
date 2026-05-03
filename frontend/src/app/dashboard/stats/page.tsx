@@ -9,7 +9,7 @@ import { ActivityHeatmap } from '@/components/activity-heatmap';
 import { CardsBarChart } from '@/components/cards-bar-chart';
 import { RetentionLineChart } from '@/components/retention-line-chart';
 import { CardDistributionBar } from '@/components/card-distribution-bar';
-import { Flame, Clock, Trophy, TrendingUp, ArrowLeft } from 'lucide-react';
+import { Flame, Clock, Trophy, TrendingUp, ArrowLeft, BarChart2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   loadSessions,
@@ -102,11 +102,14 @@ export default function StudyStatsPage() {
             <ArrowLeft className="h-4 w-4" />
             <span className="sr-only">Back to dashboard</span>
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Study Stats</h1>
-            <p className="mt-1 text-muted-foreground">
-              Your study history and performance. See your retention rate, study history, and progress!
-            </p>
+          <div className="flex items-start gap-2">
+            <BarChart2 className="mt-1 h-7 w-7 text-primary shrink-0" />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Study Stats</h1>
+              <p className="mt-1 text-muted-foreground">
+                Your study history and performance. See your retention rate, study history, and progress!
+              </p>
+            </div>
           </div>
         </div>
 

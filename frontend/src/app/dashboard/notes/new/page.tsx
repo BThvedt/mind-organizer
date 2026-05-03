@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
-import { LinkDecksDialog } from '@/components/link-decks-dialog';
+import { LinkDialog } from '@/components/link-dialog';
 import { ArrowLeft, Save, Eye, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { userFacingMessageForApiError } from '@/lib/api-client-messages';
@@ -32,6 +32,8 @@ export default function NewNotePage() {
   const [areaUuid, setAreaUuid] = useState('');
   const [subjectUuid, setSubjectUuid] = useState('');
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
+  const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
+  const [linkedTodoIds, setLinkedTodoIds] = useState<string[]>([]);
 
   // UI state
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
@@ -67,6 +69,8 @@ export default function NewNotePage() {
             areaUuid: areaUuid || undefined,
             subjectUuid: subjectUuid || undefined,
             linkedDeckUuids: linkedDeckIds.length > 0 ? linkedDeckIds : undefined,
+            linkedNoteUuids: linkedNoteIds.length > 0 ? linkedNoteIds : undefined,
+            linkedTodoUuids: linkedTodoIds.length > 0 ? linkedTodoIds : undefined,
           }),
         }),
         new Promise<never>((_, reject) =>
@@ -108,7 +112,9 @@ export default function NewNotePage() {
     body.trim() !== '' ||
     areaUuid !== '' ||
     subjectUuid !== '' ||
-    linkedDeckIds.length > 0;
+    linkedDeckIds.length > 0 ||
+    linkedNoteIds.length > 0 ||
+    linkedTodoIds.length > 0;
 
   return (
     <>
@@ -235,11 +241,18 @@ export default function NewNotePage() {
                 onSubjectChange={setSubjectUuid}
                 layout="row"
               />
-              <LinkDecksDialog
-                selectedIds={linkedDeckIds}
-                onChange={setLinkedDeckIds}
-                noteAreaUuid={areaUuid}
-                noteSubjectUuid={subjectUuid}
+              <LinkDialog
+                mode="controlled"
+                selectedDeckIds={linkedDeckIds}
+                selectedNoteIds={linkedNoteIds}
+                selectedTodoIds={linkedTodoIds}
+                onChange={(next) => {
+                  setLinkedDeckIds(next.deck);
+                  setLinkedNoteIds(next.note);
+                  setLinkedTodoIds(next.todo);
+                }}
+                contextAreaUuid={areaUuid}
+                contextSubjectUuid={subjectUuid}
               />
             </div>
           </div>

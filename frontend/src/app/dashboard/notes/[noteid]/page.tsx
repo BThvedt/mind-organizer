@@ -13,8 +13,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
-import { LinkDecksDialog } from '@/components/link-decks-dialog';
-import { LinkRelatedNotesDialog } from '@/components/link-related-notes-dialog';
+import { LinkDialog } from '@/components/link-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
@@ -42,6 +41,7 @@ type NoteSnapshot = {
   subjectUuid: string;
   linkedDeckIds: string[];
   linkedNoteIds: string[];
+  linkedTodoIds: string[];
 };
 
 function linkedIdsEqual(a: string[], b: string[]) {
@@ -69,6 +69,7 @@ export default function EditNotePage({
   const [subjectUuid, setSubjectUuid] = useState('');
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
+  const [linkedTodoIds, setLinkedTodoIds] = useState<string[]>([]);
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -94,6 +95,7 @@ export default function EditNotePage({
     subjectUuid: '',
     linkedDeckIds: [] as string[],
     linkedNoteIds: [] as string[],
+    linkedTodoIds: [] as string[],
     savedSnapshot: null as NoteSnapshot | null,
     loading: true,
     saving: false,
@@ -117,13 +119,16 @@ export default function EditNotePage({
           const areaRel = note.relationships?.field_area?.data;
           const subjectRel = note.relationships?.field_subject?.data;
           const linkedDecksRel = note.relationships?.field_linked_decks?.data;
+          const linkedNotesRel = note.relationships?.field_linked_notes?.data;
+          const linkedTodosRel = note.relationships?.field_linked_todos?.data;
           setAreaUuid(areaRel && !Array.isArray(areaRel) ? areaRel.id : '');
           setSubjectUuid(subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : '');
-          const linkedNotesRel = note.relationships?.field_linked_notes?.data;
           const deckIds = Array.isArray(linkedDecksRel) ? linkedDecksRel.map((r) => r.id) : [];
           const noteIds = Array.isArray(linkedNotesRel) ? linkedNotesRel.map((r) => r.id) : [];
+          const todoIds = Array.isArray(linkedTodosRel) ? linkedTodosRel.map((r) => r.id) : [];
           setLinkedDeckIds(deckIds);
           setLinkedNoteIds(noteIds);
+          setLinkedTodoIds(todoIds);
           setIsShared(Boolean(note.attributes.field_is_shared));
           setShareToken((note.attributes.field_share_token as string | null) ?? null);
           setSavedSnapshot({
@@ -133,6 +138,7 @@ export default function EditNotePage({
             subjectUuid: subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : '',
             linkedDeckIds: deckIds,
             linkedNoteIds: noteIds,
+            linkedTodoIds: todoIds,
           });
         }
       })
@@ -157,7 +163,8 @@ export default function EditNotePage({
         d.areaUuid !== d.savedSnapshot.areaUuid ||
         d.subjectUuid !== d.savedSnapshot.subjectUuid ||
         !linkedIdsEqual(d.linkedDeckIds, d.savedSnapshot.linkedDeckIds) ||
-        !linkedIdsEqual(d.linkedNoteIds, d.savedSnapshot.linkedNoteIds);
+        !linkedIdsEqual(d.linkedNoteIds, d.savedSnapshot.linkedNoteIds) ||
+        !linkedIdsEqual(d.linkedTodoIds, d.savedSnapshot.linkedTodoIds);
 
       if (opts.onlyIfDirty && !dirty) return;
 
@@ -184,6 +191,7 @@ export default function EditNotePage({
               subjectUuid: d.subjectUuid || null,
               linkedDeckUuids: d.linkedDeckIds,
               linkedNoteUuids: d.linkedNoteIds,
+              linkedTodoUuids: d.linkedTodoIds,
             }),
           }),
           new Promise<never>((_, reject) =>
@@ -214,6 +222,7 @@ export default function EditNotePage({
           subjectUuid: d.subjectUuid,
           linkedDeckIds: [...d.linkedDeckIds],
           linkedNoteIds: [...d.linkedNoteIds],
+          linkedTodoIds: [...d.linkedTodoIds],
         };
         setSavedSnapshot(nextSnapshot);
         setTitle(trimmed);
@@ -280,6 +289,7 @@ export default function EditNotePage({
     subjectUuid,
     linkedDeckIds,
     linkedNoteIds,
+    linkedTodoIds,
     savedSnapshot,
     loading,
     saving,
@@ -317,7 +327,8 @@ export default function EditNotePage({
       areaUuid !== savedSnapshot.areaUuid ||
       subjectUuid !== savedSnapshot.subjectUuid ||
       !linkedIdsEqual(linkedDeckIds, savedSnapshot.linkedDeckIds) ||
-      !linkedIdsEqual(linkedNoteIds, savedSnapshot.linkedNoteIds));
+      !linkedIdsEqual(linkedNoteIds, savedSnapshot.linkedNoteIds) ||
+      !linkedIdsEqual(linkedTodoIds, savedSnapshot.linkedTodoIds));
 
   return (
     <>
@@ -409,18 +420,19 @@ export default function EditNotePage({
             hideLabels
             compact
           />
-          <LinkDecksDialog
-            selectedIds={linkedDeckIds}
-            onChange={setLinkedDeckIds}
-            noteAreaUuid={areaUuid}
-            noteSubjectUuid={subjectUuid}
-          />
-          <LinkRelatedNotesDialog
-            selectedIds={linkedNoteIds}
-            onChange={setLinkedNoteIds}
-            excludeNoteId={noteid}
-            noteAreaUuid={areaUuid}
-            noteSubjectUuid={subjectUuid}
+          <LinkDialog
+            mode="controlled"
+            selectedDeckIds={linkedDeckIds}
+            selectedNoteIds={linkedNoteIds}
+            selectedTodoIds={linkedTodoIds}
+            onChange={(next) => {
+              setLinkedDeckIds(next.deck);
+              setLinkedNoteIds(next.note);
+              setLinkedTodoIds(next.todo);
+            }}
+            excludeSelf={{ type: 'note', id: noteid }}
+            contextAreaUuid={areaUuid}
+            contextSubjectUuid={subjectUuid}
           />
           <NoteAiDialog
             noteId={noteid}

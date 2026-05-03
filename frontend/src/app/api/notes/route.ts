@@ -10,7 +10,7 @@ export async function GET() {
   const res = await drupalFetch(
     `/jsonapi/node/study_note` +
       `?filter[uid.id][value]=${userUuid}` +
-      `&include=field_area,field_subject,field_linked_decks,field_linked_notes` +
+      `&include=field_area,field_subject,field_linked_decks,field_linked_notes,field_linked_todos` +
       `&sort=-changed` +
       `&page[limit]=50`
   );
@@ -53,6 +53,22 @@ export async function POST(request: NextRequest) {
     relationships.field_linked_decks = {
       data: body.linkedDeckUuids.map((id: string) => ({
         type: 'node--flashcard_deck',
+        id,
+      })),
+    };
+  }
+  if (Array.isArray(body.linkedNoteUuids) && body.linkedNoteUuids.length > 0) {
+    relationships.field_linked_notes = {
+      data: body.linkedNoteUuids.map((id: string) => ({
+        type: 'node--study_note',
+        id,
+      })),
+    };
+  }
+  if (Array.isArray(body.linkedTodoUuids) && body.linkedTodoUuids.length > 0) {
+    relationships.field_linked_todos = {
+      data: body.linkedTodoUuids.map((id: string) => ({
+        type: 'node--todo_list',
         id,
       })),
     };

@@ -1,0 +1,28 @@
+uuid: e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7081
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_linked_todos
+    - node.type.study_note
+    - node.type.todo_list
+id: node.study_note.field_linked_todos
+field_name: field_linked_todos
+entity_type: node
+bundle: study_note
+label: 'Linked Todos'
+description: 'Todo lists linked to this note.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:node'
+  handler_settings:
+    target_bundles:
+      todo_list: todo_list
+    sort:
+      field: title
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

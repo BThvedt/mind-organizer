@@ -1,0 +1,28 @@
+uuid: f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f708192
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_linked_todos
+    - node.type.flashcard_deck
+    - node.type.todo_list
+id: node.flashcard_deck.field_linked_todos
+field_name: field_linked_todos
+entity_type: node
+bundle: flashcard_deck
+label: 'Linked Todos'
+description: 'Todo lists linked to this deck.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:node'
+  handler_settings:
+    target_bundles:
+      todo_list: todo_list
+    sort:
+      field: title
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

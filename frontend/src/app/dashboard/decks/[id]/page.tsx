@@ -21,8 +21,7 @@ import {
   userFacingMessageForApiError,
 } from '@/lib/api-client-messages';
 import { AiGenerateDialog } from '@/components/ai-generate-dialog';
-import { LinkNotesDialog } from '@/components/link-notes-dialog';
-import { LinkRelatedDecksDialog } from '@/components/link-related-decks-dialog';
+import { LinkDialog } from '@/components/link-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
 
@@ -56,6 +55,7 @@ export default function DeckDetailPage({
   const [loading, setLoading] = useState(true);
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
+  const [linkedTodoIds, setLinkedTodoIds] = useState<string[]>([]);
 
   // Delete state
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -112,6 +112,18 @@ export default function DeckDetailPage({
     }
   }, [id]);
 
+  const loadLinkedTodos = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/decks/${id}/todos`);
+      if (res.ok) {
+        const d = await res.json();
+        setLinkedTodoIds((d.data ?? []).map((todo: JsonApiResource) => todo.id as string));
+      }
+    } catch {
+      // non-critical
+    }
+  }, [id]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -139,8 +151,9 @@ export default function DeckDetailPage({
       loadData();
       loadLinkedNotes();
       loadLinkedDecks();
+      loadLinkedTodos();
     }
-  }, [authenticated, loadData, loadLinkedNotes, loadLinkedDecks]);
+  }, [authenticated, loadData, loadLinkedNotes, loadLinkedDecks, loadLinkedTodos]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -420,19 +433,81 @@ export default function DeckDetailPage({
                         back: (c.attributes.field_back as string) ?? '',
                       }))}
                     />
-                    <LinkNotesDialog
-                      deckId={id}
-                      deckAreaUuid={areaId ?? ''}
-                      deckSubjectUuid={subjectId ?? ''}
-                      onLinksChanged={loadLinkedNotes}
-                      initialLinkedNoteIds={linkedNoteIds}
-                    />
-                    <LinkRelatedDecksDialog
-                      deckId={id}
-                      deckAreaUuid={areaId ?? ''}
-                      deckSubjectUuid={subjectId ?? ''}
-                      onLinksChanged={loadLinkedDecks}
+                    <LinkDialog
+                      mode="uncontrolled"
+                      entityType="deck"
+                      entityId={id}
+                      contextAreaUuid={areaId ?? ''}
+                      contextSubjectUuid={subjectId ?? ''}
                       initialLinkedDeckIds={linkedDeckIds}
+                      initialLinkedNoteIds={linkedNoteIds}
+                      initialLinkedTodoIds={linkedTodoIds}
+                      loadLinkedIds={async () => {
+                        const [noteRes, deckRes, todoRes] = await Promise.all([
+                          fetch(`/api/decks/${id}/notes`),
+                          fetch(`/api/decks/${id}/linked-decks`),
+                          fetch(`/api/decks/${id}/todos`),
+                        ]);
+                        const noteIds = noteRes.ok
+                          ? ((await noteRes.json()).data ?? []).map((n: JsonApiResource) => n.id as string)
+                          : linkedNoteIds;
+                        const deckIds = deckRes.ok
+                          ? ((await deckRes.json()).data ?? []).map((d: JsonApiResource) => d.id as string)
+                          : linkedDeckIds;
+                        const todoIds = todoRes.ok
+                          ? ((await todoRes.json()).data ?? []).map((t: JsonApiResource) => t.id as string)
+                          : linkedTodoIds;
+                        return { deck: deckIds, note: noteIds, todo: todoIds };
+                      }}
+                      saveLinks={async (changes) => {
+                        const calls: Promise<Response>[] = [];
+                        if (changes.deck.add.length || changes.deck.remove.length) {
+                          calls.push(
+                            fetch(`/api/decks/${id}/linked-decks`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(changes.deck),
+                            })
+                          );
+                        }
+                        if (changes.note.add.length || changes.note.remove.length) {
+                          calls.push(
+                            fetch(`/api/decks/${id}/notes`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(changes.note),
+                            })
+                          );
+                        }
+                        if (changes.todo.add.length || changes.todo.remove.length) {
+                          calls.push(
+                            fetch(`/api/decks/${id}/todos`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(changes.todo),
+                            })
+                          );
+                        }
+                        const results = await Promise.all(calls);
+                        const bad = results.find((r) => !r.ok);
+                        if (bad) {
+                          const data = await bad.json().catch(() => ({}));
+                          return {
+                            ok: false,
+                            message: userFacingMessageForApiError(
+                              bad,
+                              data,
+                              'Failed to update links. Please try again.',
+                            ),
+                          };
+                        }
+                        return { ok: true };
+                      }}
+                      onLinksChanged={() => {
+                        loadLinkedNotes();
+                        loadLinkedDecks();
+                        loadLinkedTodos();
+                      }}
                     />
                     {deck && (
                       <ShareButton

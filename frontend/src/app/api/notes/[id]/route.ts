@@ -13,7 +13,7 @@ export async function GET(
   const { id } = await params;
 
   const res = await drupalFetch(
-    `/jsonapi/node/study_note/${id}?include=field_area,field_subject,field_linked_decks,field_linked_notes`
+    `/jsonapi/node/study_note/${id}?include=field_area,field_subject,field_linked_decks,field_linked_notes,field_linked_todos`
   );
 
   if (!res.ok) {
@@ -66,6 +66,13 @@ export async function PATCH(
     relationships.field_linked_notes = {
       data: Array.isArray(body.linkedNoteUuids)
         ? body.linkedNoteUuids.map((id: string) => ({ type: 'node--study_note', id }))
+        : [],
+    };
+  }
+  if ('linkedTodoUuids' in body) {
+    relationships.field_linked_todos = {
+      data: Array.isArray(body.linkedTodoUuids)
+        ? body.linkedTodoUuids.map((id: string) => ({ type: 'node--todo_list', id }))
         : [],
     };
   }

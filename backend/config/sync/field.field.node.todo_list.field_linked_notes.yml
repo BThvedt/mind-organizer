@@ -1,0 +1,28 @@
+uuid: c9d0e1f2-a3b4-4c5d-8e6f-708192a3b4c5
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_linked_notes
+    - node.type.study_note
+    - node.type.todo_list
+id: node.todo_list.field_linked_notes
+field_name: field_linked_notes
+entity_type: node
+bundle: todo_list
+label: 'Linked Notes'
+description: 'Study notes linked to this todo list.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:node'
+  handler_settings:
+    target_bundles:
+      study_note: study_note
+    sort:
+      field: title
+      direction: ASC
+    auto_create: false
+field_type: entity_reference

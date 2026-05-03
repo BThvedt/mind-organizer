@@ -14,7 +14,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select';
-import { FileText, ArrowLeft, Plus, Pencil, Layers, ChevronLeft, X } from 'lucide-react';
+import { FileText, ArrowLeft, Plus, Pencil, Layers, ChevronLeft, CheckSquare, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
@@ -176,6 +176,7 @@ function NotesPageContent() {
   const subjectRel = selectedNote?.relationships?.field_subject?.data;
   const linkedDecksRel = selectedNote?.relationships?.field_linked_decks?.data;
   const linkedNotesRel = selectedNote?.relationships?.field_linked_notes?.data;
+  const linkedTodosRel = selectedNote?.relationships?.field_linked_todos?.data;
 
   const areaId = areaRel && !Array.isArray(areaRel) ? areaRel.id : null;
   const subjectId = subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : null;
@@ -194,6 +195,11 @@ function NotesPageContent() {
   const linkedNotes = Array.isArray(linkedNotesRel)
     ? (linkedNotesRel
         .map((rel) => included.find((r) => r.id === rel.id) ?? notes.find((n) => n.id === rel.id))
+        .filter(Boolean) as JsonApiResource[])
+    : [];
+  const linkedTodos = Array.isArray(linkedTodosRel)
+    ? (linkedTodosRel
+        .map((rel) => included.find((r) => r.id === rel.id))
         .filter(Boolean) as JsonApiResource[])
     : [];
 
@@ -500,6 +506,28 @@ function NotesPageContent() {
                         <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                         {note.attributes.title as string}
                       </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Linked todos */}
+              {linkedTodos.length > 0 && (
+                <section className={cn("pt-8 border-t border-border", (linkedDecks.length > 0 || linkedNotes.length > 0) ? "mt-6" : "mt-12")}>
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <CheckSquare className="h-4 w-4" />
+                    Linked todos
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {linkedTodos.map((todo) => (
+                      <Link
+                        key={todo.id}
+                        href={`/dashboard/todos?id=${todo.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-ring/50 hover:bg-card/80"
+                      >
+                        <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                        {todo.attributes.title as string}
+                      </Link>
                     ))}
                   </div>
                 </section>

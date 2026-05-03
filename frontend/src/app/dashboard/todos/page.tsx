@@ -41,6 +41,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { ShareButton } from '@/components/share/share-button';
+import { LinkDialog } from '@/components/link-dialog';
+import { AreaSubjectSelector } from '@/components/area-subject-selector';
 import type { JsonApiResource } from '@/lib/drupal';
 import {
   MUTATION_QUEUED_MESSAGE,
@@ -106,6 +108,15 @@ type Priority = 'high' | 'med' | 'low' | '';
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** Extracts the array of linked-entity UUIDs from a todo_list JSON:API resource. */
+function listLinkedIds(
+  list: JsonApiResource,
+  field: 'field_linked_decks' | 'field_linked_notes' | 'field_linked_todos',
+): string[] {
+  const rel = list.relationships?.[field]?.data;
+  return Array.isArray(rel) ? rel.map((r) => r.id) : [];
 }
 
 const PRIORITY_OPTIONS: { value: Priority; label: string; triggerColor: string; optionColor: string }[] = [
@@ -559,6 +570,50 @@ function TodosPageContent() {
         body: JSON.stringify({ title }),
       });
       flagTodoSessionExpired(res);
+    } catch { /* queued */ }
+  }
+
+  async function handleCategoryChange(next: { areaUuid?: string; subjectUuid?: string }) {
+    if (!selectedList) return;
+    const listId = selectedList.id;
+
+    // Optimistically update the list's area/subject relationships. Term names
+    // come through `included`; loadLists() below syncs them from the server.
+    setLists((prev) =>
+      prev.map((l) => {
+        if (l.id !== listId) return l;
+        const nextRels = { ...(l.relationships ?? {}) };
+        if ('areaUuid' in next) {
+          nextRels.field_area = {
+            data: next.areaUuid
+              ? { type: 'taxonomy_term--area', id: next.areaUuid }
+              : null,
+          };
+        }
+        if ('subjectUuid' in next) {
+          nextRels.field_subject = {
+            data: next.subjectUuid
+              ? { type: 'taxonomy_term--subject', id: next.subjectUuid }
+              : null,
+          };
+        }
+        return { ...l, relationships: nextRels };
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/todos/${listId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...('areaUuid' in next ? { areaUuid: next.areaUuid || null } : {}),
+          ...('subjectUuid' in next ? { subjectUuid: next.subjectUuid || null } : {}),
+        }),
+      });
+      flagTodoSessionExpired(res);
+      if (res.ok) {
+        await loadLists();
+      }
     } catch { /* queued */ }
   }
 
@@ -1038,7 +1093,7 @@ function TodosPageContent() {
 
               {/* Detail header */}
               <div className="flex items-start justify-between gap-4 mb-6">
-                <div className="flex items-start gap-2 min-w-0">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -1048,7 +1103,7 @@ function TodosPageContent() {
                     <ChevronLeft className="h-4 w-4" />
                     <span className="sr-only">Back to lists</span>
                   </Button>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     {editingTitle ? (
                       <input
                         autoFocus
@@ -1069,48 +1124,108 @@ function TodosPageContent() {
                         {selectedList.attributes.title as string}
                       </h1>
                     )}
-                    {(areaName || subjectName) && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {areaName && <Badge variant="secondary">{areaName}</Badge>}
-                        {subjectName && <Badge variant="outline">{subjectName}</Badge>}
-                      </div>
-                    )}
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <AreaSubjectSelector
+                        areaUuid={areaId ?? ''}
+                        subjectUuid={subjectId ?? ''}
+                        onAreaChange={(uuid) => {
+                          void handleCategoryChange({ areaUuid: uuid, subjectUuid: '' });
+                        }}
+                        onSubjectChange={(uuid) => {
+                          void handleCategoryChange({ subjectUuid: uuid });
+                        }}
+                        layout="row"
+                        hideLabels
+                        compact
+                      />
+                      <LinkDialog
+                        mode="uncontrolled"
+                        entityType="todo"
+                        entityId={selectedList.id}
+                        contextAreaUuid={areaId ?? ''}
+                        contextSubjectUuid={subjectId ?? ''}
+                        initialLinkedDeckIds={listLinkedIds(selectedList, 'field_linked_decks')}
+                        initialLinkedNoteIds={listLinkedIds(selectedList, 'field_linked_notes')}
+                        initialLinkedTodoIds={listLinkedIds(selectedList, 'field_linked_todos')}
+                        saveLinks={async (changes) => {
+                          const current = {
+                            deck: listLinkedIds(selectedList, 'field_linked_decks'),
+                            note: listLinkedIds(selectedList, 'field_linked_notes'),
+                            todo: listLinkedIds(selectedList, 'field_linked_todos'),
+                          };
+                          function applyChanges(original: string[], add: string[], remove: string[]) {
+                            const next = new Set(original);
+                            remove.forEach((id) => next.delete(id));
+                            add.forEach((id) => next.add(id));
+                            return Array.from(next);
+                          }
+                          const nextDecks = applyChanges(current.deck, changes.deck.add, changes.deck.remove);
+                          const nextNotes = applyChanges(current.note, changes.note.add, changes.note.remove);
+                          const nextTodos = applyChanges(current.todo, changes.todo.add, changes.todo.remove);
+
+                          const patchBody: Record<string, string[]> = {};
+                          if (changes.deck.add.length || changes.deck.remove.length) patchBody.linkedDeckUuids = nextDecks;
+                          if (changes.note.add.length || changes.note.remove.length) patchBody.linkedNoteUuids = nextNotes;
+                          if (changes.todo.add.length || changes.todo.remove.length) patchBody.linkedTodoUuids = nextTodos;
+
+                          try {
+                            const res = await fetch(`/api/todos/${selectedList.id}/links`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(patchBody),
+                            });
+                            if (!res.ok) {
+                              const data = await res.json().catch(() => ({}));
+                              return {
+                                ok: false,
+                                message: userFacingMessageForApiError(
+                                  res,
+                                  data,
+                                  'Failed to update links. Please try again.',
+                                ),
+                              };
+                            }
+                            return { ok: true };
+                          } catch {
+                            return { ok: false, message: 'An unexpected error occurred.' };
+                          }
+                        }}
+                        onLinksChanged={loadLists}
+                      />
+                      <ShareButton
+                        type="todo_list"
+                        nodeUuid={selectedList.id}
+                        isShared={Boolean(selectedList.attributes.field_is_shared)}
+                        shareToken={(selectedList.attributes.field_share_token as string | null) ?? null}
+                        onChange={({ isShared, shareToken }) =>
+                          setLists((prev) =>
+                            prev.map((l) =>
+                              l.id === selectedList.id
+                                ? {
+                                    ...l,
+                                    attributes: {
+                                      ...l.attributes,
+                                      field_is_shared: isShared,
+                                      field_share_token: shareToken,
+                                    },
+                                  }
+                                : l,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <ShareButton
-                    type="todo_list"
-                    nodeUuid={selectedList.id}
-                    isShared={Boolean(selectedList.attributes.field_is_shared)}
-                    shareToken={(selectedList.attributes.field_share_token as string | null) ?? null}
-                    variant="icon"
-                    onChange={({ isShared, shareToken }) =>
-                      setLists((prev) =>
-                        prev.map((l) =>
-                          l.id === selectedList.id
-                            ? {
-                                ...l,
-                                attributes: {
-                                  ...l.attributes,
-                                  field_is_shared: isShared,
-                                  field_share_token: shareToken,
-                                },
-                              }
-                            : l,
-                        ),
-                      )
-                    }
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:text-destructive shrink-0"
-                    onClick={() => handleDeleteList(selectedList.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Delete list</span>
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive shrink-0"
+                  onClick={() => handleDeleteList(selectedList.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete list</span>
+                </Button>
               </div>
 
               {/* Progress bar */}

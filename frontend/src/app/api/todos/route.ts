@@ -10,7 +10,7 @@ export async function GET() {
   const res = await drupalFetch(
     `/jsonapi/node/todo_list` +
       `?filter[uid.id][value]=${userUuid}` +
-      `&include=field_items,field_area,field_subject` +
+      `&include=field_items,field_area,field_subject,field_linked_decks,field_linked_notes,field_linked_todos` +
       `&sort=-changed` +
       `&page[limit]=50`
   );

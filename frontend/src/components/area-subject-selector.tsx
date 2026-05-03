@@ -125,7 +125,7 @@ function TaxonomyCombobox({
           />
         }
       >
-        <span className={cn(!value && 'text-muted-foreground')}>
+        <span className={cn('truncate', !value && 'text-muted-foreground')}>
           {loading ? 'Loading…' : selectedLabel}
         </span>
         <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
@@ -320,7 +320,7 @@ export function AreaSubjectSelector({
           options={subjects}
           loading={loadingSubjects}
           disabled={!areaUuid}
-          placeholder={!areaUuid ? 'Select an area first' : 'No subject'}
+          placeholder={!areaUuid ? 'Select area' : 'No subject'}
           onCreate={areaUuid ? createSubject : undefined}
           compact={compact}
           onError={setTaxonomyError}

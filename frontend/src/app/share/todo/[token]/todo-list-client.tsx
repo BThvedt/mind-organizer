@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { LinkedItems } from '@/app/share/_components/linked-items';
 import type { SharedTodoItem, SharedTodoList } from '@/app/share/_lib/fetch-share';
 
 const PRIORITY_LABELS: Record<string, { label: string; className: string }> = {
@@ -70,7 +71,8 @@ export function SharedTodoListClient({ token, list }: Props) {
             {list.subject && <Badge variant="outline">{list.subject.name}</Badge>}
           </div>
         )}
-        <p className="mt-2 text-xs text-muted-foreground">
+        <LinkedItems links={list.links} className="mt-4" />
+        <p className="mt-3 text-xs text-muted-foreground">
           Shared list · check items off as you complete them.
         </p>
       </header>

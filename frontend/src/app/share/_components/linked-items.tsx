@@ -20,13 +20,13 @@ export function LinkedItems({ links, className }: LinkedItemsProps) {
 
   return (
     <section
-      aria-label="Linked items"
-      className={['flex flex-col gap-1.5', className].filter(Boolean).join(' ')}
+      aria-label="Linked content"
+      className={['flex flex-col gap-2', className].filter(Boolean).join(' ')}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Linked items
-      </p>
-      <ul className="flex flex-wrap items-center gap-1.5">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Linked content
+      </h2>
+      <ul className="flex flex-wrap gap-2">
         {links.map((link) => {
           const meta = TYPE_META[link.type];
           const Icon = meta.icon;
@@ -37,9 +37,9 @@ export function LinkedItems({ links, className }: LinkedItemsProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Open ${meta.label.toLowerCase()} in a new tab`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-foreground hover:border-foreground/40 hover:bg-muted transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-ring/50 hover:bg-card/80"
               >
-                <Icon className="h-3 w-3 text-muted-foreground" aria-hidden />
+                <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 <span className="truncate max-w-[16rem]">{link.title}</span>
                 <ExternalLink className="h-3 w-3 text-muted-foreground" aria-hidden />
               </a>

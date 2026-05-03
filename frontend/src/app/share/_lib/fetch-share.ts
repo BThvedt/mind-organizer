@@ -49,6 +49,7 @@ export interface SharedTodoList {
   area: { uuid: string; name: string } | null;
   subject: { uuid: string; name: string } | null;
   items: SharedTodoItem[];
+  links: SharedLink[];
   updated: number;
 }
 

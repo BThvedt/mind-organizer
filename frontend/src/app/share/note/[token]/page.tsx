@@ -37,8 +37,8 @@ export default async function SharedNotePage({ params }: PageProps) {
             {note.subject && <Badge variant="outline">{note.subject.name}</Badge>}
           </div>
         )}
-        <LinkedItems links={note.links} className="mt-3" />
-        <p className="mt-2 text-xs text-muted-foreground">Read-only shared view</p>
+        <LinkedItems links={note.links} className="mt-4" />
+        <p className="mt-3 text-xs text-muted-foreground">Read-only shared view</p>
       </header>
 
       {body ? (

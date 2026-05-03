@@ -43,6 +43,7 @@ class ShareController extends ControllerBase {
       'links'   => array_merge(
         $this->serializeSharedLinks($node, 'field_linked_decks'),
         $this->serializeSharedLinks($node, 'field_linked_notes'),
+        $this->serializeSharedLinks($node, 'field_linked_todos'),
       ),
       'updated' => (int) $node->getChangedTime(),
     ]);
@@ -95,6 +96,7 @@ class ShareController extends ControllerBase {
       'cards'       => $cards,
       'links'       => array_merge(
         $this->serializeSharedLinks($node, 'field_linked_decks'),
+        $this->serializeSharedLinks($node, 'field_linked_todos'),
         $this->serializeSharedReverseDeckNotes($node),
       ),
       'updated'     => (int) $node->getChangedTime(),
@@ -128,6 +130,11 @@ class ShareController extends ControllerBase {
       'area'    => $this->termRef($node, 'field_area'),
       'subject' => $this->termRef($node, 'field_subject'),
       'items'   => $items,
+      'links'   => array_merge(
+        $this->serializeSharedLinks($node, 'field_linked_decks'),
+        $this->serializeSharedLinks($node, 'field_linked_notes'),
+        $this->serializeSharedLinks($node, 'field_linked_todos'),
+      ),
       'updated' => (int) $node->getChangedTime(),
     ]);
   }

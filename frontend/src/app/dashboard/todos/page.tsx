@@ -40,6 +40,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { ShareButton } from '@/components/share/share-button';
 import type { JsonApiResource } from '@/lib/drupal';
 import {
   MUTATION_QUEUED_MESSAGE,
@@ -1076,15 +1077,40 @@ function TodosPageContent() {
                     )}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-destructive hover:text-destructive shrink-0"
-                  onClick={() => handleDeleteList(selectedList.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Delete list</span>
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <ShareButton
+                    type="todo_list"
+                    nodeUuid={selectedList.id}
+                    isShared={Boolean(selectedList.attributes.field_is_shared)}
+                    shareToken={(selectedList.attributes.field_share_token as string | null) ?? null}
+                    variant="icon"
+                    onChange={({ isShared, shareToken }) =>
+                      setLists((prev) =>
+                        prev.map((l) =>
+                          l.id === selectedList.id
+                            ? {
+                                ...l,
+                                attributes: {
+                                  ...l.attributes,
+                                  field_is_shared: isShared,
+                                  field_share_token: shareToken,
+                                },
+                              }
+                            : l,
+                        ),
+                      )
+                    }
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive hover:text-destructive shrink-0"
+                    onClick={() => handleDeleteList(selectedList.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete list</span>
+                  </Button>
+                </div>
               </div>
 
               {/* Progress bar */}

@@ -38,6 +38,7 @@ export async function PATCH(
   const attributes: Record<string, unknown> = {};
   if (body.title !== undefined) attributes.title = body.title;
   if (body.fieldBody !== undefined) attributes.field_body = body.fieldBody;
+  if (body.isShared !== undefined) attributes.field_is_shared = !!body.isShared;
 
   const relationships: Record<string, unknown> = {};
   if ('areaUuid' in body) {

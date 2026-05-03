@@ -7,8 +7,7 @@ import { useMarkdownEditor } from '@/hooks/use-markdown-editor';
 import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -214,7 +213,7 @@ export default function NewNotePage() {
           >
             {body.trim() ? (
               <div className="prose prose-sm max-w-none p-6">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                <MarkdownRenderer>{body}</MarkdownRenderer>
               </div>
             ) : (
               <div className="flex min-h-[12rem] flex-1 items-center justify-center p-8 text-muted-foreground text-sm md:min-h-0">

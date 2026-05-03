@@ -4,8 +4,7 @@ import { Suspense, useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -456,7 +455,7 @@ function NotesPageContent() {
               {/* Markdown body */}
               {noteBody.trim() ? (
                 <article className="prose prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{noteBody}</ReactMarkdown>
+                  <MarkdownRenderer>{noteBody}</MarkdownRenderer>
                 </article>
               ) : (
                 <p className="text-sm text-muted-foreground italic">No content yet.</p>

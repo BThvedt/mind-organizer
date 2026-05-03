@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -158,7 +157,7 @@ function MarkdownPlayground() {
       <ScrollArea className="h-full w-1/2">
         {source.trim() ? (
           <div className="prose prose-sm max-w-none p-4 dark:prose-invert">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{source}</ReactMarkdown>
+            <MarkdownRenderer>{source}</MarkdownRenderer>
           </div>
         ) : (
           <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">

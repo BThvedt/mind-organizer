@@ -5,8 +5,7 @@ import { useMarkdownEditor } from '@/hooks/use-markdown-editor';
 import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +17,7 @@ import { LinkDecksDialog } from '@/components/link-decks-dialog';
 import { LinkRelatedNotesDialog } from '@/components/link-related-notes-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
+import { ShareButton } from '@/components/share/share-button';
 import { ArrowLeft, Pencil, Eye, Save, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
@@ -78,6 +78,9 @@ export default function EditNotePage({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  const [isShared, setIsShared] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+
   const [savedSnapshot, setSavedSnapshot] = useState<NoteSnapshot | null>(null);
 
   const authenticated = useAuth();
@@ -121,6 +124,8 @@ export default function EditNotePage({
           const noteIds = Array.isArray(linkedNotesRel) ? linkedNotesRel.map((r) => r.id) : [];
           setLinkedDeckIds(deckIds);
           setLinkedNoteIds(noteIds);
+          setIsShared(Boolean(note.attributes.field_is_shared));
+          setShareToken((note.attributes.field_share_token as string | null) ?? null);
           setSavedSnapshot({
             title: (note.attributes.title as string) ?? '',
             body: (note.attributes.field_body as string) ?? '',
@@ -427,6 +432,17 @@ export default function EditNotePage({
             onBodyChange={setBody}
             onLinksChange={setLinkedDeckIds}
           />
+          <ShareButton
+            type="study_note"
+            nodeUuid={noteid}
+            isShared={isShared}
+            shareToken={shareToken}
+            onChange={({ isShared: next, shareToken: nextToken }) => {
+              setIsShared(next);
+              setShareToken(nextToken);
+            }}
+            disabled={loading}
+          />
         </div>
 
         {/* Row 3: write / preview toggle — mobile only */}
@@ -504,7 +520,7 @@ export default function EditNotePage({
           >
             {body.trim() ? (
               <div className="prose prose-sm max-w-none p-6">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                <MarkdownRenderer>{body}</MarkdownRenderer>
               </div>
             ) : (
               <div className="flex min-h-[12rem] flex-1 items-center justify-center p-8 text-muted-foreground text-sm md:min-h-0">

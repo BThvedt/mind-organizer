@@ -24,6 +24,7 @@ import { AiGenerateDialog } from '@/components/ai-generate-dialog';
 import { LinkNotesDialog } from '@/components/link-notes-dialog';
 import { LinkRelatedDecksDialog } from '@/components/link-related-decks-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
+import { ShareButton } from '@/components/share/share-button';
 
 const ADD_CARD_BOTH_REQUIRED_MSG = 'Both front and back are required.';
 
@@ -433,6 +434,28 @@ export default function DeckDetailPage({
                       onLinksChanged={loadLinkedDecks}
                       initialLinkedDeckIds={linkedDeckIds}
                     />
+                    {deck && (
+                      <ShareButton
+                        type="flashcard_deck"
+                        nodeUuid={id}
+                        isShared={Boolean(deck.attributes.field_is_shared)}
+                        shareToken={(deck.attributes.field_share_token as string | null) ?? null}
+                        onChange={({ isShared, shareToken }) =>
+                          setDeck((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  attributes: {
+                                    ...prev.attributes,
+                                    field_is_shared: isShared,
+                                    field_share_token: shareToken,
+                                  },
+                                }
+                              : prev,
+                          )
+                        }
+                      />
+                    )}
                     <Button
                       variant="outline"
                       size="sm"

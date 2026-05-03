@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import { ShareButton } from '@/components/share/share-button';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import type { JsonApiResource } from '@/lib/drupal';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -46,6 +47,8 @@ export default function EditDeckPage({
   const [description, setDescription] = useState('');
   const [areaUuid, setAreaUuid] = useState('');
   const [subjectUuid, setSubjectUuid] = useState('');
+  const [isShared, setIsShared] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
 
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
@@ -72,6 +75,8 @@ export default function EditDeckPage({
 
         setAreaUuid(areaId);
         setSubjectUuid(subjectId);
+        setIsShared(Boolean(deck.attributes.field_is_shared));
+        setShareToken((deck.attributes.field_share_token as string | null) ?? null);
       })
       .finally(() => setLoading(false));
   }, [authenticated, id]);
@@ -166,17 +171,31 @@ export default function EditDeckPage({
       <Header authenticated onSignIn={() => {}} onSignUp={() => {}} onLogout={handleLogout} />
 
       <main className="mx-auto max-w-2xl px-6 pt-28 pb-16">
-        <div className="mb-8 flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/decks" />}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="sr-only">Back to decks</span>
-          </Button>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Edit deck</h1>
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/decks" />}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="sr-only">Back to decks</span>
+            </Button>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground truncate">Edit deck</h1>
+          </div>
+          {!loading && (
+            <ShareButton
+              type="flashcard_deck"
+              nodeUuid={id}
+              isShared={isShared}
+              shareToken={shareToken}
+              onChange={({ isShared: next, shareToken: nextToken }) => {
+                setIsShared(next);
+                setShareToken(nextToken);
+              }}
+            />
+          )}
         </div>
 
         {loading ? (

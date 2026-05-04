@@ -62,18 +62,21 @@ export default function Home() {
             <span className="text-primary">Unlock Your Ability.</span>
           </h1>
 
-          <p className="max-w-md text-muted-foreground text-lg leading-relaxed">
-            Never lose track or forget important information with simple, basic, yet powerful tools - all in
-            one place, and enhanced with latest tech.
+          <p className="max-w-lg text-muted-foreground text-lg leading-relaxed">
+            Todo lists to keep track of what you're doing. Notes to take down insights. Flashcards to solidify your memory. And AI tools make it fast and stress free. They all work together. Save cognitive load for tasks and easily remmeber important details.
+          </p>
+
+          <p className="max-w-lg text-muted-foreground text-lg leading-relaxed">
+            Whether you're a genius, an average person trying to learn a skill or langurage, or even just an absent minded person - but one that still wants to remember stuff. Everyone benefits from the right tools.
           </p>
 
           {auth === null ? null : auth ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mt-4">
               <p className="text-muted-foreground text-sm">Welcome back!</p>
               <Button size="lg" onClick={() => router.push('/dashboard')}>Go to dashboard</Button>
             </div>
           ) : (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mt-4">
               <Button size="lg" onClick={() => setModal('signup')}>
                 Get started free
               </Button>

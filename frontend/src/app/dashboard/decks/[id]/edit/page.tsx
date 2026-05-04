@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
 import { ShareButton } from '@/components/share/share-button';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import {
@@ -49,6 +50,9 @@ export default function EditDeckPage({
   const [subjectUuid, setSubjectUuid] = useState('');
   const [isShared, setIsShared] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    title: string; description: string; areaUuid: string; subjectUuid: string;
+  } | null>(null);
 
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
@@ -77,6 +81,12 @@ export default function EditDeckPage({
         setSubjectUuid(subjectId);
         setIsShared(Boolean(deck.attributes.field_is_shared));
         setShareToken((deck.attributes.field_share_token as string | null) ?? null);
+        setSavedSnapshot({
+          title: (deck.attributes.title as string) ?? '',
+          description: (deck.attributes.body as { value?: string } | null)?.value ?? '',
+          areaUuid: areaId,
+          subjectUuid: subjectId,
+        });
       })
       .finally(() => setLoading(false));
   }, [authenticated, id]);
@@ -166,6 +176,13 @@ export default function EditDeckPage({
 
   if (!authenticated) return null;
 
+  const isDirty = !!savedSnapshot && !loading && (
+    title !== savedSnapshot.title ||
+    description !== savedSnapshot.description ||
+    areaUuid !== savedSnapshot.areaUuid ||
+    subjectUuid !== savedSnapshot.subjectUuid
+  );
+
   return (
     <>
       <Header authenticated onSignIn={() => {}} onSignUp={() => {}} onLogout={handleLogout} />
@@ -239,7 +256,11 @@ export default function EditDeckPage({
             {error && <p className="text-sm text-destructive">{error}</p>}
 
             <div className="flex items-center gap-3 pt-2">
-              <Button type="submit" disabled={saving} className="gap-2">
+              <Button
+                type="submit"
+                disabled={saving}
+                className="gap-2"
+              >
                 <Save className="h-4 w-4" />
                 {saving ? 'Saving…' : 'Save changes'}
               </Button>

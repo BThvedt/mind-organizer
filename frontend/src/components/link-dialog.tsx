@@ -69,6 +69,8 @@ type ControlledProps = {
   contextSubjectUuid?: string;
   /** Icon-only trigger — useful for compact headers. */
   compactTrigger?: boolean;
+  /** Disables the trigger button entirely. */
+  disabled?: boolean;
 };
 
 type UncontrolledProps = {
@@ -91,6 +93,8 @@ type UncontrolledProps = {
   contextAreaUuid?: string;
   contextSubjectUuid?: string;
   compactTrigger?: boolean;
+  /** Disables the trigger button entirely. */
+  disabled?: boolean;
 };
 
 type LinkDialogProps = ControlledProps | UncontrolledProps;
@@ -629,13 +633,17 @@ export function LinkDialog(props: LinkDialogProps) {
     ? (props as { compactTrigger?: boolean }).compactTrigger
     : false;
 
+  const isDisabled = (props.mode === 'controlled' || props.mode === 'uncontrolled')
+    ? (props as { disabled?: boolean }).disabled
+    : false;
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          <Button variant="outline" size={compactTrigger ? 'sm' : undefined}>
+          <Button variant="outline" size={compactTrigger ? 'sm' : undefined} disabled={isDisabled}>
             <Link2 className="h-4 w-4" />
             Link
             {displayedCount > 0 && (

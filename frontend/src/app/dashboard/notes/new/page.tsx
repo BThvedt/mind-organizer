@@ -11,7 +11,6 @@ import { MarkdownRenderer } from '@/components/markdown-renderer';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
@@ -167,11 +166,37 @@ export default function NewNotePage() {
             size="sm"
             onClick={handleSave}
             disabled={saving || !isDirty}
-            className="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/30 border-transparent shadow-none [a]:hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            className="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/30 border-transparent shadow-none dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Save className="h-4 w-4" />
             {saving ? 'Saving…' : 'Save note'}
           </Button>
+        </div>
+        {/* Row 2: area · subject · link */}
+        <div className="mx-auto max-w-screen-2xl px-4 pb-2.5 flex items-center gap-2 overflow-x-auto">
+          <AreaSubjectSelector
+            areaUuid={areaUuid}
+            subjectUuid={subjectUuid}
+            onAreaChange={(uuid) => { setAreaUuid(uuid); setSubjectUuid(''); }}
+            onSubjectChange={setSubjectUuid}
+            layout="row"
+            hideLabels
+            compact
+          />
+          <LinkDialog
+            mode="controlled"
+            selectedDeckIds={linkedDeckIds}
+            selectedNoteIds={linkedNoteIds}
+            selectedTodoIds={linkedTodoIds}
+            onChange={(next) => {
+              setLinkedDeckIds(next.deck);
+              setLinkedNoteIds(next.note);
+              setLinkedTodoIds(next.todo);
+            }}
+            contextAreaUuid={areaUuid}
+            contextSubjectUuid={subjectUuid}
+            disabled
+          />
         </div>
         {error && !queued && (
           <p className="px-4 pb-2 text-xs text-destructive">{error}</p>
@@ -183,8 +208,8 @@ export default function NewNotePage() {
         )}
       </div>
 
-      {/* Editor area — starts below both header (64px) and top bar (56px) */}
-      <div className="flex min-h-0 flex-col" style={{ paddingTop: '120px', height: '100dvh' }}>
+      {/* Editor area — starts below header (64px) + title row (56px) + toolbar row (~40px) */}
+      <div className="flex min-h-0 flex-col pt-[210px] md:pt-[168px]" style={{ height: '100dvh' }}>
 
         {/* Split pane (desktop) / single pane (mobile) */}
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -229,34 +254,6 @@ export default function NewNotePage() {
           </ScrollArea>
         </div>
 
-        {/* Bottom metadata bar */}
-        <div className="border-t border-border bg-background px-4 py-3">
-          <div className="mx-auto max-w-screen-2xl">
-            <Label className="text-xs text-muted-foreground mb-2 block">Categorise</Label>
-            <div className="flex flex-wrap items-end gap-3">
-              <AreaSubjectSelector
-                areaUuid={areaUuid}
-                subjectUuid={subjectUuid}
-                onAreaChange={setAreaUuid}
-                onSubjectChange={setSubjectUuid}
-                layout="row"
-              />
-              <LinkDialog
-                mode="controlled"
-                selectedDeckIds={linkedDeckIds}
-                selectedNoteIds={linkedNoteIds}
-                selectedTodoIds={linkedTodoIds}
-                onChange={(next) => {
-                  setLinkedDeckIds(next.deck);
-                  setLinkedNoteIds(next.note);
-                  setLinkedTodoIds(next.todo);
-                }}
-                contextAreaUuid={areaUuid}
-                contextSubjectUuid={subjectUuid}
-              />
-            </div>
-          </div>
-        </div>
       </div>
     </>
   );

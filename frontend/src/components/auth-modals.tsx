@@ -49,16 +49,23 @@ function SignInModal({
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+
+    if (!turnstileToken) {
+      setError('Please complete the security check.');
+      return;
+    }
+
     setLoading(true);
 
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, turnstileToken }),
     });
 
     setLoading(false);
@@ -105,7 +112,13 @@ function SignInModal({
               required
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Turnstile
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+            onSuccess={setTurnstileToken}
+            onExpire={() => setTurnstileToken(null)}
+            onError={() => setTurnstileToken(null)}
+          />
+          <Button type="submit" className="w-full" disabled={loading || !turnstileToken}>
             {loading ? 'Signing in…' : 'Sign in'}
           </Button>
           <p className="text-sm text-center text-muted-foreground">

@@ -2,7 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { applyTokenCookies } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-  const { username, password } = await request.json();
+  const { username, password, turnstileToken } = await request.json();
+
+  const turnstileRes = await fetch(
+    'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        secret: process.env.TURNSTILE_SECRET_KEY!,
+        response: turnstileToken ?? '',
+      }),
+    }
+  );
+  const { success: captchaOk } = await turnstileRes.json();
+  if (!captchaOk) {
+    return NextResponse.json({ error: 'Security check failed. Please try again.' }, { status: 400 });
+  }
 
   const tokenRes = await fetch(
     `${process.env.NEXT_PUBLIC_DRUPAL_BASE_URL}/oauth/token`,

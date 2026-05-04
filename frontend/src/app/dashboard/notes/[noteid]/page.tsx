@@ -399,7 +399,7 @@ export default function EditNotePage({
               </Button>
               <Button
                 size="sm"
-                onClick={() => void saveNote({ navigateOnSuccess: true })}
+                onClick={() => void saveNote({ navigateOnSuccess: false })}
                 disabled={saving || loading || !isDirty}
               >
                 <Save className="h-4 w-4" />

@@ -50,6 +50,7 @@ module:
   study_share: 0
   study_taxonomy_owner: 0
   study_todo: 0
+  study_user_register: 0
   system: 0
   taxonomy: 0
   text: 0

@@ -8,3 +8,8 @@ services:
     class: Drupal\media_functionality\Service\UsageTracker
     arguments:
       - '@database'
+
+  media_functionality.ai_description:
+    class: Drupal\media_functionality\Service\AiDescriptionService
+    arguments:
+      - '@logger.factory'

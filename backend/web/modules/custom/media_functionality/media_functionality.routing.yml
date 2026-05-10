@@ -78,6 +78,20 @@ media_functionality.rename:
       - cookie
   methods: [PATCH]
 
+media_functionality.describe_ai:
+  path: '/api/study/media/{uuid}/describe-ai'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::describeAi'
+    _title: 'AI-generate a media description'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    uuid: '[0-9a-f\-]+'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [POST]
+
 media_functionality.broken:
   path: '/api/study/media/broken'
   defaults:

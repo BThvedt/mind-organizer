@@ -45,6 +45,12 @@ function media_functionality_schema(): array {
         'not null' => TRUE,
         'default' => '',
       ],
+      'description' => [
+        'type' => 'text',
+        'size' => 'normal',
+        'not null' => FALSE,
+        'description' => 'Optional short user-provided description.',
+      ],
       'file_size' => [
         'type' => 'int',
         'unsigned' => TRUE,
@@ -129,4 +135,19 @@ function media_functionality_schema(): array {
   ];
 
   return $schema;
+}
+
+/**
+ * Add `description` column to media_functionality_asset.
+ */
+function media_functionality_update_8001(): void {
+  $schema = \Drupal::database()->schema();
+  if (!$schema->fieldExists('media_functionality_asset', 'description')) {
+    $schema->addField('media_functionality_asset', 'description', [
+      'type' => 'text',
+      'size' => 'normal',
+      'not null' => FALSE,
+      'description' => 'Optional short user-provided description.',
+    ]);
+  }
 }

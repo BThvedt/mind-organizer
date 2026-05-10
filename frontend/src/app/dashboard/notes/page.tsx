@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/json-api';
 import { toRelArray, toRelIds, toStringArray } from '@/lib/json-api';
 import { MissingMediaIndicator } from '@/components/missing-media-indicator';
+import { ShareIndicator } from '@/components/share-indicator';
 
 function stripMarkdown(md: string): string {
   return md
@@ -379,6 +380,7 @@ function NotesPageContent() {
                         <MissingMediaIndicator
                           count={toStringArray(note.attributes.field_missing_media).length}
                         />
+                        <ShareIndicator shared={!!note.attributes.field_is_shared} />
                       </span>
                       {changed && (
                         <span className="text-[11px] text-muted-foreground shrink-0">

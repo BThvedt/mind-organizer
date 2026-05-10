@@ -28,6 +28,7 @@ interface MediaAsset {
   mediaType: 'image' | 'audio';
   mimeType: string;
   originalFilename: string;
+  description: string;
   fileSize: number;
   created: number;
   url: string;
@@ -94,12 +95,13 @@ export default function MediaPage() {
     setAssets((prev) => (prev ? prev.filter((a) => a.uuid !== uuid) : prev));
   }
 
-  function handleRenamed(uuid: string, newFilename: string) {
+  function handleRenamed(
+    uuid: string,
+    updates: { originalFilename: string; description: string },
+  ) {
     setAssets((prev) =>
       prev
-        ? prev.map((a) =>
-            a.uuid === uuid ? { ...a, originalFilename: newFilename } : a,
-          )
+        ? prev.map((a) => (a.uuid === uuid ? { ...a, ...updates } : a))
         : prev,
     );
   }

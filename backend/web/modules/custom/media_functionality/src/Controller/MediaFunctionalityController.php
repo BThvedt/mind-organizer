@@ -7,6 +7,7 @@ namespace Drupal\media_functionality\Controller;
 use Drupal\Component\Uuid\UuidInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
+use Drupal\media_functionality\Service\AiDescriptionService;
 use Drupal\media_functionality\Service\S3Service;
 use Drupal\media_functionality\Service\UsageTracker;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -30,6 +31,7 @@ class MediaFunctionalityController extends ControllerBase {
     private readonly UsageTracker $usage,
     private readonly UuidInterface $uuidService,
     private readonly Connection $database,
+    private readonly AiDescriptionService $aiDescription,
   ) {}
 
   public static function create(ContainerInterface $container): static {
@@ -38,6 +40,7 @@ class MediaFunctionalityController extends ControllerBase {
       $container->get('media_functionality.usage_tracker'),
       $container->get('uuid'),
       $container->get('database'),
+      $container->get('media_functionality.ai_description'),
     );
   }
 
@@ -45,7 +48,7 @@ class MediaFunctionalityController extends ControllerBase {
    * POST /api/study/media/upload
    *
    * Multipart body with a single file field named "file".
-   * Returns: { uuid, mediaType, mimeType, originalFilename, fileSize, url }
+   * Returns: { uuid, mediaType, mimeType, originalFilename, description, fileSize, url }
    */
   public function upload(Request $request): JsonResponse {
     $account = $this->currentUser();
@@ -101,6 +104,7 @@ class MediaFunctionalityController extends ControllerBase {
         'media_type' => $mediaType,
         'mime_type' => $mime,
         'original_filename' => mb_substr($originalName, 0, 255),
+        'description' => '',
         'file_size' => $size,
         'owner_uid' => (int) $account->id(),
         'created' => $now,
@@ -113,6 +117,7 @@ class MediaFunctionalityController extends ControllerBase {
       'mediaType' => $mediaType,
       'mimeType' => $mime,
       'originalFilename' => $originalName,
+      'description' => '',
       'fileSize' => $size,
       'url' => $this->buildPublicUrl($assetUuid, $key),
     ], 201);
@@ -129,7 +134,7 @@ class MediaFunctionalityController extends ControllerBase {
       return $this->json(['error' => 'Unauthenticated'], 401);
     }
     $rows = $this->database->select('media_functionality_asset', 'a')
-      ->fields('a', ['uuid', 's3_key', 'media_type', 'mime_type', 'original_filename', 'file_size', 'created'])
+      ->fields('a', ['uuid', 's3_key', 'media_type', 'mime_type', 'original_filename', 'description', 'file_size', 'created'])
       ->condition('owner_uid', (int) $account->id())
       ->condition('deleted', 0)
       ->orderBy('created', 'DESC')
@@ -141,6 +146,7 @@ class MediaFunctionalityController extends ControllerBase {
       'mediaType' => (string) $r['media_type'],
       'mimeType' => (string) $r['mime_type'],
       'originalFilename' => (string) $r['original_filename'],
+      'description' => (string) ($r['description'] ?? ''),
       'fileSize' => (int) $r['file_size'],
       'created' => (int) $r['created'],
       'url' => $this->buildPublicUrl((string) $r['uuid'], (string) $r['s3_key']),
@@ -245,10 +251,14 @@ class MediaFunctionalityController extends ControllerBase {
   /**
    * PATCH /api/study/media/{uuid}/rename
    *
-   * Body: `{ "originalFilename": "new-name.png" }`. Owner-only. Updates the
-   * `original_filename` column on the asset row — this is purely metadata
-   * (the S3 key is not touched, and the UUID embedded in note bodies still
-   * resolves to the same file), so renames don't break any references.
+   * Edits the user-facing metadata of an asset. Owner-only.
+   *
+   * Body: any subset of:
+   *   - `originalFilename`: non-empty display name (no path separators / control chars, ≤255)
+   *   - `description`: short user note about the file (≤2000 chars; trimmed; empty allowed)
+   *
+   * Only fields present in the body are updated. The S3 key is never
+   * touched, so this never breaks references in note bodies.
    */
   public function rename(string $uuid, Request $request): JsonResponse {
     $account = $this->currentUser();
@@ -264,35 +274,107 @@ class MediaFunctionalityController extends ControllerBase {
     }
 
     $payload = json_decode((string) $request->getContent(), TRUE);
-    $rawName = is_array($payload) ? ($payload['originalFilename'] ?? NULL) : NULL;
-    if (!is_string($rawName)) {
-      return $this->json(['error' => 'Body must include an "originalFilename" string.'], 400);
+    if (!is_array($payload)) {
+      return $this->json(['error' => 'Invalid JSON body.'], 400);
     }
 
-    $name = trim($rawName);
-    if ($name === '') {
-      return $this->json(['error' => 'Filename cannot be empty.'], 400);
-    }
-    // Disallow path separators / control chars — keep this purely a display
-    // name; the S3 object key never changes.
-    if (preg_match('#[/\\\\\x00-\x1F]#', $name) === 1) {
-      return $this->json(['error' => 'Filename contains invalid characters.'], 400);
-    }
-    $name = mb_substr($name, 0, 255);
+    $updates = [];
+    $newName = (string) $asset['original_filename'];
+    $newDescription = (string) ($asset['description'] ?? '');
 
-    $this->database->update('media_functionality_asset')
-      ->fields(['original_filename' => $name])
-      ->condition('uuid', $uuid)
-      ->execute();
+    if (array_key_exists('originalFilename', $payload)) {
+      $rawName = $payload['originalFilename'];
+      if (!is_string($rawName)) {
+        return $this->json(['error' => '"originalFilename" must be a string.'], 400);
+      }
+      $name = trim($rawName);
+      if ($name === '') {
+        return $this->json(['error' => 'Filename cannot be empty.'], 400);
+      }
+      if (preg_match('#[/\\\\\x00-\x1F]#', $name) === 1) {
+        return $this->json(['error' => 'Filename contains invalid characters.'], 400);
+      }
+      $newName = mb_substr($name, 0, 255);
+      $updates['original_filename'] = $newName;
+    }
+
+    if (array_key_exists('description', $payload)) {
+      $rawDesc = $payload['description'];
+      if ($rawDesc === NULL) {
+        $newDescription = '';
+      }
+      elseif (is_string($rawDesc)) {
+        $newDescription = mb_substr(trim($rawDesc), 0, 2000);
+      }
+      else {
+        return $this->json(['error' => '"description" must be a string or null.'], 400);
+      }
+      $updates['description'] = $newDescription;
+    }
+
+    if (!empty($updates)) {
+      $this->database->update('media_functionality_asset')
+        ->fields($updates)
+        ->condition('uuid', $uuid)
+        ->execute();
+    }
 
     return $this->json(['data' => [
       'uuid' => $uuid,
       'mediaType' => (string) $asset['media_type'],
       'mimeType' => (string) $asset['mime_type'],
-      'originalFilename' => $name,
+      'originalFilename' => $newName,
+      'description' => $newDescription,
       'fileSize' => (int) $asset['file_size'],
       'url' => $this->buildPublicUrl($uuid, (string) $asset['s3_key']),
     ]]);
+  }
+
+  /**
+   * POST /api/study/media/{uuid}/describe-ai
+   *
+   * Owner-only. For an image asset, fetches the bytes from S3 and asks
+   * Anthropic Claude (vision model) to write a 1-2 sentence description.
+   * Does NOT persist anything — the frontend writes the description back
+   * via the regular rename endpoint if the user keeps it.
+   *
+   * Audio assets are not supported (returns 415).
+   */
+  public function describeAi(string $uuid): JsonResponse {
+    $account = $this->currentUser();
+    if ($account->isAnonymous()) {
+      return $this->json(['error' => 'Unauthenticated'], 401);
+    }
+    $asset = $this->loadAsset($uuid);
+    if ($asset === NULL || (int) $asset['owner_uid'] !== (int) $account->id()) {
+      return $this->json(['error' => 'Not found'], 404);
+    }
+    if ((int) $asset['deleted'] === 1) {
+      return $this->json(['error' => 'Asset has been deleted.'], 410);
+    }
+    if ((string) $asset['media_type'] !== 'image') {
+      return $this->json(['error' => 'AI description is only available for images.'], 415);
+    }
+
+    try {
+      $stream = $this->s3->getObjectStream((string) $asset['s3_key']);
+    }
+    catch (\RuntimeException $e) {
+      return $this->json(['error' => $e->getMessage()], 502);
+    }
+    $bytes = (string) $stream->getContents();
+
+    try {
+      $description = $this->aiDescription->describeImage(
+        $bytes,
+        (string) $asset['mime_type'],
+      );
+    }
+    catch (\RuntimeException $e) {
+      return $this->json(['error' => $e->getMessage()], 502);
+    }
+
+    return $this->json(['data' => ['description' => $description]]);
   }
 
   /**

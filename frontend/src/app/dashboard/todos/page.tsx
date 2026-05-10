@@ -46,6 +46,7 @@ import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
 } from '@/components/entity-delete-dialog';
+import { ShareIndicator } from '@/components/share-indicator';
 import {
   AreaSubjectMultiSelector,
   AreaSubjectChipList,
@@ -1063,8 +1064,11 @@ function TodosPageContent() {
                     )}
                   >
                     <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                      <span className="text-sm font-medium text-foreground truncate leading-snug">
-                        {list.attributes.title as string}
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="text-sm font-medium text-foreground truncate leading-snug">
+                          {list.attributes.title as string}
+                        </span>
+                        <ShareIndicator shared={!!list.attributes.field_is_shared} />
                       </span>
                       {total > 0 && (
                         <span className="text-[11px] text-muted-foreground shrink-0">

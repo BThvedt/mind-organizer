@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   CheckSquare,
   ExternalLink,
@@ -17,14 +19,18 @@ import {
   Layers,
   Loader2,
   Pencil,
+  Sparkles,
   Volume2,
   BookOpen,
 } from 'lucide-react';
+
+const DESCRIPTION_MAX_LENGTH = 2000;
 
 export interface MediaRenameAsset {
   uuid: string;
   mediaType: 'image' | 'audio';
   originalFilename: string;
+  description: string;
   fileSize: number;
   url: string;
 }
@@ -39,7 +45,7 @@ interface UsageRow {
 interface MediaRenameDialogProps {
   asset: MediaRenameAsset | null;
   onClose: () => void;
-  onRenamed: (uuid: string, newFilename: string) => void;
+  onRenamed: (uuid: string, updates: { originalFilename: string; description: string }) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -65,10 +71,10 @@ function typeMeta(entityType: string): { icon: typeof FileText; label: string } 
 }
 
 /**
- * Lets the user edit the display name of a media asset, with the same
- * "where this is used" context as the delete dialog so they can see who
- * the rename will affect (purely visual — references are by UUID, so the
- * rename never breaks anything).
+ * Lets the user edit a media asset's display name and short description,
+ * with the same "where this is used" context as the delete dialog so they
+ * can see who the change will affect (purely metadata — references are by
+ * UUID, so this never breaks anything).
  */
 export function MediaRenameDialog({
   asset,
@@ -79,8 +85,11 @@ export function MediaRenameDialog({
   const [usageError, setUsageError] = useState<string | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(false);
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!asset) {
@@ -88,12 +97,17 @@ export function MediaRenameDialog({
       setUsageError(null);
       setLoadingUsage(false);
       setName('');
+      setDescription('');
       setSaveError(null);
       setSaving(false);
+      setAiLoading(false);
+      setAiError(null);
       return;
     }
     setName(asset.originalFilename);
+    setDescription(asset.description);
     setSaveError(null);
+    setAiError(null);
 
     let cancelled = false;
     setLoadingUsage(true);
@@ -125,39 +139,85 @@ export function MediaRenameDialog({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!asset) return;
-    const trimmed = name.trim();
-    if (trimmed === '' || trimmed === asset.originalFilename) {
+    const trimmedName = name.trim();
+    const trimmedDesc = description.trim();
+    if (trimmedName === '') return;
+
+    const nameChanged = trimmedName !== asset.originalFilename;
+    const descChanged = trimmedDesc !== asset.description;
+    if (!nameChanged && !descChanged) {
       onClose();
       return;
     }
+
+    const payload: { originalFilename?: string; description?: string } = {};
+    if (nameChanged) payload.originalFilename = trimmedName;
+    if (descChanged) payload.description = trimmedDesc;
+
     setSaving(true);
     setSaveError(null);
     try {
       const res = await fetch(`/api/media/${asset.uuid}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ originalFilename: trimmed }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(
-          (body as { error?: string }).error ?? `Rename failed (HTTP ${res.status})`,
+          (body as { error?: string }).error ?? `Save failed (HTTP ${res.status})`,
         );
       }
-      const body = (await res.json()) as { data: { originalFilename: string } };
-      onRenamed(asset.uuid, body.data?.originalFilename ?? trimmed);
+      const body = (await res.json()) as {
+        data: { originalFilename: string; description: string };
+      };
+      onRenamed(asset.uuid, {
+        originalFilename: body.data?.originalFilename ?? trimmedName,
+        description: body.data?.description ?? trimmedDesc,
+      });
       onClose();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Rename failed');
+      setSaveError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSaving(false);
     }
   }
 
+  async function handleAiGenerate() {
+    if (!asset) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch(`/api/media/${asset.uuid}/describe-ai`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? `Generation failed (HTTP ${res.status})`,
+        );
+      }
+      const body = (await res.json()) as { data: { description: string } };
+      const generated = body.data?.description?.trim() ?? '';
+      if (generated === '') {
+        throw new Error('AI returned an empty description.');
+      }
+      setDescription(generated.slice(0, DESCRIPTION_MAX_LENGTH));
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Generation failed');
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   const open = asset !== null;
   const usageCount = usage?.length ?? 0;
-  const trimmed = name.trim();
-  const dirty = !!asset && trimmed !== '' && trimmed !== asset.originalFilename;
+  const trimmedName = name.trim();
+  const trimmedDesc = description.trim();
+  const dirty =
+    !!asset &&
+    trimmedName !== '' &&
+    (trimmedName !== asset.originalFilename || trimmedDesc !== asset.description);
 
   return (
     <Dialog
@@ -170,7 +230,7 @@ export function MediaRenameDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4" />
-            Rename media file
+            Edit media file
           </DialogTitle>
         </DialogHeader>
 
@@ -205,6 +265,51 @@ export function MediaRenameDialog({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {formatBytes(asset.fileSize)}
                 </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label
+                  htmlFor="media-description"
+                  className="text-xs font-medium text-foreground"
+                >
+                  Description{' '}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                {asset.mediaType === 'image' && (
+                  <button
+                    type="button"
+                    onClick={handleAiGenerate}
+                    disabled={saving || aiLoading}
+                    title="Generate description with AI"
+                    aria-label="Generate description with AI"
+                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {aiLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3 w-3" />
+                    )}
+                    {aiLoading ? 'Generating…' : 'AI'}
+                  </button>
+                )}
+              </div>
+              <Textarea
+                id="media-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Notes about this file…"
+                rows={3}
+                maxLength={DESCRIPTION_MAX_LENGTH}
+                disabled={saving}
+                className="resize-y text-sm"
+              />
+              <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <span className="text-destructive">{aiError ?? ''}</span>
+                <span className="tabular-nums">
+                  {description.length} / {DESCRIPTION_MAX_LENGTH}
+                </span>
               </div>
             </div>
 
@@ -262,8 +367,8 @@ export function MediaRenameDialog({
                         })}
                       </ul>
                       <p className="text-xs text-muted-foreground">
-                        Renaming only updates the display name. The references in
-                        these items use the file&apos;s ID, so they won&apos;t break.
+                        Edits only change metadata. The references in these items use the
+                        file&apos;s ID, so they won&apos;t break.
                       </p>
                     </>
                   )}

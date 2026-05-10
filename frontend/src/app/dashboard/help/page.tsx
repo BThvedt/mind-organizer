@@ -129,8 +129,6 @@ const PLAYGROUND_DEFAULT = `# Heading 1
 
 \`inline code\` inside a sentence
 
-    code block (4-space indent)
-
 ---
 
 [Link text](https://example.com)
@@ -138,6 +136,20 @@ const PLAYGROUND_DEFAULT = `# Heading 1
 | Column A | Column B |
 |----------|----------|
 | Value 1  | Value 2  |
+
+---
+
+\`\`\`typescript
+// Syntax-highlighted code block
+const greet = (name: string): string => \`Hello, \${name}!\`;
+console.log(greet("world"));
+\`\`\`
+
+\`\`\`mermaid
+flowchart LR
+    A[Write Markdown] --> B[Live Preview]
+    B --> C[Share with anyone]
+\`\`\`
 `;
 
 function MarkdownPlayground() {
@@ -184,7 +196,8 @@ const markdownRows = [
   { syntax: '![alt](url)', description: 'Image' },
   { syntax: '> quote', description: 'Blockquote' },
   { syntax: '`code`', description: 'Inline code' },
-  { syntax: '```\\nlanguage\\n```', description: 'Fenced code block' },
+  { syntax: '```ts\\ncode\\n```', description: 'Fenced code block with syntax highlighting (add a language tag)' },
+  { syntax: '```mermaid\\n...\\n```', description: 'Mermaid diagram — flowcharts, sequences, and more' },
   { syntax: '---', description: 'Horizontal rule' },
   {
     syntax: '| Col | Col |\\n|-----|-----|\\n| val | val |',
@@ -294,6 +307,168 @@ function NotesTab() {
           These shortcuts work inside the note editor.
         </p>
         <ShortcutsTable rows={shortcutRows} />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Syntax Highlighting" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            Any fenced code block tagged with a language name is automatically
+            syntax-highlighted in the preview using{' '}
+            <strong className="text-foreground">VSCode-quality colours</strong> that
+            switch between light and dark themes automatically.
+          </p>
+          <p>
+            Write a fenced block and add the language immediately after the opening
+            three backticks — no space:
+          </p>
+          <pre className="rounded-md border border-border bg-muted/40 px-4 py-3 font-mono text-xs leading-relaxed overflow-x-auto">
+            {['```typescript', 'const greet = (name: string) => `Hello, ${name}!`;', '```'].join('\n')}
+          </pre>
+          <p>
+            Supported languages include <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">typescript</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">javascript</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">python</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">php</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">bash</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">sql</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">json</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">css</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">html</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">rust</code>,{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">go</code>,{' '}
+            and many more. If a language tag is unrecognised it falls back to plain
+            text. Fences with no tag at all are shown unformatted, as before.
+          </p>
+          <p>
+            A <strong className="text-foreground">copy button</strong> appears on hover
+            in the top-right corner of every code block — click it to copy the raw
+            source to the clipboard.
+          </p>
+          <p>
+            Try it in the playground above by pasting a code fence with a language tag.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Diagrams with Mermaid" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            <strong className="text-foreground">Mermaid</strong> is a text-based
+            diagramming language. Write a fenced code block tagged{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">mermaid</code>{' '}
+            and it is rendered as a diagram in the preview — flowcharts, sequence
+            diagrams, entity-relationship diagrams, and more.
+          </p>
+          <p>
+            Example — a simple flowchart:
+          </p>
+          <pre className="rounded-md border border-border bg-muted/40 px-4 py-3 font-mono text-xs leading-relaxed overflow-x-auto">
+            {[
+              '```mermaid',
+              'flowchart TD',
+              '    A[Start] --> B{Decision}',
+              '    B -- Yes --> C[Do the thing]',
+              '    B -- No  --> D[Skip it]',
+              '    C --> E[End]',
+              '    D --> E',
+              '```',
+            ].join('\n')}
+          </pre>
+          <p>
+            Other useful diagram types:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1">
+            <li>
+              <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">sequenceDiagram</code>
+              {' '}— show message exchanges between actors
+            </li>
+            <li>
+              <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">erDiagram</code>
+              {' '}— entity-relationship diagrams for data modelling
+            </li>
+            <li>
+              <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">gantt</code>
+              {' '}— project timelines and task scheduling
+            </li>
+            <li>
+              <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">mindmap</code>
+              {' '}— hierarchical mind maps
+            </li>
+          </ul>
+          <p>
+            The diagram automatically uses the correct colours for light and dark mode.
+            If the Mermaid syntax has an error, a red error card is shown with the
+            parser message and your source so you can fix it. The{' '}
+            <a
+              href="https://mermaid.live"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground underline underline-offset-2"
+            >
+              Mermaid Live Editor
+            </a>{' '}
+            is a handy sandbox for experimenting with syntax before pasting into a note.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Images & Audio" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            You can embed images and audio clips directly in a note by{' '}
+            <strong className="text-foreground">dragging and dropping</strong> files onto
+            the editor, or by <strong className="text-foreground">pasting</strong> them
+            from the clipboard. Supported formats:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1">
+            <li>
+              <strong className="text-foreground">Images</strong> — JPEG, PNG, WebP, GIF,
+              AVIF, SVG
+            </li>
+            <li>
+              <strong className="text-foreground">Audio</strong> — MP3, OGG, WAV, M4A, AAC
+            </li>
+          </ul>
+          <p>
+            When you drop or paste a file, a{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+              ![Uploading…](pending-…)
+            </code>{' '}
+            placeholder appears at the cursor while the upload is in progress. Once the
+            upload finishes the placeholder is automatically replaced with the correct
+            Markdown — an{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+              ![alt text](url)
+            </code>{' '}
+            for images, which renders as an inline picture in the preview, or the same
+            syntax for audio, which renders as an embedded audio player.
+          </p>
+          <p>
+            <strong className="text-foreground">Image compression</strong> is applied
+            automatically before upload: images are scaled down to a maximum of 720 px
+            wide and 1 200 px tall if they exceed those dimensions, and re-encoded as
+            JPEG or WebP. The original file is never modified — only the uploaded copy
+            is compressed. Audio files are uploaded as-is.
+          </p>
+          <p>
+            Files are stored privately. A media file is only accessible to{' '}
+            <strong className="text-foreground">you</strong> while you are signed in, or
+            to anyone you have shared the note with via a share link (the share token is
+            automatically included when the note is publicly shared, so embedded media
+            loads correctly for readers too).
+          </p>
+          <p>
+            If a previously uploaded file is deleted and a note still references it, the
+            preview shows a small{' '}
+            <strong className="text-foreground">Media deleted</strong> badge in place of
+            the broken image. A warning banner also appears at the top of the editor so
+            you know the note contains broken references.
+          </p>
+          <p>
+            Multiple files can be dropped at once — each gets its own placeholder and
+            uploads one at a time in the order they were dropped.
+          </p>
+        </div>
       </CollapsibleSection>
     </div>
   );

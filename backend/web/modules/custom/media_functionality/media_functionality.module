@@ -4,9 +4,17 @@
  * @file
  * Hooks for media_functionality.
  *
- * Scans node bodies for /api/media/<uuid> references on save and keeps
- * the media_functionality_usage table in sync, so we can answer
- * "which notes/flashcards use this media?" and flag broken references.
+ * On every save of a content type that can embed media (`/api/media/<uuid>`
+ * markdown references), we:
+ *   1. extract the referenced asset UUIDs
+ *   2. sync the media_functionality_usage table so per-asset usage queries
+ *      stay accurate
+ *   3. recompute field_missing_media — the subset of those UUIDs whose
+ *      asset rows are soft-deleted — so the frontend can show "broken
+ *      reference" badges without scanning every body at render time
+ *
+ * Track the same logic across notes, flashcards, deck bodies, and todo
+ * lists (which aggregate text from their child todo_item paragraphs).
  */
 
 declare(strict_types=1);
@@ -20,33 +28,50 @@ function media_functionality_node_presave(NodeInterface $node): void {
   /** @var \Drupal\media_functionality\Service\UsageTracker $tracker */
   $tracker = \Drupal::service('media_functionality.usage_tracker');
 
-  if ($node->bundle() === 'study_note') {
-    $body = $node->hasField('field_body') && !$node->get('field_body')->isEmpty()
-      ? (string) $node->get('field_body')->value
-      : '';
-    $tracker->syncForEntity(
-      'node--study_note',
-      (string) $node->uuid(),
-      (string) $node->getTitle(),
-      $body
-    );
+  $bundle = $node->bundle();
+  $entityType = match ($bundle) {
+    'study_note' => 'node--study_note',
+    'flashcard' => 'node--flashcard',
+    'flashcard_deck' => 'node--flashcard_deck',
+    'todo_list' => 'node--todo_list',
+    default => NULL,
+  };
+  if ($entityType === NULL) {
     return;
   }
 
-  // Flashcard scanning is wired and ready, but flashcard upload UI hasn't
-  // shipped yet. Enable when /flashcard editor gains drag-drop/paste media.
-  // if ($node->bundle() === 'flashcard') {
-  //   $front = $node->hasField('field_front') && !$node->get('field_front')->isEmpty()
-  //     ? (string) $node->get('field_front')->value : '';
-  //   $back = $node->hasField('field_back') && !$node->get('field_back')->isEmpty()
-  //     ? (string) $node->get('field_back')->value : '';
-  //   $tracker->syncForEntity(
-  //     'node--flashcard',
-  //     (string) $node->uuid(),
-  //     (string) $node->getTitle(),
-  //     $front . "\n" . $back
-  //   );
-  // }
+  $text = match ($bundle) {
+    'study_note' => _media_functionality_string_value($node, 'field_body'),
+    'flashcard' => _media_functionality_string_value($node, 'field_front')
+      . "\n" . _media_functionality_string_value($node, 'field_back'),
+    'flashcard_deck' => _media_functionality_text_with_summary_value($node, 'body'),
+    'todo_list' => _media_functionality_todo_list_text($node),
+    default => '',
+  };
+
+  $tracker->syncForEntity(
+    $entityType,
+    (string) $node->uuid(),
+    (string) $node->getTitle(),
+    $text
+  );
+
+  // Recompute field_missing_media: extracted UUIDs ∩ soft-deleted assets.
+  // Editing the body to remove the broken reference will naturally clear
+  // the field on the next save.
+  if ($node->hasField('field_missing_media')) {
+    $referenced = $tracker->extractAssetUuids($text);
+    $missing = $tracker->deletedAmong($referenced);
+    $current = array_map(
+      static fn ($item) => (string) $item['value'],
+      $node->get('field_missing_media')->getValue()
+    );
+    sort($missing);
+    sort($current);
+    if ($current !== $missing) {
+      $node->set('field_missing_media', $missing);
+    }
+  }
 }
 
 /**
@@ -56,6 +81,8 @@ function media_functionality_node_delete(NodeInterface $node): void {
   $type = match ($node->bundle()) {
     'study_note' => 'node--study_note',
     'flashcard' => 'node--flashcard',
+    'flashcard_deck' => 'node--flashcard_deck',
+    'todo_list' => 'node--todo_list',
     default => NULL,
   };
   if ($type === NULL) {
@@ -64,4 +91,49 @@ function media_functionality_node_delete(NodeInterface $node): void {
   /** @var \Drupal\media_functionality\Service\UsageTracker $tracker */
   $tracker = \Drupal::service('media_functionality.usage_tracker');
   $tracker->removeForEntity($type, (string) $node->uuid());
+}
+
+/**
+ * Reads a `string` / `string_long` field's `value` property as a string.
+ */
+function _media_functionality_string_value(NodeInterface $node, string $fieldName): string {
+  if (!$node->hasField($fieldName) || $node->get($fieldName)->isEmpty()) {
+    return '';
+  }
+  return (string) $node->get($fieldName)->value;
+}
+
+/**
+ * Reads a `text_with_summary` field's `value` property as a string.
+ */
+function _media_functionality_text_with_summary_value(NodeInterface $node, string $fieldName): string {
+  if (!$node->hasField($fieldName) || $node->get($fieldName)->isEmpty()) {
+    return '';
+  }
+  $first = $node->get($fieldName)->first();
+  return $first ? (string) ($first->value ?? '') : '';
+}
+
+/**
+ * Concatenates the text of every `todo_item` paragraph attached to a
+ * `todo_list` node, so the parent's media references include anything
+ * embedded in any item's text or notes.
+ *
+ * Reads from the in-memory paragraph entities on `field_items` so changes
+ * made in the same save (new items, edited text) are seen immediately.
+ */
+function _media_functionality_todo_list_text(NodeInterface $node): string {
+  if (!$node->hasField('field_items') || $node->get('field_items')->isEmpty()) {
+    return '';
+  }
+  $parts = [];
+  foreach ($node->get('field_items')->referencedEntities() as $paragraph) {
+    if ($paragraph->hasField('field_item_text') && !$paragraph->get('field_item_text')->isEmpty()) {
+      $parts[] = (string) $paragraph->get('field_item_text')->value;
+    }
+    if ($paragraph->hasField('field_notes') && !$paragraph->get('field_notes')->isEmpty()) {
+      $parts[] = (string) $paragraph->get('field_notes')->value;
+    }
+  }
+  return implode("\n", $parts);
 }

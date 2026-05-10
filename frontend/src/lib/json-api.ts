@@ -44,3 +44,23 @@ export function toRelIds(
 ): string[] {
   return toRelArray(data).map((d) => d.id);
 }
+
+/**
+ * Reads a multi-value `string` JSON:API field (e.g. `field_missing_media`)
+ * defensively. JSON:API typically serializes these as a flat `string[]`,
+ * but older proxies or PATCH echoes can return `[{ value: '…' }]` shapes —
+ * we accept either and ignore everything else.
+ */
+export function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): string | null => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object' && 'value' in item) {
+        const v = (item as { value: unknown }).value;
+        return typeof v === 'string' ? v : null;
+      }
+      return null;
+    })
+    .filter((s): s is string => s !== null);
+}

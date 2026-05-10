@@ -25,6 +25,10 @@ import { AiGenerateDialog } from '@/components/ai-generate-dialog';
 import { LinkDialog } from '@/components/link-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
+import {
+  EntityDeleteDialog,
+  type EntityDeleteConfirmOptions,
+} from '@/components/entity-delete-dialog';
 
 const ADD_CARD_BOTH_REQUIRED_MSG = 'Both front and back are required.';
 
@@ -247,7 +251,7 @@ export default function DeckDetailPage({
     }
   }, [front, back, formError]);
 
-  async function handleDelete() {
+  async function handleDelete(opts: EntityDeleteConfirmOptions) {
     setDeleteError('');
     if (!isOnline) {
       setDeleteError(OFFLINE_ACTION_MESSAGE);
@@ -266,6 +270,15 @@ export default function DeckDetailPage({
         return;
       }
       if (res.status === 204) {
+        // Deck (and its cards) are gone. If opted in, soft-delete the
+        // now-orphan media too. Failures here are non-fatal.
+        if (opts.deleteOrphanMedia && opts.exclusiveUuids.length > 0) {
+          await fetch('/api/media/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuids: opts.exclusiveUuids }),
+          }).catch(() => {});
+        }
         setDeleteConfirm(false);
         setDeleteError('');
         router.push('/dashboard/decks');
@@ -365,39 +378,7 @@ export default function DeckDetailPage({
 
             {/* Right: button rows */}
             <div className="shrink-0 pl-9 sm:pl-0">
-              {deleteConfirm ? (
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground hidden sm:inline">
-                      Delete this deck?
-                    </span>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleDelete}
-                      disabled={deleting}
-                    >
-                      {deleting ? 'Deleting…' : 'Confirm'}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setDeleteConfirm(false);
-                        setDeleteError('');
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                  {deleteError && (
-                    <p className="text-sm text-destructive text-right max-w-xs">
-                      {deleteError}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-start sm:items-end gap-2">
+              <div className="flex flex-col items-start sm:items-end gap-2">
                   {/* Row 1: primary actions */}
                   <div className="flex items-center gap-2">
                     {!loading && cards.length > 0 && (
@@ -560,7 +541,6 @@ export default function DeckDetailPage({
                     </Button>
                   </div>
                 </div>
-              )}
             </div>
           </div>
         </div>
@@ -683,6 +663,22 @@ export default function DeckDetailPage({
         )}
 
       </main>
+
+      <EntityDeleteDialog
+        open={deleteConfirm}
+        kind="deck"
+        entityUuid={id}
+        title="Delete this deck?"
+        description="All flashcards in this deck will be removed. This action cannot be undone."
+        deleting={deleting}
+        errorMessage={deleteError || null}
+        onCancel={() => {
+          if (deleting) return;
+          setDeleteConfirm(false);
+          setDeleteError('');
+        }}
+        onConfirm={(opts) => void handleDelete(opts)}
+      />
     </>
   );
 }

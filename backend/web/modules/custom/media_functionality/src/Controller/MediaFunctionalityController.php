@@ -207,7 +207,10 @@ class MediaFunctionalityController extends ControllerBase {
     if ($asset === NULL || (int) $asset['owner_uid'] !== (int) $account->id()) {
       return $this->json(['error' => 'Not found'], 404);
     }
-    return $this->json(['data' => $this->usage->usageForAsset($uuid)]);
+    $rows = $this->usage->usageForAsset($uuid);
+    return $this->json(['data' => array_map(fn ($row) => $row + [
+      'frontend_url' => $this->resolveFrontendUrl((string) $row['entity_type'], (string) $row['entity_uuid']),
+    ], $rows)]);
   }
 
   /**
@@ -216,6 +219,11 @@ class MediaFunctionalityController extends ControllerBase {
    * Soft-deletes the asset (sets deleted=1) and removes the S3 object.
    * Returns the usage list so the frontend can show "still used in N notes"
    * warnings.
+   *
+   * After the asset is marked deleted, every referencing entity is re-saved
+   * so its presave hook recomputes field_missing_media — this is what
+   * actually flags the broken references (the body text still contains the
+   * uuid, but it now resolves to a soft-deleted asset).
    */
   public function softDelete(string $uuid): JsonResponse {
     $account = $this->currentUser();
@@ -230,7 +238,197 @@ class MediaFunctionalityController extends ControllerBase {
       return $this->json(['data' => ['uuid' => $uuid, 'usage' => $this->usage->usageForAsset($uuid)]]);
     }
 
+    $usageRows = $this->performSoftDelete($asset);
+    return $this->json(['data' => ['uuid' => $uuid, 'usage' => $usageRows]]);
+  }
+
+  /**
+   * PATCH /api/study/media/{uuid}/rename
+   *
+   * Body: `{ "originalFilename": "new-name.png" }`. Owner-only. Updates the
+   * `original_filename` column on the asset row — this is purely metadata
+   * (the S3 key is not touched, and the UUID embedded in note bodies still
+   * resolves to the same file), so renames don't break any references.
+   */
+  public function rename(string $uuid, Request $request): JsonResponse {
+    $account = $this->currentUser();
+    if ($account->isAnonymous()) {
+      return $this->json(['error' => 'Unauthenticated'], 401);
+    }
+    $asset = $this->loadAsset($uuid);
+    if ($asset === NULL || (int) $asset['owner_uid'] !== (int) $account->id()) {
+      return $this->json(['error' => 'Not found'], 404);
+    }
+    if ((int) $asset['deleted'] === 1) {
+      return $this->json(['error' => 'Asset has been deleted.'], 410);
+    }
+
+    $payload = json_decode((string) $request->getContent(), TRUE);
+    $rawName = is_array($payload) ? ($payload['originalFilename'] ?? NULL) : NULL;
+    if (!is_string($rawName)) {
+      return $this->json(['error' => 'Body must include an "originalFilename" string.'], 400);
+    }
+
+    $name = trim($rawName);
+    if ($name === '') {
+      return $this->json(['error' => 'Filename cannot be empty.'], 400);
+    }
+    // Disallow path separators / control chars — keep this purely a display
+    // name; the S3 object key never changes.
+    if (preg_match('#[/\\\\\x00-\x1F]#', $name) === 1) {
+      return $this->json(['error' => 'Filename contains invalid characters.'], 400);
+    }
+    $name = mb_substr($name, 0, 255);
+
+    $this->database->update('media_functionality_asset')
+      ->fields(['original_filename' => $name])
+      ->condition('uuid', $uuid)
+      ->execute();
+
+    return $this->json(['data' => [
+      'uuid' => $uuid,
+      'mediaType' => (string) $asset['media_type'],
+      'mimeType' => (string) $asset['mime_type'],
+      'originalFilename' => $name,
+      'fileSize' => (int) $asset['file_size'],
+      'url' => $this->buildPublicUrl($uuid, (string) $asset['s3_key']),
+    ]]);
+  }
+
+  /**
+   * PATCH /api/study/media/bulk-delete
+   *
+   * Body: `{ "uuids": ["…", "…"] }`. Soft-deletes each asset the caller owns
+   * (silently skipping unknown / already-deleted / not-owned uuids), then
+   * returns `{ deleted: [...], skipped: [...] }`.
+   *
+   * Used by the entity-delete confirmation flow to clean up media files
+   * that were exclusively referenced by the entity being deleted.
+   */
+  public function bulkDelete(Request $request): JsonResponse {
+    $account = $this->currentUser();
+    if ($account->isAnonymous()) {
+      return $this->json(['error' => 'Unauthenticated'], 401);
+    }
+
+    $payload = json_decode((string) $request->getContent(), TRUE);
+    $uuids = is_array($payload['uuids'] ?? NULL) ? $payload['uuids'] : NULL;
+    if (!is_array($uuids)) {
+      return $this->json(['error' => 'Body must include a "uuids" array.'], 400);
+    }
+
+    $deleted = [];
+    $skipped = [];
+    foreach ($uuids as $rawUuid) {
+      $uuid = is_string($rawUuid) ? $rawUuid : '';
+      if ($uuid === '') {
+        continue;
+      }
+      $asset = $this->loadAsset($uuid);
+      if ($asset === NULL
+        || (int) $asset['owner_uid'] !== (int) $account->id()
+        || (int) $asset['deleted'] === 1) {
+        $skipped[] = $uuid;
+        continue;
+      }
+      $this->performSoftDelete($asset);
+      $deleted[] = $uuid;
+    }
+
+    return $this->json(['data' => ['deleted' => $deleted, 'skipped' => $skipped]]);
+  }
+
+  /**
+   * GET /api/study/media/exclusive-for/{kind}/{uuid}
+   *
+   * Returns live (non-deleted) media assets that are referenced ONLY by the
+   * given entity (and any sub-entities deleted alongside it — for `deck`
+   * that means every flashcard whose `field_deck` is this deck). The
+   * confirmation dialog uses this to offer "delete these orphan media too"
+   * when the user deletes a note / deck / todo list.
+   *
+   * `kind` ∈ {`note`, `deck`, `todo_list`}.
+   */
+  public function exclusiveFor(string $kind, string $uuid): JsonResponse {
+    $account = $this->currentUser();
+    if ($account->isAnonymous()) {
+      return $this->json(['error' => 'Unauthenticated'], 401);
+    }
+
+    $bundleByKind = [
+      'note' => 'study_note',
+      'deck' => 'flashcard_deck',
+      'todo_list' => 'todo_list',
+    ];
+    if (!isset($bundleByKind[$kind])) {
+      return $this->json(['error' => 'Unknown kind.'], 400);
+    }
+    $bundle = $bundleByKind[$kind];
+
+    $nodeStorage = $this->entityTypeManager()->getStorage('node');
+    $matches = $nodeStorage->loadByProperties(['uuid' => $uuid, 'type' => $bundle]);
+    /** @var \Drupal\node\NodeInterface|null $node */
+    $node = $matches ? reset($matches) : NULL;
+    if ($node === NULL || (int) $node->getOwnerId() !== (int) $account->id()) {
+      return $this->json(['error' => 'Not found'], 404);
+    }
+
+    $entities = [['entity_type' => 'node--' . $bundle, 'entity_uuid' => $uuid]];
+
+    // Decks cascade-delete their flashcards (see study_flashcard_cascade
+    // module), so any media referenced by those cards becomes orphan too.
+    if ($kind === 'deck') {
+      $cardIds = $nodeStorage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('type', 'flashcard')
+        ->condition('field_deck', $node->id())
+        ->execute();
+      if (!empty($cardIds)) {
+        foreach ($nodeStorage->loadMultiple($cardIds) as $card) {
+          $entities[] = [
+            'entity_type' => 'node--flashcard',
+            'entity_uuid' => (string) $card->uuid(),
+          ];
+        }
+      }
+    }
+
+    $exclusiveUuids = $this->usage->exclusiveAssetsForEntities($entities);
+    if (empty($exclusiveUuids)) {
+      return $this->json(['data' => []]);
+    }
+
+    $rows = $this->database->select('media_functionality_asset', 'a')
+      ->fields('a', ['uuid', 's3_key', 'media_type', 'mime_type', 'original_filename', 'file_size'])
+      ->condition('uuid', $exclusiveUuids, 'IN')
+      ->condition('deleted', 0)
+      ->execute()
+      ->fetchAll(\PDO::FETCH_ASSOC);
+
+    return $this->json(['data' => array_map(fn ($r) => [
+      'uuid' => (string) $r['uuid'],
+      'mediaType' => (string) $r['media_type'],
+      'mimeType' => (string) $r['mime_type'],
+      'originalFilename' => (string) $r['original_filename'],
+      'fileSize' => (int) $r['file_size'],
+      'url' => $this->buildPublicUrl((string) $r['uuid'], (string) $r['s3_key']),
+    ], $rows)]);
+  }
+
+  /**
+   * Soft-delete one asset row. Caller is responsible for owner / state
+   * checks before invoking this.
+   *
+   * Returns the usage rows that existed at deletion time, so callers can
+   * relay them back to the client if useful.
+   *
+   * @param array<string, mixed> $asset
+   * @return array<int, array{entity_type: string, entity_uuid: string, entity_label: string}>
+   */
+  private function performSoftDelete(array $asset): array {
+    $uuid = (string) $asset['uuid'];
     $usageRows = $this->usage->usageForAsset($uuid);
+    $referencingEntities = $this->usage->entitiesReferencing($uuid);
 
     // Soft-delete in DB first; only then attempt the (best-effort) S3 delete.
     $now = \Drupal::time()->getRequestTime();
@@ -240,7 +438,12 @@ class MediaFunctionalityController extends ControllerBase {
       ->execute();
     $this->s3->deleteObject((string) $asset['s3_key']);
 
-    return $this->json(['data' => ['uuid' => $uuid, 'usage' => $usageRows]]);
+    // Re-save every referencing entity so its presave hook recomputes
+    // field_missing_media. Failures are swallowed so one bad row can't
+    // hide the asset deletion from the caller.
+    $this->propagateMissingMedia($referencingEntities);
+
+    return $usageRows;
   }
 
   /**
@@ -271,6 +474,76 @@ class MediaFunctionalityController extends ControllerBase {
   // ──────────────────────────────────────────────────────────────────────
   // Helpers
   // ──────────────────────────────────────────────────────────────────────
+
+  /**
+   * Re-saves each referencing entity so hook_node_presave repopulates
+   * field_missing_media. Failures are logged but never propagated.
+   *
+   * @param array<int, array{entity_type: string, entity_uuid: string}> $rows
+   */
+  private function propagateMissingMedia(array $rows): void {
+    if (empty($rows)) {
+      return;
+    }
+    $logger = \Drupal::logger('media_functionality');
+    $nodeStorage = $this->entityTypeManager()->getStorage('node');
+
+    foreach ($rows as $row) {
+      // Only node--<bundle> entries are propagated today; future paragraph
+      // or other entity refs would be added here.
+      if (!str_starts_with($row['entity_type'], 'node--')) {
+        continue;
+      }
+      try {
+        $matches = $nodeStorage->loadByProperties(['uuid' => $row['entity_uuid']]);
+        $node = $matches ? reset($matches) : NULL;
+        if ($node !== NULL) {
+          $node->save();
+        }
+      }
+      catch (\Throwable $e) {
+        $logger->warning('Failed to propagate missing-media flag to @type @uuid: @msg', [
+          '@type' => $row['entity_type'],
+          '@uuid' => $row['entity_uuid'],
+          '@msg' => $e->getMessage(),
+        ]);
+      }
+    }
+  }
+
+  /**
+   * Resolves a frontend URL for the entity referenced from the usage table.
+   *
+   * Flashcards don't have their own page in the SPA — clicking one takes
+   * you to the parent deck. Todo lists likewise share a single index page
+   * since per-list pages don't exist yet.
+   */
+  private function resolveFrontendUrl(string $entityType, string $entityUuid): ?string {
+    return match ($entityType) {
+      'node--study_note' => '/dashboard/notes/' . $entityUuid,
+      'node--flashcard_deck' => '/dashboard/decks/' . $entityUuid,
+      'node--flashcard' => $this->flashcardDeckUrl($entityUuid),
+      'node--todo_list' => '/dashboard/todos',
+      default => NULL,
+    };
+  }
+
+  /**
+   * Looks up the parent deck of a flashcard and returns its URL, or NULL
+   * if the card was hard-deleted or has no deck reference.
+   */
+  private function flashcardDeckUrl(string $cardUuid): ?string {
+    $matches = $this->entityTypeManager()->getStorage('node')
+      ->loadByProperties(['uuid' => $cardUuid, 'type' => 'flashcard']);
+    /** @var \Drupal\node\NodeInterface|null $card */
+    $card = $matches ? reset($matches) : NULL;
+    if ($card === NULL || !$card->hasField('field_deck') || $card->get('field_deck')->isEmpty()) {
+      return NULL;
+    }
+    /** @var \Drupal\node\NodeInterface|null $deck */
+    $deck = $card->get('field_deck')->entity;
+    return $deck ? '/dashboard/decks/' . $deck->uuid() : NULL;
+  }
 
   /**
    * @return array<string, mixed>|null

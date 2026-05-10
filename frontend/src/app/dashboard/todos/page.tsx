@@ -43,6 +43,10 @@ import { cn } from '@/lib/utils';
 import { ShareButton } from '@/components/share/share-button';
 import { LinkDialog } from '@/components/link-dialog';
 import {
+  EntityDeleteDialog,
+  type EntityDeleteConfirmOptions,
+} from '@/components/entity-delete-dialog';
+import {
   AreaSubjectMultiSelector,
   AreaSubjectChipList,
 } from '@/components/area-subject-multi-selector';
@@ -227,6 +231,8 @@ function TodosPageContent() {
   const [addItemError, setAddItemError] = useState('');
   const [todoSessionMessage, setTodoSessionMessage] = useState('');
   const [listDeleteError, setListDeleteError] = useState('');
+  const [deletingListId, setDeletingListId] = useState<string | null>(null);
+  const [deletingList, setDeletingList] = useState(false);
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const clickedElsewhereRef = useRef(false);
 
@@ -420,13 +426,16 @@ function TodosPageContent() {
 
   // ── Delete list ─────────────────────────────────────────────────────────────
 
-  async function handleDeleteList(listId: string) {
-    if (!confirm('Delete this list and all its items?')) return;
+  async function handleDeleteList(
+    listId: string,
+    opts: EntityDeleteConfirmOptions,
+  ) {
     setListDeleteError('');
     if (!isOnline) {
       setListDeleteError(OFFLINE_ACTION_MESSAGE);
       return;
     }
+    setDeletingList(true);
     try {
       const res = await Promise.race([
         fetch(`/api/todos/${listId}`, { method: 'DELETE' }),
@@ -442,12 +451,22 @@ function TodosPageContent() {
         return;
       }
       if (res.status === 204) {
+        // List is gone. Clean up orphan media if requested. Failures here
+        // are non-fatal — the user can retry from the media page.
+        if (opts.deleteOrphanMedia && opts.exclusiveUuids.length > 0) {
+          await fetch('/api/media/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuids: opts.exclusiveUuids }),
+          }).catch(() => {});
+        }
         setLists((prev) => prev.filter((l) => l.id !== listId));
         if (selectedId === listId) {
           setSelectedId(null);
           setMobileShowDetail(false);
           router.replace('/dashboard/todos', { scroll: false });
         }
+        setDeletingListId(null);
         return;
       }
       flagTodoSessionExpired(res);
@@ -458,6 +477,8 @@ function TodosPageContent() {
       );
     } catch {
       setListDeleteError(messageWhenNetworkRequestThrows());
+    } finally {
+      setDeletingList(false);
     }
   }
 
@@ -1228,7 +1249,10 @@ function TodosPageContent() {
                   variant="ghost"
                   size="icon-sm"
                   className="text-destructive hover:text-destructive shrink-0"
-                  onClick={() => handleDeleteList(selectedList.id)}
+                  onClick={() => {
+                    setListDeleteError('');
+                    setDeletingListId(selectedList.id);
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                   <span className="sr-only">Delete list</span>
@@ -1497,6 +1521,26 @@ function TodosPageContent() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {deletingListId && (
+        <EntityDeleteDialog
+          open={true}
+          kind="todo_list"
+          entityUuid={deletingListId}
+          title="Delete this list?"
+          description="All items in this list will be removed. This action cannot be undone."
+          deleting={deletingList}
+          errorMessage={listDeleteError || null}
+          onCancel={() => {
+            if (deletingList) return;
+            setDeletingListId(null);
+            setListDeleteError('');
+          }}
+          onConfirm={(opts) => {
+            if (deletingListId) void handleDeleteList(deletingListId, opts);
+          }}
+        />
+      )}
     </>
   );
 }

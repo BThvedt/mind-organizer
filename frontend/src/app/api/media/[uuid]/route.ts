@@ -54,3 +54,41 @@ export async function DELETE(
   }
   return NextResponse.json(body, { status: res.status });
 }
+
+/**
+ * PATCH /api/media/[uuid]
+ *
+ * Updates editable metadata for a media asset (currently just the display
+ * filename). Body: `{ "originalFilename": "…" }`. Forwards to Drupal's
+ * `/api/study/media/{uuid}/rename` endpoint.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ uuid: string }> }
+) {
+  const { uuid } = await params;
+  const token = await getBearerToken();
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+  }
+
+  const body = await request.text();
+
+  const res = await fetch(`${drupalBaseUrl()}/api/study/media/${uuid}/rename`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+  });
+
+  const text = await res.text();
+  let payload: unknown;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { error: 'Rename failed', detail: text };
+  }
+  return NextResponse.json(payload, { status: res.status });
+}

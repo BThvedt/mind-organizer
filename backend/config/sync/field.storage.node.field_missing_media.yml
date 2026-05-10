@@ -1,0 +1,21 @@
+uuid: d918853d-c694-4784-b34f-1ec939a5ebbb
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node.field_missing_media
+field_name: field_missing_media
+entity_type: node
+type: string
+settings:
+  max_length: 36
+  case_sensitive: true
+  is_ascii: true
+module: core
+locked: false
+cardinality: -1
+translatable: false
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

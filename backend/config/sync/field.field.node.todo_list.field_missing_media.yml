@@ -1,0 +1,19 @@
+uuid: 92755649-68e3-455c-91aa-2195835dbbec
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_missing_media
+    - node.type.todo_list
+id: node.todo_list.field_missing_media
+field_name: field_missing_media
+entity_type: node
+bundle: todo_list
+label: 'Missing media'
+description: 'Internal: UUIDs of soft-deleted media assets still referenced by this entity. Recomputed on save by the media_functionality module.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

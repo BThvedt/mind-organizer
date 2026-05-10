@@ -3,7 +3,8 @@ import { Layers, BookOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { JsonApiResource } from '@/lib/json-api';
-import { toRelIds } from '@/lib/json-api';
+import { toRelIds, toStringArray } from '@/lib/json-api';
+import { MissingMediaIndicator } from '@/components/missing-media-indicator';
 
 interface DeckCardProps {
   deck: JsonApiResource;
@@ -15,6 +16,7 @@ interface DeckCardProps {
 export function DeckCard({ deck, included = [], cardCount = 0, onDoubleClick }: DeckCardProps) {
   const title = deck.attributes.title as string;
   const description = (deck.attributes.body as { value?: string } | null)?.value ?? '';
+  const missingMediaCount = toStringArray(deck.attributes.field_missing_media).length;
 
   const areaIds = toRelIds(deck.relationships?.field_area?.data);
   const subjectIds = toRelIds(deck.relationships?.field_subject?.data);
@@ -40,8 +42,9 @@ export function DeckCard({ deck, included = [], cardCount = 0, onDoubleClick }: 
           <Layers className="h-4 w-4 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-foreground group-hover:text-primary transition-colors">
-            {title}
+          <h3 className="flex items-center gap-1.5 truncate font-semibold text-foreground group-hover:text-primary transition-colors">
+            <span className="truncate">{title}</span>
+            <MissingMediaIndicator count={missingMediaCount} />
           </h3>
           {description ? (
             <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{description}</p>

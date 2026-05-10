@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff, BookOpen, HelpCircle, Share2 } from 'lucide-react';
+import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff, BookOpen, HelpCircle, Share2, Image } from 'lucide-react';
 import { SearchDialog } from '@/components/search-dialog';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
@@ -159,6 +159,12 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                     <Link href="/dashboard/shared" className="flex items-center gap-2 w-full">
                       <Share2 className="h-4 w-4" />
                       Shared
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/dashboard/media" className="flex items-center gap-2 w-full">
+                      <Image className="h-4 w-4" />
+                      Media
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>

@@ -20,6 +20,10 @@ import { LinkDialog } from '@/components/link-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
+import {
+  EntityDeleteDialog,
+  type EntityDeleteConfirmOptions,
+} from '@/components/entity-delete-dialog';
 import { ArrowLeft, Pencil, Eye, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/json-api';
@@ -262,7 +266,7 @@ export default function EditNotePage({
     return () => clearInterval(id);
   }, [authenticated, loading, saveNote]);
 
-  async function handleDelete() {
+  async function handleDelete(opts: EntityDeleteConfirmOptions) {
     setDeleteError('');
     if (!isOnline) {
       setDeleteError(OFFLINE_ACTION_MESSAGE);
@@ -281,6 +285,16 @@ export default function EditNotePage({
         return;
       }
       if (res.status === 204) {
+        // Note is gone. If the user opted in, soft-delete the now-orphan
+        // media too. Failures here are non-fatal — the user can still
+        // clean them up from the media page.
+        if (opts.deleteOrphanMedia && opts.exclusiveUuids.length > 0) {
+          await fetch('/api/media/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuids: opts.exclusiveUuids }),
+          }).catch(() => {});
+        }
         setDeleteConfirm(false);
         setDeleteError('');
         router.push('/dashboard/notes');
@@ -382,53 +396,27 @@ export default function EditNotePage({
             />
           )}
 
-          {deleteConfirm ? (
-            <>
-              <span className="text-sm text-muted-foreground hidden sm:inline">Delete this note?</span>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? 'Deleting…' : 'Confirm'}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setDeleteConfirm(false);
-                  setDeleteError('');
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => {
-                  setDeleteError('');
-                  setDeleteConfirm(true);
-                }}
-                className="text-muted-foreground hover:text-destructive"
-                disabled={loading}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete note</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => void saveNote({ navigateOnSuccess: false })}
-                disabled={saving || loading || !isDirty}
-              >
-                <Save className="h-4 w-4" />
-                {saving ? 'Saving…' : 'Save'}
-              </Button>
-            </>
-          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => {
+              setDeleteError('');
+              setDeleteConfirm(true);
+            }}
+            className="text-muted-foreground hover:text-destructive"
+            disabled={loading}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete note</span>
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void saveNote({ navigateOnSuccess: false })}
+            disabled={saving || loading || !isDirty}
+          >
+            <Save className="h-4 w-4" />
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
         </div>
 
         {/* Row 2: area · subject · decks · AI (scrollable on mobile) */}
@@ -618,6 +606,22 @@ export default function EditNotePage({
           </ScrollArea>
         </div>
       </div>
+
+      <EntityDeleteDialog
+        open={deleteConfirm}
+        kind="note"
+        entityUuid={noteid}
+        title="Delete this note?"
+        description="This action cannot be undone."
+        deleting={deleting}
+        errorMessage={deleteError || null}
+        onCancel={() => {
+          if (deleting) return;
+          setDeleteConfirm(false);
+          setDeleteError('');
+        }}
+        onConfirm={(opts) => void handleDelete(opts)}
+      />
     </>
   );
 }

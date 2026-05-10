@@ -64,6 +64,20 @@ media_functionality.delete:
       - cookie
   methods: [PATCH]
 
+media_functionality.rename:
+  path: '/api/study/media/{uuid}/rename'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::rename'
+    _title: 'Rename media asset'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    uuid: '[0-9a-f\-]+'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [PATCH]
+
 media_functionality.broken:
   path: '/api/study/media/broken'
   defaults:
@@ -76,3 +90,31 @@ media_functionality.broken:
       - oauth2
       - cookie
   methods: [GET]
+
+media_functionality.exclusive_for:
+  path: '/api/study/media/exclusive-for/{kind}/{uuid}'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::exclusiveFor'
+    _title: 'Media exclusively used by an entity'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    kind: 'note|deck|todo_list'
+    uuid: '[0-9a-f\-]+'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]
+
+media_functionality.bulk_delete:
+  path: '/api/study/media/bulk-delete'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::bulkDelete'
+    _title: 'Bulk soft-delete media assets'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [PATCH]

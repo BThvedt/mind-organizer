@@ -18,7 +18,8 @@ import { FileText, ArrowLeft, Plus, Pencil, Layers, ChevronLeft, CheckSquare, X 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/json-api';
-import { toRelArray, toRelIds } from '@/lib/json-api';
+import { toRelArray, toRelIds, toStringArray } from '@/lib/json-api';
+import { MissingMediaIndicator } from '@/components/missing-media-indicator';
 
 function stripMarkdown(md: string): string {
   return md
@@ -371,8 +372,13 @@ function NotesPageContent() {
                     )}
                   >
                     <div className="flex items-baseline justify-between gap-2 mb-1">
-                      <span className="text-sm font-medium text-foreground truncate leading-snug">
-                        {note.attributes.title as string}
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="text-sm font-medium text-foreground truncate leading-snug">
+                          {note.attributes.title as string}
+                        </span>
+                        <MissingMediaIndicator
+                          count={toStringArray(note.attributes.field_missing_media).length}
+                        />
                       </span>
                       {changed && (
                         <span className="text-[11px] text-muted-foreground shrink-0">

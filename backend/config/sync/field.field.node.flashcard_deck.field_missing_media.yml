@@ -1,0 +1,19 @@
+uuid: 46026420-92dc-4b6d-b94c-4373bab51c56
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_missing_media
+    - node.type.flashcard_deck
+id: node.flashcard_deck.field_missing_media
+field_name: field_missing_media
+entity_type: node
+bundle: flashcard_deck
+label: 'Missing media'
+description: 'Internal: UUIDs of soft-deleted media assets still referenced by this entity. Recomputed on save by the media_functionality module.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

@@ -508,7 +508,7 @@ function ChipGroups({
             <Badge
               key={s.id}
               variant="outline"
-              className="gap-1 pl-2 pr-1 py-0.5"
+              className="gap-1 pl-2 pr-1 py-0.5 text-muted-foreground"
             >
               <span className="truncate max-w-[14rem]">{s.name}</span>
               <button

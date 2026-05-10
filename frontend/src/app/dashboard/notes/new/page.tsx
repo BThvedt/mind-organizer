@@ -132,8 +132,15 @@ export default function NewNotePage() {
     <>
       <Header authenticated onSignIn={() => {}} onSignUp={() => {}} onLogout={handleLogout} />
 
-      {/* Top bar */}
-      <div className="fixed top-16 left-0 right-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm">
+      {/* Page shell — flex column that fills the viewport beneath the fixed
+          64px global Header. The bar sits in normal flow (so its height —
+          which can grow with chip rows — naturally pushes the editor down),
+          and the editor fills whatever space is left. */}
+      <div
+        className="flex flex-col"
+        style={{ height: 'calc(100dvh - 64px)', marginTop: 64 }}
+      >
+      <div className="border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="mx-auto max-w-screen-2xl px-4 h-14 flex items-center gap-3">
           <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/dashboard/notes" />}>
             <ArrowLeft className="h-4 w-4" />
@@ -249,11 +256,10 @@ export default function NewNotePage() {
         )}
       </div>
 
-      {/* Editor area — starts below header (64px) + title row (56px) + toolbar row (~40px) */}
-      <div className="flex min-h-0 flex-col pt-[210px] md:pt-[168px]" style={{ height: '100dvh' }}>
-
-        {/* Split pane (desktop) / single pane (mobile) */}
-        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      {/* Editor area — flex-1 to fill whatever vertical space is left after
+          the bar above. min-h-0 lets the inner content (textarea, scroll
+          area) shrink correctly inside the flex column. */}
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
 
           {/* Write pane */}
           <div

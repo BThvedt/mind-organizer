@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { isValidElement, useMemo, type ReactElement } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ImageOff } from 'lucide-react';
 import { MarkdownPre } from './markdown-pre';
+import { MermaidBlock } from './mermaid-block';
 
 interface MarkdownRendererProps {
   children: string;
@@ -36,6 +37,25 @@ function isAudioUrl(src: string | undefined): boolean {
   return /\.(mp3|ogg|wav|m4a|aac)$/i.test(noQuery);
 }
 
+/**
+ * If `child` is the inner `<code class="language-mermaid">` element of a
+ * fenced code block, return its raw text content. Otherwise return null.
+ */
+function extractMermaidSource(child: ReactElement): string | null {
+  const props = child.props as Record<string, unknown> | null | undefined;
+  if (!props || typeof props !== 'object') return null;
+  const className = props.className;
+  if (typeof className !== 'string' || !/\blanguage-mermaid\b/.test(className)) {
+    return null;
+  }
+  const inner = props.children;
+  if (typeof inner === 'string') return inner;
+  if (Array.isArray(inner)) {
+    return inner.map((c) => (typeof c === 'string' ? c : '')).join('');
+  }
+  return inner == null ? '' : String(inner);
+}
+
 export function MarkdownRenderer({
   children,
   brokenUuids,
@@ -56,7 +76,18 @@ export function MarkdownRenderer({
     }
 
     return {
-      pre: MarkdownPre,
+      pre: (preProps) => {
+        const child = Array.isArray(preProps.children)
+          ? preProps.children[0]
+          : preProps.children;
+        if (isValidElement(child)) {
+          const mermaidSource = extractMermaidSource(child);
+          if (mermaidSource !== null) {
+            return <MermaidBlock source={mermaidSource} />;
+          }
+        }
+        return <MarkdownPre {...preProps} />;
+      },
       img: ({ src, alt }) => {
         const srcStr = typeof src === 'string' ? src : undefined;
         const assetUuid = extractAssetUuid(srcStr);

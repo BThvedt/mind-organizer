@@ -216,6 +216,43 @@ button:not(:disabled),
   border-color: var(--border);
 }
 
+/* Shiki syntax-highlighted code blocks (dual-theme via CSS variables).
+   Shiki emits inline `style="color:var(--shiki-light); --shiki-dark:#xxx"` on
+   every span; the rules below swap which colour wins based on .dark. */
+.syntax-block .shiki,
+.syntax-block .shiki span {
+  color: var(--shiki-light);
+  background-color: var(--shiki-light-bg);
+}
+
+.dark .syntax-block .shiki,
+.dark .syntax-block .shiki span {
+  color: var(--shiki-dark);
+  background-color: var(--shiki-dark-bg);
+}
+
+.syntax-block .shiki {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.syntax-block .shiki code {
+  display: block;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: 400;
+}
+
 /* Flashcard slide animations */
 @keyframes card-slide-out-left {
   from { transform: translateX(0px);    opacity: 1; }

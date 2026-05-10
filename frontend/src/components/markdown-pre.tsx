@@ -1,8 +1,33 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { isValidElement, useRef, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SyntaxHighlightedBlock } from './syntax-highlighted-block';
+
+/**
+ * Inspects the inner `<code>` element react-markdown produces for a fenced
+ * code block. If the fence had a language tag (`\`\`\`ts`, `\`\`\`python`, …)
+ * returns `{ language, code }`; otherwise returns null.
+ */
+function extractFencedCode(child: React.ReactNode): { language: string; code: string } | null {
+  if (!isValidElement(child)) return null;
+  const props = child.props as Record<string, unknown> | null | undefined;
+  if (!props || typeof props !== 'object') return null;
+  const className = props.className;
+  if (typeof className !== 'string') return null;
+  const match = className.match(/\blanguage-([\w-]+)\b/);
+  if (!match) return null;
+  const inner = props.children;
+  let code = '';
+  if (typeof inner === 'string') code = inner;
+  else if (Array.isArray(inner))
+    code = inner.map((c) => (typeof c === 'string' ? c : '')).join('');
+  else if (inner != null) code = String(inner);
+  // react-markdown adds a trailing newline before the closing fence; strip
+  // it so the rendered block doesn't end with a blank line.
+  return { language: match[1], code: code.replace(/\n$/, '') };
+}
 
 export function MarkdownPre({
   children,
@@ -11,6 +36,12 @@ export function MarkdownPre({
 }: React.HTMLAttributes<HTMLPreElement>) {
   const preRef = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState(false);
+
+  const child = Array.isArray(children) ? children[0] : children;
+  const fenced = extractFencedCode(child);
+  if (fenced) {
+    return <SyntaxHighlightedBlock source={fenced.code} language={fenced.language} />;
+  }
 
   function handleCopy() {
     const text = preRef.current?.querySelector('code')?.innerText ?? '';

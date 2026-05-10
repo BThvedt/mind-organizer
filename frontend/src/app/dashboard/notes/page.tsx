@@ -21,6 +21,7 @@ import type { JsonApiResource } from '@/lib/json-api';
 import { toRelArray, toRelIds, toStringArray } from '@/lib/json-api';
 import { MissingMediaIndicator } from '@/components/missing-media-indicator';
 import { ShareIndicator } from '@/components/share-indicator';
+import { AttachmentsIndicator } from '@/components/attachments-indicator';
 
 function stripMarkdown(md: string): string {
   return md
@@ -379,6 +380,9 @@ function NotesPageContent() {
                         </span>
                         <MissingMediaIndicator
                           count={toStringArray(note.attributes.field_missing_media).length}
+                        />
+                        <AttachmentsIndicator
+                          hasAttachments={!!note.attributes.field_has_attachments}
                         />
                         <ShareIndicator shared={!!note.attributes.field_is_shared} />
                       </span>

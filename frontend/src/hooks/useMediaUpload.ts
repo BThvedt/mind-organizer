@@ -7,7 +7,7 @@ const UPLOAD_TIMEOUT_MS = 60_000;
 
 export interface UploadedMedia {
   uuid: string;
-  mediaType: 'image' | 'audio';
+  mediaType: 'image' | 'audio' | 'file';
   mimeType: string;
   originalFilename: string;
   fileSize: number;

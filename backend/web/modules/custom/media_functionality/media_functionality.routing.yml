@@ -132,3 +132,16 @@ media_functionality.bulk_delete:
       - oauth2
       - cookie
   methods: [PATCH]
+
+media_functionality.search:
+  path: '/api/study/media/search'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::searchAssets'
+    _title: 'Search media assets'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]

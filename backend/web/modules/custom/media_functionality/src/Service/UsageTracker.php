@@ -150,6 +150,28 @@ class UsageTracker {
   }
 
   /**
+   * Returns TRUE iff any of the supplied asset UUIDs corresponds to a
+   * non-deleted file-class asset (PDFs, spreadsheets, archives, etc.).
+   *
+   * Used by the presave hook to maintain `field_has_attachments` so the
+   * frontend can show a paperclip indicator next to titles in list views
+   * without scanning each body or hitting an extra endpoint.
+   */
+  public function hasAttachmentAmong(array $uuids): bool {
+    if (empty($uuids)) {
+      return FALSE;
+    }
+    $count = (int) $this->database->select('media_functionality_asset', 'a')
+      ->condition('uuid', $uuids, 'IN')
+      ->condition('media_type', 'file')
+      ->condition('deleted', 0)
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+    return $count > 0;
+  }
+
+  /**
    * Returns asset UUIDs that are referenced ONLY by the given (entity_type,
    * entity_uuid) pairs — i.e. media that would become orphan if those
    * entities were deleted. Used by the cascade-delete confirmation flow.

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState, useCallback, use } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -23,6 +23,7 @@ import {
 } from '@/lib/api-client-messages';
 import { AiGenerateDialog } from '@/components/ai-generate-dialog';
 import { LinkDialog } from '@/components/link-dialog';
+import { AttachmentsMenu } from '@/components/attachments-menu';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
 import {
@@ -327,6 +328,22 @@ export default function DeckDetailPage({
   const description =
     (deck?.attributes.body as { value?: string } | null)?.value ?? '';
 
+  // Aggregated text used by the Attachments menu so it lists every file
+  // referenced anywhere in this deck (description plus each card's
+  // front/back). The menu is viewer-only here since the deck page has
+  // no single textarea cursor to insert into — uploads happen inside
+  // individual flashcards.
+  const deckAttachmentsBody = useMemo(() => {
+    const cardText = cards
+      .map((c) => {
+        const front = (c.attributes.field_front as string) ?? '';
+        const back = (c.attributes.field_back as string) ?? '';
+        return `${front}\n${back}`;
+      })
+      .join('\n');
+    return `${description}\n${cardText}`;
+  }, [cards, description]);
+
   return (
     <>
       <UnsavedChangesGuard isDirty={isDirty} />
@@ -420,6 +437,7 @@ export default function DeckDetailPage({
                         back: (c.attributes.field_back as string) ?? '',
                       }))}
                     />
+                    <AttachmentsMenu body={deckAttachmentsBody} onInsert={null} />
                     <LinkDialog
                       mode="uncontrolled"
                       entityType="deck"

@@ -23,8 +23,28 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class MediaFunctionalityController extends ControllerBase {
 
   private const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+  private const MAX_FILE_BYTES = 50 * 1024 * 1024;
   private const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
   private const ALLOWED_AUDIO_MIME = ['audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/x-m4a'];
+  private const ALLOWED_FILE_MIME = [
+    'application/pdf',
+    'text/plain',
+    'text/markdown',
+    'text/csv',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'application/vnd.oasis.opendocument.presentation',
+    'application/json',
+    'application/xml',
+    'text/xml',
+    'application/zip',
+  ];
 
   public function __construct(
     private readonly S3Service $s3,
@@ -66,13 +86,21 @@ class MediaFunctionalityController extends ControllerBase {
 
     $mime = $this->resolveUploadMime($file);
     $size = (int) $file->getSize();
-    if ($size <= 0 || $size > self::MAX_UPLOAD_BYTES) {
-      return $this->json(['error' => 'File size out of range (max 20 MB).'], 413);
+    if ($size <= 0) {
+      return $this->json(['error' => 'File is empty.'], 400);
     }
 
     $mediaType = $this->classifyMime($mime);
     if ($mediaType === NULL) {
       return $this->json(['error' => 'Unsupported file type: ' . ($mime !== '' ? $mime : 'unknown')], 415);
+    }
+
+    // Files (PDFs, spreadsheets, etc.) get a larger ceiling than media,
+    // since office documents trivially exceed the 20 MB image/audio cap.
+    $maxBytes = $mediaType === 'file' ? self::MAX_FILE_BYTES : self::MAX_UPLOAD_BYTES;
+    if ($size > $maxBytes) {
+      $maxMb = (int) ($maxBytes / (1024 * 1024));
+      return $this->json(['error' => "File too large (max {$maxMb} MB)."], 413);
     }
 
     $userUuid = $this->resolveUserUuid((int) $account->id());
@@ -127,17 +155,102 @@ class MediaFunctionalityController extends ControllerBase {
    * GET /api/study/media
    *
    * Lists the current user's non-deleted assets, newest first.
+   *
+   * Optional `?type=image,audio` (default) / `?type=file` filters which
+   * asset class is returned, so the Media page and Files page can fetch
+   * from the same endpoint without each seeing the other's rows.
    */
-  public function listAssets(): JsonResponse {
+  public function listAssets(Request $request): JsonResponse {
     $account = $this->currentUser();
     if ($account->isAnonymous()) {
       return $this->json(['error' => 'Unauthenticated'], 401);
     }
-    $rows = $this->database->select('media_functionality_asset', 'a')
+
+    $allowedTypes = ['image', 'audio', 'file'];
+    $rawType = (string) $request->query->get('type', 'image,audio');
+    $requested = array_values(array_filter(
+      array_map('trim', explode(',', $rawType)),
+      static fn ($t) => in_array($t, $allowedTypes, TRUE),
+    ));
+    if (empty($requested)) {
+      $requested = ['image', 'audio'];
+    }
+
+    $query = $this->database->select('media_functionality_asset', 'a')
       ->fields('a', ['uuid', 's3_key', 'media_type', 'mime_type', 'original_filename', 'description', 'file_size', 'created'])
       ->condition('owner_uid', (int) $account->id())
       ->condition('deleted', 0)
-      ->orderBy('created', 'DESC')
+      ->condition('media_type', $requested, 'IN')
+      ->orderBy('created', 'DESC');
+    $rows = $query->execute()->fetchAll(\PDO::FETCH_ASSOC);
+
+    return $this->json(['data' => array_map(fn ($r) => [
+      'uuid' => (string) $r['uuid'],
+      'mediaType' => (string) $r['media_type'],
+      'mimeType' => (string) $r['mime_type'],
+      'originalFilename' => (string) $r['original_filename'],
+      'description' => (string) ($r['description'] ?? ''),
+      'fileSize' => (int) $r['file_size'],
+      'created' => (int) $r['created'],
+      'url' => $this->buildPublicUrl((string) $r['uuid'], (string) $r['s3_key']),
+    ], $rows)]);
+  }
+
+  /**
+   * GET /api/study/media/search
+   *
+   * Owner-scoped substring search over `original_filename` and
+   * `description`, with an optional `?type=image,audio,file` filter.
+   * Used by the editor's Insert dialog to pick from already-uploaded
+   * assets without paginating the full library.
+   *
+   * Conventions match `study_search`:
+   *   - empty / <2-char queries return an empty data array (no error)
+   *   - results capped at 20, newest first
+   *
+   * Implemented as direct SQL rather than Search API because media
+   * assets aren't entities — the existing `db_index` is `entity:node`
+   * only, so adding them would require a custom datasource just to
+   * enable a single LIKE search.
+   */
+  public function searchAssets(Request $request): JsonResponse {
+    $account = $this->currentUser();
+    if ($account->isAnonymous()) {
+      return $this->json(['error' => 'Unauthenticated'], 401);
+    }
+
+    $q = trim((string) $request->query->get('q', ''));
+    if (mb_strlen($q) < 2) {
+      return $this->json(['data' => []]);
+    }
+
+    $allowedTypes = ['image', 'audio', 'file'];
+    $rawType = (string) $request->query->get('type', 'image,audio,file');
+    $requested = array_values(array_filter(
+      array_map('trim', explode(',', $rawType)),
+      static fn ($t) => in_array($t, $allowedTypes, TRUE),
+    ));
+    if (empty($requested)) {
+      $requested = $allowedTypes;
+    }
+
+    // escapeLike() handles `%` and `_` in user input; we wrap the
+    // result with `%…%` for substring matching.
+    $like = '%' . $this->database->escapeLike($q) . '%';
+
+    $query = $this->database->select('media_functionality_asset', 'a')
+      ->fields('a', ['uuid', 's3_key', 'media_type', 'mime_type', 'original_filename', 'description', 'file_size', 'created'])
+      ->condition('owner_uid', (int) $account->id())
+      ->condition('deleted', 0)
+      ->condition('media_type', $requested, 'IN');
+
+    $orGroup = $query->orConditionGroup()
+      ->condition('original_filename', $like, 'LIKE')
+      ->condition('description', $like, 'LIKE');
+    $query->condition($orGroup);
+
+    $rows = $query->orderBy('created', 'DESC')
+      ->range(0, 20)
       ->execute()
       ->fetchAll(\PDO::FETCH_ASSOC);
 
@@ -509,6 +622,7 @@ class MediaFunctionalityController extends ControllerBase {
    */
   private function performSoftDelete(array $asset): array {
     $uuid = (string) $asset['uuid'];
+    $mediaType = (string) $asset['media_type'];
     $usageRows = $this->usage->usageForAsset($uuid);
     $referencingEntities = $this->usage->entitiesReferencing($uuid);
 
@@ -521,9 +635,14 @@ class MediaFunctionalityController extends ControllerBase {
     $this->s3->deleteObject((string) $asset['s3_key']);
 
     // Re-save every referencing entity so its presave hook recomputes
-    // field_missing_media. Failures are swallowed so one bad row can't
-    // hide the asset deletion from the caller.
-    $this->propagateMissingMedia($referencingEntities);
+    // field_missing_media / field_has_attachments. For file-class assets
+    // we *also* strip the markdown link from each body before saving, so
+    // the user never sees a broken-link box for a file they just deleted
+    // (image/audio keep the broken-icon flow because their content is
+    // visually missing in a way a stripped link wouldn't convey).
+    // Failures are swallowed so one bad row can't hide the asset
+    // deletion from the caller.
+    $this->propagateMissingMedia($referencingEntities, $mediaType === 'file' ? $uuid : NULL);
 
     return $usageRows;
   }
@@ -559,11 +678,18 @@ class MediaFunctionalityController extends ControllerBase {
 
   /**
    * Re-saves each referencing entity so hook_node_presave repopulates
-   * field_missing_media. Failures are logged but never propagated.
+   * field_missing_media / field_has_attachments.
+   *
+   * If `$stripFileUuid` is non-null, the markdown link form
+   * `[name](/api/media/<uuid>...)` for that asset is removed from each
+   * entity's body fields *before* save, so file deletions vanish cleanly
+   * instead of leaving a broken-link box.
+   *
+   * Failures are logged but never propagated.
    *
    * @param array<int, array{entity_type: string, entity_uuid: string}> $rows
    */
-  private function propagateMissingMedia(array $rows): void {
+  private function propagateMissingMedia(array $rows, ?string $stripFileUuid = NULL): void {
     if (empty($rows)) {
       return;
     }
@@ -579,9 +705,13 @@ class MediaFunctionalityController extends ControllerBase {
       try {
         $matches = $nodeStorage->loadByProperties(['uuid' => $row['entity_uuid']]);
         $node = $matches ? reset($matches) : NULL;
-        if ($node !== NULL) {
-          $node->save();
+        if ($node === NULL) {
+          continue;
         }
+        if ($stripFileUuid !== NULL) {
+          $this->stripFileLinkFromNode($node, $stripFileUuid);
+        }
+        $node->save();
       }
       catch (\Throwable $e) {
         $logger->warning('Failed to propagate missing-media flag to @type @uuid: @msg', [
@@ -591,6 +721,113 @@ class MediaFunctionalityController extends ControllerBase {
         ]);
       }
     }
+  }
+
+  /**
+   * Removes every markdown-link reference to the given asset UUID from
+   * the body fields of a node (and, for todo lists, from each child
+   * todo_item paragraph).
+   *
+   * Only the link form `[text](/api/media/<uuid>)` is targeted — image
+   * embeds (`![alt](...)`) are left alone, since files are inserted as
+   * links by the upload pipeline and embeds belong to image/audio assets
+   * which use the broken-icon UI instead.
+   */
+  private function stripFileLinkFromNode(\Drupal\node\NodeInterface $node, string $assetUuid): void {
+    switch ($node->bundle()) {
+      case 'study_note':
+        $this->stripFromPlainStringField($node, 'field_body', $assetUuid);
+        break;
+
+      case 'flashcard':
+        $this->stripFromPlainStringField($node, 'field_front', $assetUuid);
+        $this->stripFromPlainStringField($node, 'field_back', $assetUuid);
+        break;
+
+      case 'flashcard_deck':
+        $this->stripFromTextWithSummaryField($node, 'body', $assetUuid);
+        break;
+
+      case 'todo_list':
+        if ($node->hasField('field_items')) {
+          foreach ($node->get('field_items')->referencedEntities() as $paragraph) {
+            $changed = FALSE;
+            foreach (['field_item_text', 'field_notes'] as $fieldName) {
+              if (!$paragraph->hasField($fieldName) || $paragraph->get($fieldName)->isEmpty()) {
+                continue;
+              }
+              $current = (string) $paragraph->get($fieldName)->value;
+              $next = $this->stripFileLinkFromBody($current, $assetUuid);
+              if ($next !== $current) {
+                $paragraph->set($fieldName, $next);
+                $changed = TRUE;
+              }
+            }
+            if ($changed) {
+              $paragraph->setNewRevision(TRUE);
+              $paragraph->save();
+            }
+          }
+        }
+        break;
+    }
+  }
+
+  /**
+   * Strips file-link references from a plain string / string_long field.
+   */
+  private function stripFromPlainStringField(\Drupal\node\NodeInterface $node, string $fieldName, string $assetUuid): void {
+    if (!$node->hasField($fieldName) || $node->get($fieldName)->isEmpty()) {
+      return;
+    }
+    $current = (string) $node->get($fieldName)->value;
+    $next = $this->stripFileLinkFromBody($current, $assetUuid);
+    if ($next !== $current) {
+      $node->set($fieldName, $next);
+    }
+  }
+
+  /**
+   * Strips file-link references from a text_with_summary field
+   * (preserves format/summary metadata).
+   */
+  private function stripFromTextWithSummaryField(\Drupal\node\NodeInterface $node, string $fieldName, string $assetUuid): void {
+    if (!$node->hasField($fieldName) || $node->get($fieldName)->isEmpty()) {
+      return;
+    }
+    $first = $node->get($fieldName)->first();
+    if ($first === NULL) {
+      return;
+    }
+    $current = (string) ($first->value ?? '');
+    $next = $this->stripFileLinkFromBody($current, $assetUuid);
+    if ($next !== $current) {
+      $node->set($fieldName, [
+        'value' => $next,
+        'summary' => $first->summary ?? '',
+        'format' => $first->format ?? NULL,
+      ]);
+    }
+  }
+
+  /**
+   * Removes every link-form reference to `/api/media/<uuid>(/filename)?`
+   * from a markdown body string. Optional trailing newline is consumed
+   * so whole-line links don't leave a blank gap behind.
+   *
+   * Image embeds (`![]()`) are explicitly skipped via a negative
+   * lookbehind on `!` — files are always inserted as plain links by the
+   * upload pipeline, so any `![](…)` form belongs to an image/audio
+   * asset that uses the broken-icon flow instead.
+   */
+  private function stripFileLinkFromBody(string $body, string $assetUuid): string {
+    if ($body === '' || stripos($body, $assetUuid) === FALSE) {
+      return $body;
+    }
+    $escaped = preg_quote($assetUuid, '#');
+    $pattern = '#(?<!\!)\[[^\]\n]*\]\(/api/media/' . $escaped . '(?:/[^)\s]*)?(?:\?[^)\s]*)?\)\n?#i';
+    $next = preg_replace($pattern, '', $body);
+    return is_string($next) ? $next : $body;
   }
 
   /**
@@ -743,6 +980,9 @@ class MediaFunctionalityController extends ControllerBase {
     if (in_array($mime, self::ALLOWED_AUDIO_MIME, TRUE)) {
       return 'audio';
     }
+    if (in_array($mime, self::ALLOWED_FILE_MIME, TRUE)) {
+      return 'file';
+    }
     return NULL;
   }
 
@@ -791,6 +1031,22 @@ class MediaFunctionalityController extends ControllerBase {
       'wav' => 'audio/wav',
       'm4a' => 'audio/mp4',
       'aac' => 'audio/mp4',
+      'pdf' => 'application/pdf',
+      'txt' => 'text/plain',
+      'md', 'markdown' => 'text/markdown',
+      'csv' => 'text/csv',
+      'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'doc' => 'application/msword',
+      'xls' => 'application/vnd.ms-excel',
+      'ppt' => 'application/vnd.ms-powerpoint',
+      'odt' => 'application/vnd.oasis.opendocument.text',
+      'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+      'odp' => 'application/vnd.oasis.opendocument.presentation',
+      'json' => 'application/json',
+      'xml' => 'application/xml',
+      'zip' => 'application/zip',
       default => '',
     };
   }

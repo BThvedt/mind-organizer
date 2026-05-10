@@ -168,6 +168,12 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
+                    <Link href="/dashboard/files" className="flex items-center gap-2 w-full">
+                      <FileText className="h-4 w-4" />
+                      Files
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
                     <Link href="/dashboard/profile" className="flex items-center gap-2 w-full">
                       <Settings className="h-4 w-4" />
                       Profile

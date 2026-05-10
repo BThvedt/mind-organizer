@@ -1,0 +1,23 @@
+uuid: c69da0f4-3a5e-6c2b-bd9f-4e7b0a6c3d8f
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_has_attachments
+    - node.type.flashcard
+id: node.flashcard.field_has_attachments
+field_name: field_has_attachments
+entity_type: node
+bundle: flashcard
+label: 'Has file attachments'
+description: 'Internal: TRUE when the front/back references at least one file-class media asset (PDFs, spreadsheets, etc.). Recomputed on save by the media_functionality module.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

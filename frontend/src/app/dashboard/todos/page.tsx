@@ -42,11 +42,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { ShareButton } from '@/components/share/share-button';
 import { LinkDialog } from '@/components/link-dialog';
+import { AttachmentsMenu } from '@/components/attachments-menu';
 import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
 } from '@/components/entity-delete-dialog';
 import { ShareIndicator } from '@/components/share-indicator';
+import { AttachmentsIndicator } from '@/components/attachments-indicator';
 import {
   AreaSubjectMultiSelector,
   AreaSubjectChipList,
@@ -861,6 +863,16 @@ function TodosPageContent() {
 
   const completedCount = items.filter((i) => i.attributes.field_completed).length;
 
+  // Concatenated text of every item (label + notes) so the Attachments
+  // menu can list files referenced anywhere in this list. Viewer-only —
+  // there's no single textarea on the todos page to insert into.
+  const todoAttachmentsBody = items
+    .map(
+      (i) =>
+        `${(i.attributes.field_item_text as string | null) ?? ''}\n${(i.attributes.field_notes as string | null) ?? ''}`,
+    )
+    .join('\n');
+
   return (
     <>
       <Header authenticated onSignIn={() => {}} onSignUp={() => {}} onLogout={handleLogout} />
@@ -1068,6 +1080,9 @@ function TodosPageContent() {
                         <span className="text-sm font-medium text-foreground truncate leading-snug">
                           {list.attributes.title as string}
                         </span>
+                        <AttachmentsIndicator
+                          hasAttachments={!!list.attributes.field_has_attachments}
+                        />
                         <ShareIndicator shared={!!list.attributes.field_is_shared} />
                       </span>
                       {total > 0 && (
@@ -1212,6 +1227,7 @@ function TodosPageContent() {
                         }}
                         onLinksChanged={loadLists}
                       />
+                      <AttachmentsMenu body={todoAttachmentsBody} onInsert={null} />
                       <ShareButton
                         type="todo_list"
                         nodeUuid={selectedList.id}

@@ -10,6 +10,7 @@ import { Pencil, Trash2, Check, X } from 'lucide-react';
 import type { JsonApiResource } from '@/lib/json-api';
 import { toStringArray } from '@/lib/json-api';
 import { MissingMediaIndicator } from '@/components/missing-media-indicator';
+import { AttachmentsIndicator } from '@/components/attachments-indicator';
 
 interface FlashcardItemProps {
   card: JsonApiResource;
@@ -41,6 +42,7 @@ export function FlashcardItem({
   const front = card.attributes.field_front as string;
   const back = card.attributes.field_back as string;
   const missingMediaCount = toStringArray(card.attributes.field_missing_media).length;
+  const hasAttachments = !!card.attributes.field_has_attachments;
 
   const draftRef = useRef({
     editFront: '',
@@ -279,6 +281,7 @@ export function FlashcardItem({
         ) : (
           <>
             <MissingMediaIndicator count={missingMediaCount} className="mr-0.5" />
+            <AttachmentsIndicator hasAttachments={hasAttachments} className="mr-0.5" />
             <span className="text-xs text-muted-foreground tabular-nums mr-1">
               #{index + 1}
             </span>

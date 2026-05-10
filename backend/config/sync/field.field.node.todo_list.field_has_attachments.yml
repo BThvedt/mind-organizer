@@ -1,0 +1,23 @@
+uuid: e81fc2b6-5c7a-8e4d-df1b-6a9d2c8e5f0b
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_has_attachments
+    - node.type.todo_list
+id: node.todo_list.field_has_attachments
+field_name: field_has_attachments
+entity_type: node
+bundle: todo_list
+label: 'Has file attachments'
+description: 'Internal: TRUE when any todo item in this list references at least one file-class media asset (PDFs, spreadsheets, etc.). Recomputed on save by the media_functionality module.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

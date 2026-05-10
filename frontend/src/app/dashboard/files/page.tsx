@@ -8,12 +8,18 @@ import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft,
-  ImageIcon,
+  ExternalLink,
+  File as FileIcon,
+  FileArchive,
+  FileCode,
+  FileSpreadsheet,
+  FileText,
   Loader2,
   Pencil,
+  Presentation,
   Trash2,
-  Volume2,
 } from 'lucide-react';
+import type { ComponentType, SVGProps } from 'react';
 import {
   MediaDeleteDialog,
   type MediaDeleteAsset,
@@ -23,9 +29,9 @@ import {
   type MediaRenameAsset,
 } from '@/components/media-rename-dialog';
 
-interface MediaAsset {
+interface FileAsset {
   uuid: string;
-  mediaType: 'image' | 'audio';
+  mediaType: 'file';
   mimeType: string;
   originalFilename: string;
   description: string;
@@ -34,7 +40,7 @@ interface MediaAsset {
   url: string;
 }
 
-const MEDIA_LIST_URL = '/api/media?type=image,audio';
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,12 +49,30 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export default function MediaPage() {
+function extOf(filename: string): string {
+  return filename.toLowerCase().split('.').pop() ?? '';
+}
+
+/**
+ * Picks a Lucide icon based on the filename extension. Falls back to a
+ * generic file icon for unrecognized extensions.
+ */
+function iconForFilename(filename: string): IconComponent {
+  const ext = extOf(filename);
+  if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return FileSpreadsheet;
+  if (['ppt', 'pptx', 'odp'].includes(ext)) return Presentation;
+  if (['json', 'xml'].includes(ext)) return FileCode;
+  if (ext === 'zip') return FileArchive;
+  if (['pdf', 'doc', 'docx', 'odt', 'txt', 'md', 'markdown'].includes(ext)) return FileText;
+  return FileIcon;
+}
+
+export default function FilesPage() {
   const router = useRouter();
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
 
-  const [assets, setAssets] = useState<MediaAsset[] | null>(null);
+  const [assets, setAssets] = useState<FileAsset[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<MediaDeleteAsset | null>(null);
@@ -59,10 +83,10 @@ export default function MediaPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(MEDIA_LIST_URL)
+    fetch('/api/media?type=file')
       .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to load media (HTTP ${res.status})`);
-        return (await res.json()) as { data: MediaAsset[] };
+        if (!res.ok) throw new Error(`Failed to load files (HTTP ${res.status})`);
+        return (await res.json()) as { data: FileAsset[] };
       })
       .then((body) => {
         if (cancelled) return;
@@ -133,11 +157,12 @@ export default function MediaPage() {
           </Button>
           <div className="flex-1">
             <div className="flex items-start gap-2">
-              <ImageIcon className="mt-1 h-7 w-7 text-primary shrink-0" />
+              <FileText className="mt-1 h-7 w-7 text-primary shrink-0" />
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">Media</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">Files</h1>
                 <p className="mt-1 text-muted-foreground">
-                  Manage images and files attached to your notes and decks.
+                  Manage PDFs, spreadsheets, and documents attached to your notes,
+                  decks, and todos.
                 </p>
               </div>
             </div>
@@ -158,7 +183,7 @@ export default function MediaPage() {
         {loading && (
           <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-sm">Loading media…</span>
+            <span className="text-sm">Loading files…</span>
           </div>
         )}
 
@@ -171,19 +196,20 @@ export default function MediaPage() {
         {!loading && !error && assets && assets.length === 0 && (
           <div className="rounded-xl border border-dashed border-border bg-card/50 px-8 py-16 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
-              <ImageIcon className="h-6 w-6 text-muted-foreground" />
+              <FileText className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="text-base font-semibold text-foreground mb-1">No media yet</h3>
+            <h3 className="text-base font-semibold text-foreground mb-1">No files yet</h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              Files you upload while editing notes or flashcards will appear here.
+              Drop PDFs, spreadsheets, or documents into a note, deck, or todo and
+              they&apos;ll appear here.
             </p>
           </div>
         )}
 
         {!loading && !error && assets && assets.length > 0 && (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <ul className="flex flex-col gap-2">
             {assets.map((asset) => (
-              <MediaCard
+              <FileRow
                 key={asset.uuid}
                 asset={asset}
                 onDelete={() => setDeleteTarget(asset)}
@@ -209,60 +235,61 @@ export default function MediaPage() {
   );
 }
 
-function MediaCard({
+function FileRow({
   asset,
   onDelete,
   onRename,
 }: {
-  asset: MediaAsset;
+  asset: FileAsset;
   onDelete: () => void;
   onRename: () => void;
 }) {
+  const Icon = iconForFilename(asset.originalFilename);
   return (
-    <li className="group relative flex flex-col gap-2 rounded-xl border border-border bg-card p-2 transition-colors hover:border-ring/50">
-      <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
-        {asset.mediaType === 'image' ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={asset.url}
-            alt={asset.originalFilename}
-            loading="lazy"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Volume2 className="h-10 w-10 text-muted-foreground" />
-          </div>
-        )}
-
-        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-          <button
-            type="button"
-            onClick={onRename}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-foreground hover:text-background"
-            aria-label={`Rename ${asset.originalFilename}`}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
-            aria-label={`Delete ${asset.originalFilename}`}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+    <li className="group flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:border-ring/50">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+        <Icon className="h-5 w-5 text-muted-foreground" />
       </div>
 
-      <div className="flex flex-col px-1 pb-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <p
-          className="truncate text-xs font-medium text-foreground"
+          className="truncate text-sm font-medium text-foreground"
           title={asset.originalFilename}
         >
           {asset.originalFilename}
         </p>
-        <p className="text-xs text-muted-foreground">{formatBytes(asset.fileSize)}</p>
+        <p className="text-xs text-muted-foreground">
+          {formatBytes(asset.fileSize)}
+          {asset.description ? ` \u00B7 ${asset.description}` : ''}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        <a
+          href={asset.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={`Open ${asset.originalFilename} in new tab`}
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+        <button
+          type="button"
+          onClick={onRename}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label={`Rename ${asset.originalFilename}`}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          aria-label={`Delete ${asset.originalFilename}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
     </li>
   );

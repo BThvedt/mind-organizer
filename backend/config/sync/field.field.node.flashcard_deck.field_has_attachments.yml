@@ -1,0 +1,23 @@
+uuid: d70eb1a5-4b6f-7d3c-ce0a-5f8c1b7d4e9a
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_has_attachments
+    - node.type.flashcard_deck
+id: node.flashcard_deck.field_has_attachments
+field_name: field_has_attachments
+entity_type: node
+bundle: flashcard_deck
+label: 'Has file attachments'
+description: 'Internal: TRUE when the deck description references at least one file-class media asset (PDFs, spreadsheets, etc.). Recomputed on save by the media_functionality module.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

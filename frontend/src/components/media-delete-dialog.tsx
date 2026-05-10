@@ -13,6 +13,7 @@ import {
   CheckSquare,
   ExternalLink,
   FileText,
+  File as FileIcon,
   Layers,
   Loader2,
   Volume2,
@@ -22,7 +23,7 @@ import {
 
 export interface MediaDeleteAsset {
   uuid: string;
-  mediaType: 'image' | 'audio';
+  mediaType: 'image' | 'audio' | 'file';
   originalFilename: string;
   fileSize: number;
   url: string;
@@ -162,8 +163,10 @@ export function MediaDeleteDialog({
                     alt=""
                     className="h-full w-full object-cover"
                   />
-                ) : (
+                ) : asset.mediaType === 'audio' ? (
                   <Volume2 className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <FileIcon className="h-5 w-5 text-muted-foreground" />
                 )}
               </div>
               <div className="min-w-0 flex-1">

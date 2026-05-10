@@ -28,6 +28,13 @@ interface UseMediaDropPasteResult {
   };
   /** Paste handler to attach to the textarea. */
   onPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
+  /**
+   * Inserts arbitrary text at the textarea cursor (or appends to the body
+   * if the textarea isn't mounted). Exposed so other toolbar widgets like
+   * the AttachmentsMenu can reuse the same insertion path without
+   * duplicating bodyRef bookkeeping.
+   */
+  insertAtCursor: (text: string) => void;
 }
 
 // Per-session placeholder ID. We avoid a simple incrementing counter
@@ -143,8 +150,13 @@ export function useMediaDropPaste({
     for (const { file, placeholder } of items) {
       try {
         const uploaded: UploadedMedia = await upload(file);
-        const altText = file.name.replace(/\.[^.]+$/, '');
-        const markdown = `![${altText}](${uploaded.url})`;
+        // Files render as plain markdown links (the renderer upgrades them
+        // to a styled box on display); images/audio keep the `![]()` embed
+        // syntax so they continue to render inline.
+        const markdown =
+          uploaded.mediaType === 'file'
+            ? `[${file.name}](${uploaded.url})`
+            : `![${file.name.replace(/\.[^.]+$/, '')}](${uploaded.url})`;
         replacePlaceholder(placeholder, markdown);
       } catch (err) {
         removePlaceholder(placeholder);
@@ -208,5 +220,6 @@ export function useMediaDropPaste({
     clearUploadError,
     dropZoneProps: { onDragEnter, onDragOver, onDragLeave, onDrop },
     onPaste,
+    insertAtCursor,
   };
 }

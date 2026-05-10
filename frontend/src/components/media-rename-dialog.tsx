@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import {
   CheckSquare,
   ExternalLink,
+  File as FileIcon,
   FileText,
   Layers,
   Loader2,
@@ -28,7 +29,7 @@ const DESCRIPTION_MAX_LENGTH = 2000;
 
 export interface MediaRenameAsset {
   uuid: string;
-  mediaType: 'image' | 'audio';
+  mediaType: 'image' | 'audio' | 'file';
   originalFilename: string;
   description: string;
   fileSize: number;
@@ -245,8 +246,10 @@ export function MediaRenameDialog({
                     alt=""
                     className="h-full w-full object-cover"
                   />
-                ) : (
+                ) : asset.mediaType === 'audio' ? (
                   <Volume2 className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <FileIcon className="h-5 w-5 text-muted-foreground" />
                 )}
               </div>
               <div className="min-w-0 flex-1">

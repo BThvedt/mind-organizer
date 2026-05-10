@@ -56,11 +56,14 @@ function media_functionality_node_presave(NodeInterface $node): void {
     $text
   );
 
+  // Both per-save indicators read from the same extracted-UUID list, so
+  // compute it once and reuse for both checks below.
+  $referenced = $tracker->extractAssetUuids($text);
+
   // Recompute field_missing_media: extracted UUIDs ∩ soft-deleted assets.
   // Editing the body to remove the broken reference will naturally clear
   // the field on the next save.
   if ($node->hasField('field_missing_media')) {
-    $referenced = $tracker->extractAssetUuids($text);
     $missing = $tracker->deletedAmong($referenced);
     $current = array_map(
       static fn ($item) => (string) $item['value'],
@@ -70,6 +73,17 @@ function media_functionality_node_presave(NodeInterface $node): void {
     sort($current);
     if ($current !== $missing) {
       $node->set('field_missing_media', $missing);
+    }
+  }
+
+  // Recompute field_has_attachments: TRUE when any referenced UUID maps
+  // to a non-deleted file-class asset (PDFs, spreadsheets, archives,
+  // etc.). The frontend uses this for the paperclip badge on list views.
+  if ($node->hasField('field_has_attachments')) {
+    $hasAttachments = $tracker->hasAttachmentAmong($referenced);
+    $current = (bool) $node->get('field_has_attachments')->value;
+    if ($current !== $hasAttachments) {
+      $node->set('field_has_attachments', $hasAttachments);
     }
   }
 }

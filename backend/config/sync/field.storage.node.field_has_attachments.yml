@@ -1,0 +1,18 @@
+uuid: a47bf8d2-1e3c-4a09-9b7d-2c5f8e4a1b6d
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node.field_has_attachments
+field_name: field_has_attachments
+entity_type: node
+type: boolean
+settings: {  }
+module: core
+locked: false
+cardinality: 1
+translatable: false
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

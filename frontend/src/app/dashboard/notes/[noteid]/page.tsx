@@ -18,13 +18,18 @@ import {
 } from '@/components/area-subject-multi-selector';
 import { LinkDialog } from '@/components/link-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
+import { AttachmentsMenu } from '@/components/attachments-menu';
+import {
+  MediaInsertDialog,
+  type InsertableAsset,
+} from '@/components/media-insert-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
 import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
 } from '@/components/entity-delete-dialog';
-import { ArrowLeft, Pencil, Eye, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, ImagePlus, Pencil, Eye, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/json-api';
 import { toRelIds } from '@/lib/json-api';
@@ -89,6 +94,8 @@ export default function EditNotePage({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  const [insertOpen, setInsertOpen] = useState(false);
+
   const [isShared, setIsShared] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
 
@@ -105,6 +112,7 @@ export default function EditNotePage({
     clearUploadError,
     dropZoneProps,
     onPaste,
+    insertAtCursor,
   } = useMediaDropPaste({ textareaRef: editorRef, body, setBody });
 
   const { brokenSet, brokenInBody } = useBrokenMedia(authenticated === true);
@@ -447,6 +455,27 @@ export default function EditNotePage({
             contextAreaUuid={areaUuids[0] ?? ''}
             contextSubjectUuid={subjectUuids[0] ?? ''}
           />
+          <AttachmentsMenu
+            body={body}
+            onInsert={(snippet) => insertAtCursor(snippet)}
+            onRemove={(snippet) => {
+              setBody(
+                body
+                  .split(snippet)
+                  .join('')
+                  .replace(/\n{3,}/g, '\n\n'),
+              );
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setInsertOpen(true)}
+            title="Insert image, audio, or file"
+          >
+            <ImagePlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Insert</span>
+          </Button>
           <NoteAiDialog
             noteId={noteid}
             noteBody={body}
@@ -621,6 +650,21 @@ export default function EditNotePage({
           setDeleteError('');
         }}
         onConfirm={(opts) => void handleDelete(opts)}
+      />
+
+      <MediaInsertDialog
+        open={insertOpen}
+        onClose={() => setInsertOpen(false)}
+        onSelect={(asset: InsertableAsset) => {
+          // Files render as plain markdown links (the renderer upgrades
+          // them to a styled box); images and audio keep the `![]()`
+          // embed syntax so they continue to render inline.
+          const snippet =
+            asset.mediaType === 'file'
+              ? `[${asset.originalFilename}](${asset.url})`
+              : `![${asset.originalFilename.replace(/\.[^.]+$/, '')}](${asset.url})`;
+          insertAtCursor(snippet);
+        }}
       />
     </>
   );

@@ -10,13 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Loader2, Volume2 } from 'lucide-react';
+import { AlertTriangle, File as FileIcon, Loader2, Volume2 } from 'lucide-react';
 
 export type EntityKind = 'note' | 'deck' | 'todo_list';
 
 interface ExclusiveAsset {
   uuid: string;
-  mediaType: 'image' | 'audio';
+  mediaType: 'image' | 'audio' | 'file';
   originalFilename: string;
   fileSize: number;
   url: string;
@@ -183,8 +183,10 @@ export function EntityDeleteDialog({
                         alt=""
                         className="h-full w-full object-cover"
                       />
-                    ) : (
+                    ) : asset.mediaType === 'audio' ? (
                       <Volume2 className="h-3 w-3" />
+                    ) : (
+                      <FileIcon className="h-3 w-3" />
                     )}
                   </span>
                   <span className="min-w-0 flex-1 truncate" title={asset.originalFilename}>

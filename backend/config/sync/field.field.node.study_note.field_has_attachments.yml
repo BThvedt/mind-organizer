@@ -1,0 +1,23 @@
+uuid: b58cf9e3-2f4d-5b1a-ac8e-3d6a9f5b2c7e
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_has_attachments
+    - node.type.study_note
+id: node.study_note.field_has_attachments
+field_name: field_has_attachments
+entity_type: node
+bundle: study_note
+label: 'Has file attachments'
+description: 'Internal: TRUE when the body references at least one file-class media asset (PDFs, spreadsheets, etc.). Recomputed on save by the media_functionality module.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

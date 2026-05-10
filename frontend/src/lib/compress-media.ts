@@ -126,11 +126,56 @@ function swapExtension(name: string, mime: string): string {
 }
 
 /**
- * Returns 'image' | 'audio' | null based on a File's MIME type.
+ * MIME types accepted by the file uploader (i.e. `media_type='file'` on
+ * the backend). Mirrors `ALLOWED_FILE_MIME` in
+ * `MediaFunctionalityController.php`.
  */
-export function classifyFile(file: File): 'image' | 'audio' | null {
+export const ALLOWED_FILE_MIMES: ReadonlyArray<string> = [
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.oasis.opendocument.presentation',
+  'application/json',
+  'application/xml',
+  'text/xml',
+  'application/zip',
+];
+
+/**
+ * Extensions of accepted file types — used as a fallback when the browser
+ * doesn't supply a recognized MIME (common for `.csv`, `.md`, `.json` on
+ * some platforms). Mirrors the extension lookup in the backend
+ * `mimeFromExtension()`.
+ */
+const ALLOWED_FILE_EXTENSIONS: ReadonlyArray<string> = [
+  'pdf', 'txt', 'md', 'markdown', 'csv',
+  'docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt',
+  'odt', 'ods', 'odp',
+  'json', 'xml', 'zip',
+];
+
+/**
+ * Returns 'image' | 'audio' | 'file' | null based on a File's MIME type
+ * (with a filename-extension fallback for the `file` class, since some
+ * browsers report empty MIME for plain-text formats).
+ */
+export function classifyFile(file: File): 'image' | 'audio' | 'file' | null {
   const mime = file.type.toLowerCase();
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('audio/')) return 'audio';
+  if (ALLOWED_FILE_MIMES.includes(mime)) return 'file';
+
+  const ext = file.name.toLowerCase().split('.').pop() ?? '';
+  if (ext && ALLOWED_FILE_EXTENSIONS.includes(ext)) return 'file';
+
   return null;
 }

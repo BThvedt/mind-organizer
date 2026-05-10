@@ -6,6 +6,7 @@ import type { JsonApiResource } from '@/lib/json-api';
 import { toRelIds, toStringArray } from '@/lib/json-api';
 import { MissingMediaIndicator } from '@/components/missing-media-indicator';
 import { ShareIndicator } from '@/components/share-indicator';
+import { AttachmentsIndicator } from '@/components/attachments-indicator';
 
 interface DeckCardProps {
   deck: JsonApiResource;
@@ -19,6 +20,7 @@ export function DeckCard({ deck, included = [], cardCount = 0, onDoubleClick }: 
   const description = (deck.attributes.body as { value?: string } | null)?.value ?? '';
   const missingMediaCount = toStringArray(deck.attributes.field_missing_media).length;
   const isShared = !!deck.attributes.field_is_shared;
+  const hasAttachments = !!deck.attributes.field_has_attachments;
 
   const areaIds = toRelIds(deck.relationships?.field_area?.data);
   const subjectIds = toRelIds(deck.relationships?.field_subject?.data);
@@ -47,6 +49,7 @@ export function DeckCard({ deck, included = [], cardCount = 0, onDoubleClick }: 
           <h3 className="flex items-center gap-1.5 truncate font-semibold text-foreground group-hover:text-primary transition-colors">
             <span className="truncate">{title}</span>
             <MissingMediaIndicator count={missingMediaCount} />
+            <AttachmentsIndicator hasAttachments={hasAttachments} />
             <ShareIndicator shared={isShared} />
           </h3>
           {description ? (

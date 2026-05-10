@@ -3,7 +3,17 @@
 import { isValidElement, useMemo, type ReactElement } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ImageOff } from 'lucide-react';
+import {
+  ExternalLink,
+  FileArchive,
+  FileCode,
+  FileX,
+  FileSpreadsheet,
+  FileText,
+  ImageOff,
+  Presentation,
+} from 'lucide-react';
+import type { ComponentType, SVGProps } from 'react';
 import { MarkdownPre } from './markdown-pre';
 import { MermaidBlock } from './mermaid-block';
 
@@ -35,6 +45,43 @@ function isAudioUrl(src: string | undefined): boolean {
   if (!src) return false;
   const noQuery = src.split('?')[0];
   return /\.(mp3|ogg|wav|m4a|aac)$/i.test(noQuery);
+}
+
+const FILE_EXT_RE =
+  /\.(pdf|txt|md|markdown|csv|docx?|xlsx?|pptx?|odt|ods|odp|json|xml|zip)$/i;
+
+/**
+ * True for `/api/media/<uuid>...` links whose extension belongs to a
+ * file-class asset (PDFs, spreadsheets, etc.). Image/audio uses the
+ * `![]()` embed syntax, not `[]()`, so this only fires on link-shaped
+ * markdown that the upload pipeline produced for a file.
+ */
+function isFileUrl(src: string | undefined): boolean {
+  if (!src) return false;
+  const noQuery = src.split('?')[0];
+  if (!MEDIA_PATH_RE.test(noQuery)) return false;
+  return FILE_EXT_RE.test(noQuery);
+}
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+function fileIconForUrl(src: string): IconComponent {
+  const noQuery = src.split('?')[0].toLowerCase();
+  if (/\.(xlsx?|csv|ods)$/.test(noQuery)) return FileSpreadsheet;
+  if (/\.(pptx?|odp)$/.test(noQuery)) return Presentation;
+  if (/\.(json|xml)$/.test(noQuery)) return FileCode;
+  if (/\.zip$/.test(noQuery)) return FileArchive;
+  return FileText;
+}
+
+function filenameFromUrl(src: string): string {
+  const noQuery = src.split('?')[0];
+  const tail = noQuery.split('/').pop() ?? '';
+  try {
+    return decodeURIComponent(tail);
+  } catch {
+    return tail;
+  }
 }
 
 /**
@@ -120,6 +167,63 @@ export function MarkdownRenderer({
             alt={alt ?? ''}
             className="max-w-full rounded-md"
           />
+        );
+      },
+      a: ({ href, children, ...rest }) => {
+        const hrefStr = typeof href === 'string' ? href : undefined;
+        const assetUuid = extractAssetUuid(hrefStr);
+        if (assetUuid && brokenSet.has(assetUuid)) {
+          // Soft-deleted file — match the audio/image broken treatment but
+          // keep the original link text visible so the user knows what
+          // went missing.
+          const label =
+            typeof children === 'string' && children.trim() !== ''
+              ? `${children} (deleted)`
+              : 'File deleted';
+          return (
+            <span className="my-2 inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive">
+              <FileX className="h-3.5 w-3.5" />
+              <span>{label}</span>
+            </span>
+          );
+        }
+
+        if (hrefStr && isFileUrl(hrefStr)) {
+          const finalHref = withShareToken(hrefStr) ?? hrefStr;
+          const Icon = fileIconForUrl(hrefStr);
+          const fallbackName = filenameFromUrl(hrefStr);
+          const label =
+            typeof children === 'string' && children.trim() !== ''
+              ? children
+              : fallbackName;
+          return (
+            <a
+              href={finalHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="my-3 flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 no-underline transition-colors hover:bg-muted"
+            >
+              <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-sm font-medium text-foreground">
+                  {label}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Open in new tab
+                </span>
+              </span>
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </a>
+          );
+        }
+
+        // Default link — apply share-token forwarding when relevant so
+        // shared embeds keep working off the public share page.
+        const finalHref = withShareToken(hrefStr) ?? hrefStr ?? '';
+        return (
+          <a {...rest} href={finalHref} target="_blank" rel="noopener noreferrer">
+            {children}
+          </a>
         );
       },
     };

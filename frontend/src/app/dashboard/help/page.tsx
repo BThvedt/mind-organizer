@@ -9,7 +9,7 @@ import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, HelpCircle, Sparkles, WandSparkles, PlusCircle, Layers } from 'lucide-react';
+import { ArrowLeft, HelpCircle, Sparkles, WandSparkles, PlusCircle, Layers, ImagePlus, Paperclip, Pencil, Trash2 } from 'lucide-react';
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
@@ -860,6 +860,365 @@ function SharingTab() {
   );
 }
 
+function MediaTab() {
+  return (
+    <div className="flex flex-col gap-6 pt-6">
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Mind Organizer separates uploaded assets into two classes:{' '}
+        <strong className="text-foreground">media</strong> (images and audio)
+        renders inline inside the preview, while{' '}
+        <strong className="text-foreground">files</strong> (PDFs, spreadsheets,
+        documents, archives) renders as a tidy link box that opens in a new
+        tab. Both are uploaded the same way, stored privately, and listed on
+        their own management page.
+      </p>
+
+      <CollapsibleSection title="Adding media and files to your editor" defaultOpen={false}>
+        <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            Inside any note editor you have three ways to attach an asset:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-2">
+            <li>
+              <strong className="text-foreground">Drag and drop</strong> a file
+              from your computer onto the editor pane. A{' '}
+              <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+                ![Uploading…](pending-…)
+              </code>{' '}
+              placeholder appears at the cursor while the upload runs and is
+              automatically replaced once it finishes.
+            </li>
+            <li>
+              <strong className="text-foreground">Paste</strong> an image
+              copied to the clipboard (e.g. from a screenshot tool) directly
+              into the editor.
+            </li>
+            <li>
+              Use the{' '}
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+                <Paperclip className="h-3 w-3" />
+                Attach
+              </span>{' '}
+              toolbar button to upload a fresh file via the system picker, or
+              the{' '}
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+                <ImagePlus className="h-3 w-3" />
+                Insert
+              </span>{' '}
+              button to search your already-uploaded library and insert an
+              existing asset at the cursor.
+            </li>
+          </ul>
+          <p>
+            Image embeds use{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+              ![alt](url)
+            </code>{' '}
+            (rendered inline). Audio uses the same syntax but renders as an
+            embedded player. Files use the plain link form{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+              [name](url)
+            </code>
+            , which the renderer upgrades to a styled file box with an icon,
+            filename, and an &ldquo;Open in new tab&rdquo; affordance.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Supported types and size limits" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            Mind Organizer accepts a curated whitelist of formats. Anything not
+            on the list is rejected with an &ldquo;unsupported file
+            type&rdquo; error to keep your library predictable.
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              <strong className="text-foreground">Images</strong> (max 20 MB)
+              — JPEG, PNG, WebP, GIF. Large images are auto-scaled to a
+              maximum of 720&nbsp;×&nbsp;1200 px and re-encoded before upload;
+              the original on disk is never touched.
+            </li>
+            <li>
+              <strong className="text-foreground">Audio</strong> (max 20 MB)
+              — MP3, OGG, WAV, M4A, AAC. Audio is uploaded byte-for-byte with
+              no re-encoding.
+            </li>
+            <li>
+              <strong className="text-foreground">Files</strong> (max 50 MB)
+              — PDF, plain text, Markdown, CSV, Word (doc/docx), Excel
+              (xls/xlsx), PowerPoint (ppt/pptx), OpenDocument (odt/ods/odp),
+              JSON, XML, ZIP.
+            </li>
+          </ul>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="The Media page" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            The <strong className="text-foreground">Media</strong> page
+            (accessible from the user menu in the top-right) shows every
+            image and audio file in your library as a grid of thumbnails.
+            Above the grid is a stats bar with the total file count and
+            the storage used.
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              <strong className="text-foreground">Image cards</strong> show
+              the thumbnail; <strong className="text-foreground">audio
+              cards</strong> show a speaker icon.
+            </li>
+            <li>
+              Hovering a card reveals two action buttons: a{' '}
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+                <Pencil className="h-3 w-3" />
+                pencil
+              </span>{' '}
+              for editing metadata and a{' '}
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+                <Trash2 className="h-3 w-3" />
+                trash
+              </span>{' '}
+              for deleting.
+            </li>
+          </ul>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="The Files page" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            The <strong className="text-foreground">Files</strong> page (also
+            in the user menu) is the same management UI but rendered as a
+            list rather than a grid, since file types don&apos;t have visual
+            thumbnails. Each row shows a format-specific icon, the filename,
+            and the size, with edit / delete / open-in-new-tab actions on
+            hover.
+          </p>
+          <p>
+            The icon shape follows the file extension — spreadsheets, slide
+            decks, archives, code files, and generic documents each get their
+            own variant so you can scan for a particular file at a glance.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Editing metadata" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            Click the <strong className="text-foreground">pencil</strong> on
+            any media or file card to open the edit dialog. You can:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              <strong className="text-foreground">Rename</strong> the
+              displayed filename. The underlying URL stays stable (it&apos;s
+              keyed by UUID), so renaming never breaks references in your
+              notes, decks, or todos.
+            </li>
+            <li>
+              Add a short{' '}
+              <strong className="text-foreground">description</strong> (up to
+              2,000 characters). Descriptions are searchable from the Insert
+              dialog so you can find an asset by what it&apos;s about, not
+              just its filename.
+            </li>
+            <li>
+              For images only, click the{' '}
+              <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+                <Sparkles className="h-3 w-3" />
+                AI
+              </span>{' '}
+              button next to the description label to have Claude write a
+              one or two sentence description of the image automatically.
+            </li>
+          </ul>
+          <p>
+            The dialog also lists every note, deck, flashcard, and todo list
+            that currently references this asset, with a clickable arrow to
+            jump to each one in a new tab.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Deleting media and files" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            Clicking the trash icon opens a confirmation dialog that lists
+            every piece of content currently using the asset, so you know
+            exactly what will be affected. The two asset classes behave
+            differently after deletion:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-2">
+            <li>
+              <strong className="text-foreground">Media (images / audio)</strong>{' '}
+              — The asset is soft-deleted, and any note, deck, flashcard, or
+              todo list that referenced it shows a small{' '}
+              <strong className="text-foreground">Media deleted</strong>{' '}
+              badge in place of the broken embed. A broken-file icon also
+              appears next to the affected item&apos;s title in list views.
+              Editing the markdown reference out of the body removes the
+              flag on the next save.
+            </li>
+            <li>
+              <strong className="text-foreground">Files</strong> — The link
+              is automatically stripped from every body that references it,
+              so there&apos;s no broken-link UI to clean up. The next save
+              of any affected entity also clears the title indicator.
+            </li>
+          </ul>
+          <p>
+            When you delete a <strong className="text-foreground">parent
+            entity</strong> (a note, deck, or todo list) that exclusively
+            owns some media files, the confirmation dialog offers a{' '}
+            <strong className="text-foreground">Also delete N media file(s)
+            only used here</strong> checkbox so you can clean up the
+            orphans in one step.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Title indicators" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            List views (Notes, Decks, Todos, the per-card flashcard list)
+            show small icons next to titles to summarise an item&apos;s
+            attachment state at a glance:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              A{' '}
+              <span className="inline-flex h-4 w-4 items-center justify-center text-foreground/80">
+                <Paperclip className="h-3.5 w-3.5" />
+              </span>{' '}
+              <strong className="text-foreground">paperclip</strong> means
+              the item references at least one file-class attachment.
+            </li>
+            <li>
+              A red{' '}
+              <strong className="text-foreground">broken-file</strong> icon
+              means the item references a media asset that has been
+              soft-deleted. Hover for the count of missing files.
+            </li>
+            <li>
+              A green{' '}
+              <strong className="text-foreground">share</strong> icon means
+              the item is publicly shared.
+            </li>
+          </ul>
+          <p>
+            Indicators are recomputed automatically every time you save the
+            entity, so they stay in sync with the body content with no
+            manual maintenance.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="The Insert picker" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            The{' '}
+            <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+              <ImagePlus className="h-3 w-3" />
+              Insert
+            </span>{' '}
+            toolbar button on the note editor opens a search picker for
+            assets you&apos;ve already uploaded. Type at least two
+            characters and matches appear after a short debounce.
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              The <strong className="text-foreground">Images</strong>,{' '}
+              <strong className="text-foreground">Audio</strong>, and{' '}
+              <strong className="text-foreground">Files</strong> pills at
+              the top filter the search by asset class.
+            </li>
+            <li>
+              Search matches against the filename and the description, so
+              an image with description &ldquo;water cycle diagram&rdquo;
+              will be found by &ldquo;cycle&rdquo; or &ldquo;diagram&rdquo;
+              even if the filename is just{' '}
+              <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+                IMG_4521.jpg
+              </code>
+              .
+            </li>
+            <li>
+              Press <Kbd>Esc</Kbd> or click outside the panel to dismiss it
+              without inserting anything.
+            </li>
+          </ul>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="The Attach menu" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            The{' '}
+            <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground">
+              <Paperclip className="h-3 w-3" />
+              Attach
+            </span>{' '}
+            toolbar button does two things: it lets you{' '}
+            <strong className="text-foreground">upload a new file</strong>{' '}
+            via the system file picker, and it acts as a{' '}
+            <strong className="text-foreground">viewer</strong> for files
+            currently attached to whatever you&apos;re looking at.
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              On a <strong className="text-foreground">note</strong>, the
+              menu shows files referenced from that note&apos;s body and
+              the upload action inserts a link at the cursor.
+            </li>
+            <li>
+              On a <strong className="text-foreground">deck</strong>, the
+              menu lists files referenced from the deck description or any
+              flashcard front/back. It&apos;s viewer-only here — to add a
+              new file, drop or paste it directly into a card editor.
+            </li>
+            <li>
+              On a <strong className="text-foreground">todo list</strong>,
+              the menu lists files referenced anywhere in any item&apos;s
+              text or notes. Also viewer-only.
+            </li>
+          </ul>
+          <p>
+            On notes, a small trash icon appears beside each attachment row
+            on hover. Clicking it strips that file&apos;s markdown link
+            from the body — handy for tidying up without scrolling through
+            the source to find it.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Sharing assets" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            Media and files are private by default — only you can access
+            them. When you{' '}
+            <strong className="text-foreground">share</strong> a note,
+            deck, or todo list, any assets embedded in it become accessible
+            to people who have that share link, but only via that link.
+            Removing the share invalidates access immediately.
+          </p>
+          <p>
+            The renderer automatically appends the active share token to
+            every{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+              /api/media/&lt;uuid&gt;
+            </code>{' '}
+            URL on the public share view, so embedded images, audio, and
+            file links all load correctly for your readers without you
+            needing to share the assets individually.
+          </p>
+        </div>
+      </CollapsibleSection>
+    </div>
+  );
+}
+
 function PlaceholderTab({ label }: { label: string }) {
   return (
     <div className="flex min-h-48 items-center justify-center pt-6">
@@ -896,23 +1255,26 @@ export default function HelpPage() {
 
       <main className="mx-auto max-w-4xl px-6 pt-28 pb-16">
         {/* Page header */}
-        <div className="mb-8 flex items-center gap-3">
+        <div className="mb-8 flex items-start gap-3">
           <Button
             variant="ghost"
             size="icon-sm"
             nativeButton={false}
             render={<Link href="/dashboard" />}
+            className="mt-1"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="sr-only">Back to dashboard</span>
           </Button>
-          <div className="flex items-start gap-2">
-            <HelpCircle className="mt-1 h-7 w-7 text-primary shrink-0" />
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">Help</h1>
-              <p className="mt-1 text-muted-foreground">
-                Reference documentation for Mind Organizer features.
-              </p>
+          <div className="flex-1">
+            <div className="flex items-start gap-2">
+              <HelpCircle className="mt-1 h-7 w-7 text-primary shrink-0" />
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">Help</h1>
+                <p className="mt-1 text-muted-foreground">
+                  Reference documentation for Mind Organizer features.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -924,6 +1286,7 @@ export default function HelpPage() {
             <TabsTrigger value="todos">Todos</TabsTrigger>
             <TabsTrigger value="areas">Areas</TabsTrigger>
             <TabsTrigger value="sharing">Sharing</TabsTrigger>
+            <TabsTrigger value="media">Media &amp; Files</TabsTrigger>
             <TabsTrigger value="ai">AI</TabsTrigger>
           </TabsList>
 
@@ -949,6 +1312,10 @@ export default function HelpPage() {
 
           <TabsContent value="sharing">
             <SharingTab />
+          </TabsContent>
+
+          <TabsContent value="media">
+            <MediaTab />
           </TabsContent>
         </Tabs>
       </main>

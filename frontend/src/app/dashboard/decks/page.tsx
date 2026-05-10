@@ -136,8 +136,8 @@ export default function DecksPage() {
 
       <main className="mx-auto max-w-6xl px-6 pt-28 pb-16">
         <div className="mb-8 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/dashboard" />}>
+          <div className="flex items-start gap-3">
+            <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/dashboard" />} className="mt-1">
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Back to dashboard</span>
             </Button>

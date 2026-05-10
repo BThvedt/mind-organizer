@@ -476,16 +476,6 @@ export default function EditNotePage({
             <ImagePlus className="h-4 w-4" />
             <span className="hidden sm:inline">Insert</span>
           </Button>
-          <NoteAiDialog
-            noteId={noteid}
-            noteBody={body}
-            noteTitle={title}
-            noteAreaUuids={areaUuids}
-            noteSubjectUuids={subjectUuids}
-            linkedDeckIds={linkedDeckIds}
-            onBodyChange={setBody}
-            onLinksChange={setLinkedDeckIds}
-          />
           <ShareButton
             type="study_note"
             nodeUuid={noteid}
@@ -496,6 +486,16 @@ export default function EditNotePage({
               setShareToken(nextToken);
             }}
             disabled={loading}
+          />
+          <NoteAiDialog
+            noteId={noteid}
+            noteBody={body}
+            noteTitle={title}
+            noteAreaUuids={areaUuids}
+            noteSubjectUuids={subjectUuids}
+            linkedDeckIds={linkedDeckIds}
+            onBodyChange={setBody}
+            onLinksChange={setLinkedDeckIds}
           />
         </div>
         {(areaUuids.length > 0 || subjectUuids.length > 0) && (

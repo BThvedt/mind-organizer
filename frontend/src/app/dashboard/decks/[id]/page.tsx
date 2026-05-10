@@ -429,14 +429,6 @@ export default function DeckDetailPage({
 
                   {/* Row 2: tools + management */}
                   <div className="flex items-center gap-2">
-                    <AiGenerateDialog
-                      deckId={id}
-                      onSaved={loadData}
-                      existingCards={cards.map((c) => ({
-                        front: (c.attributes.field_front as string) ?? '',
-                        back: (c.attributes.field_back as string) ?? '',
-                      }))}
-                    />
                     <AttachmentsMenu body={deckAttachmentsBody} onInsert={null} />
                     <LinkDialog
                       mode="uncontrolled"
@@ -536,6 +528,14 @@ export default function DeckDetailPage({
                         }
                       />
                     )}
+                    <AiGenerateDialog
+                      deckId={id}
+                      onSaved={loadData}
+                      existingCards={cards.map((c) => ({
+                        front: (c.attributes.field_front as string) ?? '',
+                        back: (c.attributes.field_back as string) ?? '',
+                      }))}
+                    />
                     <Button
                       variant="outline"
                       size="sm"

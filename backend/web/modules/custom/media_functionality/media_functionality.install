@@ -1,0 +1,132 @@
+<?php
+
+/**
+ * @file
+ * Install/uninstall hooks for the media_functionality module.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_schema().
+ */
+function media_functionality_schema(): array {
+  $schema['media_functionality_asset'] = [
+    'description' => 'One row per uploaded media asset (image or audio).',
+    'fields' => [
+      'uuid' => [
+        'type' => 'varchar',
+        'length' => 36,
+        'not null' => TRUE,
+        'description' => 'Asset UUID (also used as URL identifier).',
+      ],
+      's3_key' => [
+        'type' => 'varchar',
+        'length' => 512,
+        'not null' => TRUE,
+        'description' => 'Full S3 object key, e.g. dev/media/<user-uuid>/<asset-uuid>/<filename>.',
+      ],
+      'media_type' => [
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+        'default' => 'image',
+        'description' => '"image" or "audio".',
+      ],
+      'mime_type' => [
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'original_filename' => [
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'file_size' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'owner_uid' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'created' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Unix timestamp.',
+      ],
+      'deleted' => [
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => '1 = soft-deleted; 0 = active.',
+      ],
+      'deleted_at' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => NULL,
+      ],
+    ],
+    'primary key' => ['uuid'],
+    'indexes' => [
+      'owner_uid' => ['owner_uid'],
+      'deleted' => ['deleted'],
+    ],
+  ];
+
+  $schema['media_functionality_usage'] = [
+    'description' => 'Tracks which entities reference each media asset.',
+    'fields' => [
+      'id' => [
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'asset_uuid' => [
+        'type' => 'varchar',
+        'length' => 36,
+        'not null' => TRUE,
+      ],
+      'entity_type' => [
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'description' => '"node--study_note" or "node--flashcard".',
+      ],
+      'entity_uuid' => [
+        'type' => 'varchar',
+        'length' => 36,
+        'not null' => TRUE,
+      ],
+      'entity_label' => [
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'Denormalized for fast usage display.',
+      ],
+    ],
+    'primary key' => ['id'],
+    'unique keys' => [
+      'asset_entity' => ['asset_uuid', 'entity_type', 'entity_uuid'],
+    ],
+    'indexes' => [
+      'asset_uuid' => ['asset_uuid'],
+      'entity_uuid' => ['entity_uuid'],
+    ],
+  ];
+
+  return $schema;
+}

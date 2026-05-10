@@ -1,0 +1,10 @@
+services:
+  media_functionality.s3:
+    class: Drupal\media_functionality\Service\S3Service
+    arguments:
+      - '@logger.factory'
+
+  media_functionality.usage_tracker:
+    class: Drupal\media_functionality\Service\UsageTracker
+    arguments:
+      - '@database'

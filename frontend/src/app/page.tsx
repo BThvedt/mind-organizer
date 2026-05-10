@@ -63,11 +63,11 @@ export default function Home() {
           </h1>
 
           <p className="max-w-lg text-muted-foreground text-lg leading-relaxed">
-            Todo lists to keep track of what you're doing. Notes to take down insights. Flashcards to solidify your memory. And AI tools make it fast and stress free. They all work together. Save cognitive load for tasks and easily remmeber important details.
+            Whether you're a genius, an average person trying to learn a skill or langurage, or even just an absent minded person (but one that still wants to remember stuff). Everyone benefits from the right tools.
           </p>
 
           <p className="max-w-lg text-muted-foreground text-lg leading-relaxed">
-            Whether you're a genius, an average person trying to learn a skill or langurage, or even just an absent minded person - but one that still wants to remember stuff. Everyone benefits from the right tools.
+            Never lose track of what you're doing. Take down insights and ideas. Commmit to memory quickly. Share if you want. Todos, Notes, and Flashcards all together. AI helps format, embellish, and generate, so efficient and easy. Save  cognitive load for what's actually important and maximize your mind.
           </p>
 
           {auth === null ? null : auth ? (
@@ -91,22 +91,22 @@ export default function Home() {
         <section className="mx-auto max-w-5xl px-6 pb-24 grid grid-cols-1 sm:grid-cols-3 gap-6 w-full">
           {[
             {
-              icon: <BookOpen className="h-6 w-6 text-primary" />,
-              title: 'Rich Flashcards',
-              description:
-                'Create rich cards with markdown, and review with a spaced repetition algorithm to study any subject',
-            },
-            {
               icon: <ListTodo className="h-6 w-6 text-primary" />,
               title: 'Notes and Todos',
               description:
-                'Rich organized searchable notes with markdown. Todo lists to help organize and remember',
+                'Rich organized and searchable notes with markdown. Cross an item off your todo list, save the important details.',
+            },
+            {
+              icon: <BookOpen className="h-6 w-6 text-primary" />,
+              title: 'Rich Flashcards',
+              description:
+                'Need to use long term memory?Create rich cards with markdown, and review with a spaced repetition algorithm.',
             },
             {
               icon: <Sparkles className="h-6 w-6 text-primary" />,
               title: 'AI Integration',
               description:
-                'AI assisted formatting and flashcard creation, pull in info you might have missed, all now easier than ever!',
+                'AI assisted note taking and flashcard generation, all now easier than ever!',
             },
           ].map(({ icon, title, description }) => (
             <div

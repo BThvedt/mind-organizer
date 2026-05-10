@@ -43,7 +43,7 @@ export default async function SharedNotePage({ params }: PageProps) {
 
       {body ? (
         <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none">
-          <MarkdownRenderer>{body}</MarkdownRenderer>
+          <MarkdownRenderer shareToken={token}>{body}</MarkdownRenderer>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground italic">This note is empty.</p>

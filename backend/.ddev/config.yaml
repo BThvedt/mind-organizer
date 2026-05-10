@@ -13,9 +13,14 @@ use_dns_when_possible: true
 composer_version: "2"
 web_environment:
     - ANTHROPIC_API_KEY=your-key-here
+    - AWS_REGION=your-region
+    - AWS_ACCESS_KEY_ID=your-key-id
+    - AWS_SECRET_ACCESS_KEY=your-secret
+    - AWS_S3_BUCKET=mindorganizer
+    - AWS_S3_PREFIX=dev
 corepack_enable: true
 
-# Key features of DDEV's config.yaml:
+# The web environment vars are 
 
 # name: <projectname> # Name of the project, automatically provides
 #   http://projectname.ddev.site and https://projectname.ddev.site

@@ -67,6 +67,39 @@ export async function drupalFetch(path: string, options?: RequestInit) {
 }
 
 /**
+ * Returns the current bearer token, refreshing once if it's expired.
+ *
+ * Useful for routes that need to forward the user's auth to Drupal but
+ * cannot use `drupalFetch` (e.g. binary streams, multipart bodies, or
+ * cases where the JSON:API content-type would interfere).
+ */
+export async function getBearerToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  let token = cookieStore.get('access_token')?.value ?? null;
+  if (!token) {
+    const refreshToken = cookieStore.get('refresh_token')?.value;
+    if (refreshToken) {
+      const newTokens = await refreshAccessToken(refreshToken);
+      if (newTokens) {
+        applyTokenCookies(
+          { cookies: { set: (name: string, value: string, opts: object) => cookieStore.set(name, value, opts) } },
+          newTokens
+        );
+        token = newTokens.access_token;
+      }
+    }
+  }
+  return token;
+}
+
+/**
+ * Returns the configured Drupal base URL (server-side use only).
+ */
+export function drupalBaseUrl(): string {
+  return DRUPAL_BASE_URL;
+}
+
+/**
  * Retrieves the current authenticated user's UUID from the JSON:API meta links.
  * Returns null if the user is not authenticated or the request fails.
  */

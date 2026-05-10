@@ -1,0 +1,78 @@
+media_functionality.upload:
+  path: '/api/study/media/upload'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::upload'
+    _title: 'Upload media'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [POST]
+
+media_functionality.list:
+  path: '/api/study/media'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::listAssets'
+    _title: 'List media assets'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]
+
+media_functionality.serve:
+  path: '/api/study/media/{uuid}/file'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::serve'
+    _title: 'Serve media file'
+  requirements:
+    _access: 'TRUE'
+    uuid: '[0-9a-f\-]+'
+  options:
+    no_cache: TRUE
+  methods: [GET]
+
+media_functionality.usage:
+  path: '/api/study/media/{uuid}/usage'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::usage'
+    _title: 'Asset usage'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    uuid: '[0-9a-f\-]+'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]
+
+media_functionality.delete:
+  path: '/api/study/media/{uuid}/delete'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::softDelete'
+    _title: 'Soft-delete media asset'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    uuid: '[0-9a-f\-]+'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [PATCH]
+
+media_functionality.broken:
+  path: '/api/study/media/broken'
+  defaults:
+    _controller: '\Drupal\media_functionality\Controller\MediaFunctionalityController::broken'
+    _title: 'Broken (deleted) media for current user'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]

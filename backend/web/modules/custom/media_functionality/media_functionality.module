@@ -1,0 +1,67 @@
+<?php
+
+/**
+ * @file
+ * Hooks for media_functionality.
+ *
+ * Scans node bodies for /api/media/<uuid> references on save and keeps
+ * the media_functionality_usage table in sync, so we can answer
+ * "which notes/flashcards use this media?" and flag broken references.
+ */
+
+declare(strict_types=1);
+
+use Drupal\node\NodeInterface;
+
+/**
+ * Implements hook_node_presave().
+ */
+function media_functionality_node_presave(NodeInterface $node): void {
+  /** @var \Drupal\media_functionality\Service\UsageTracker $tracker */
+  $tracker = \Drupal::service('media_functionality.usage_tracker');
+
+  if ($node->bundle() === 'study_note') {
+    $body = $node->hasField('field_body') && !$node->get('field_body')->isEmpty()
+      ? (string) $node->get('field_body')->value
+      : '';
+    $tracker->syncForEntity(
+      'node--study_note',
+      (string) $node->uuid(),
+      (string) $node->getTitle(),
+      $body
+    );
+    return;
+  }
+
+  // Flashcard scanning is wired and ready, but flashcard upload UI hasn't
+  // shipped yet. Enable when /flashcard editor gains drag-drop/paste media.
+  // if ($node->bundle() === 'flashcard') {
+  //   $front = $node->hasField('field_front') && !$node->get('field_front')->isEmpty()
+  //     ? (string) $node->get('field_front')->value : '';
+  //   $back = $node->hasField('field_back') && !$node->get('field_back')->isEmpty()
+  //     ? (string) $node->get('field_back')->value : '';
+  //   $tracker->syncForEntity(
+  //     'node--flashcard',
+  //     (string) $node->uuid(),
+  //     (string) $node->getTitle(),
+  //     $front . "\n" . $back
+  //   );
+  // }
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function media_functionality_node_delete(NodeInterface $node): void {
+  $type = match ($node->bundle()) {
+    'study_note' => 'node--study_note',
+    'flashcard' => 'node--flashcard',
+    default => NULL,
+  };
+  if ($type === NULL) {
+    return;
+  }
+  /** @var \Drupal\media_functionality\Service\UsageTracker $tracker */
+  $tracker = \Drupal::service('media_functionality.usage_tracker');
+  $tracker->removeForEntity($type, (string) $node->uuid());
+}

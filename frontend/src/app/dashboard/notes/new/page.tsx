@@ -15,9 +15,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { AreaSubjectSelector } from '@/components/area-subject-selector';
 import { LinkDialog } from '@/components/link-dialog';
-import { ArrowLeft, Save, Eye, Pencil } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Pencil, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { userFacingMessageForApiError } from '@/lib/api-client-messages';
+import { useMediaDropPaste } from '@/hooks/useMediaDropPaste';
 
 type MobileTab = 'write' | 'preview';
 
@@ -42,6 +43,15 @@ export default function NewNotePage() {
 
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
+
+  const {
+    isDragging,
+    uploadingCount,
+    uploadError,
+    clearUploadError,
+    dropZoneProps,
+    onPaste,
+  } = useMediaDropPaste({ textareaRef: editorRef, body, setBody });
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -206,6 +216,18 @@ export default function NewNotePage() {
             Note saved offline. It will appear once you reconnect.
           </div>
         )}
+        {uploadError && (
+          <div className="mx-4 mb-2 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <span className="flex-1">{uploadError}</span>
+            <button
+              onClick={clearUploadError}
+              className="rounded p-0.5 hover:bg-destructive/20"
+              aria-label="Dismiss"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Editor area — starts below header (64px) + title row (56px) + toolbar row (~40px) */}
@@ -216,12 +238,14 @@ export default function NewNotePage() {
 
           {/* Write pane */}
           <div
+            {...dropZoneProps}
             className={cn(
-              'flex min-h-0 flex-col overflow-hidden',
+              'relative flex min-h-0 flex-col overflow-hidden transition-colors',
               // Desktop: always half width
               'md:w-1/2 md:flex md:border-r md:border-border',
               // Mobile: show only when write tab active
-              mobileTab === 'write' ? 'flex w-full' : 'hidden'
+              mobileTab === 'write' ? 'flex w-full' : 'hidden',
+              isDragging && 'bg-primary/5 ring-2 ring-inset ring-primary/40'
             )}
           >
             <Textarea
@@ -229,9 +253,23 @@ export default function NewNotePage() {
               value={body}
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={editorKeyDown}
-              placeholder="Write your notes in Markdown…"
+              onPaste={onPaste}
+              placeholder="Write your notes in Markdown… (drop or paste images / audio to embed)"
               className="flex-1 resize-none rounded-none border-0 bg-transparent font-mono text-sm leading-relaxed focus-visible:ring-0 p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
             />
+            {isDragging && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/5 backdrop-blur-[1px]">
+                <p className="rounded-full border border-primary/40 bg-background/90 px-4 py-1.5 text-sm font-medium text-primary shadow-sm">
+                  Drop to upload
+                </p>
+              </div>
+            )}
+            {uploadingCount > 0 && (
+              <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-md ring-1 ring-border">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Uploading {uploadingCount}…
+              </div>
+            )}
           </div>
 
           {/* Preview pane */}

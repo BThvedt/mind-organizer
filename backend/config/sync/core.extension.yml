@@ -27,6 +27,7 @@ module:
   image: 0
   jsonapi: 0
   link: 0
+  media_functionality: 0
   menu_link_content: 0
   menu_ui: 0
   mysql: 0

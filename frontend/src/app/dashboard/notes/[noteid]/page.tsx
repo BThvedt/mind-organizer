@@ -17,10 +17,12 @@ import { LinkDialog } from '@/components/link-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
-import { ArrowLeft, Pencil, Eye, Save, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Pencil, Eye, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/drupal';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useMediaDropPaste } from '@/hooks/useMediaDropPaste';
+import { useBrokenMedia } from '@/hooks/useBrokenMedia';
 import {
   MUTATION_QUEUED_MESSAGE,
   OFFLINE_ACTION_MESSAGE,
@@ -87,6 +89,18 @@ export default function EditNotePage({
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
   const { isOnline } = useOnlineStatus();
+
+  const {
+    isDragging,
+    uploadingCount,
+    uploadError,
+    clearUploadError,
+    dropZoneProps,
+    onPaste,
+  } = useMediaDropPaste({ textareaRef: editorRef, body, setBody });
+
+  const { brokenSet, brokenInBody } = useBrokenMedia(authenticated === true);
+  const brokenInThisNote = brokenInBody(body);
 
   const draftRef = useRef({
     title: '',
@@ -498,6 +512,27 @@ export default function EditNotePage({
             Changes saved offline. They will sync when you reconnect.
           </div>
         )}
+        {brokenInThisNote.length > 0 && (
+          <div className="mx-4 mb-2 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <ImageOff className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              This note references {brokenInThisNote.length} deleted media{' '}
+              {brokenInThisNote.length === 1 ? 'file' : 'files'}.
+            </span>
+          </div>
+        )}
+        {uploadError && (
+          <div className="mx-4 mb-2 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <span className="flex-1">{uploadError}</span>
+            <button
+              onClick={clearUploadError}
+              className="rounded p-0.5 hover:bg-destructive/20"
+              aria-label="Dismiss"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Editor area — pt-[210px] on mobile (3 rows), md:pt-[168px] on desktop (2 rows) */}
@@ -505,10 +540,12 @@ export default function EditNotePage({
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           {/* Write pane */}
           <div
+            {...dropZoneProps}
             className={cn(
-              'flex min-h-0 flex-col overflow-hidden',
+              'relative flex min-h-0 flex-col overflow-hidden transition-colors',
               'md:w-1/2 md:flex md:border-r md:border-border',
-              mobileTab === 'write' ? 'flex w-full' : 'hidden'
+              mobileTab === 'write' ? 'flex w-full' : 'hidden',
+              isDragging && 'bg-primary/5 ring-2 ring-inset ring-primary/40'
             )}
           >
             <Textarea
@@ -516,10 +553,24 @@ export default function EditNotePage({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={editorKeyDown}
-              placeholder="Write your notes in Markdown…"
+              onPaste={onPaste}
+              placeholder="Write your notes in Markdown… (drop or paste images / audio to embed)"
               className="flex-1 resize-none rounded-none border-0 bg-transparent font-mono text-sm leading-relaxed focus-visible:ring-0 p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
               disabled={loading}
             />
+            {isDragging && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/5 backdrop-blur-[1px]">
+                <p className="rounded-full border border-primary/40 bg-background/90 px-4 py-1.5 text-sm font-medium text-primary shadow-sm">
+                  Drop to upload
+                </p>
+              </div>
+            )}
+            {uploadingCount > 0 && (
+              <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-md ring-1 ring-border">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Uploading {uploadingCount}…
+              </div>
+            )}
           </div>
 
           {/* Preview pane */}
@@ -532,7 +583,7 @@ export default function EditNotePage({
           >
             {body.trim() ? (
               <div className="prose prose-sm max-w-none p-6">
-                <MarkdownRenderer>{body}</MarkdownRenderer>
+                <MarkdownRenderer brokenUuids={brokenSet}>{body}</MarkdownRenderer>
               </div>
             ) : (
               <div className="flex min-h-[12rem] flex-1 items-center justify-center p-8 text-muted-foreground text-sm md:min-h-0">

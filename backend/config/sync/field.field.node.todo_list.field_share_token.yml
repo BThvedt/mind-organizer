@@ -15,7 +15,5 @@ required: false
 translatable: false
 default_value: {  }
 default_value_callback: ''
-settings:
-  max_length: 64
-  case_sensitive: true
+settings: {  }
 field_type: string

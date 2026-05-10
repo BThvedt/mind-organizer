@@ -1,0 +1,7 @@
+name: 'Media Functionality'
+type: module
+description: 'Image/audio media uploads to AWS S3, owner-or-share-token access control, and per-entity usage tracking embedded in study_note bodies (and flashcards in the future).'
+package: 'Mind Organizer'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node

@@ -16,14 +16,14 @@ import { ChevronsUpDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ApiUnauthorizedError } from '@/lib/api-client-messages';
 
-interface TaxonomyTerm {
+export interface TaxonomyTerm {
   id: string;
   attributes: { name: string };
 }
 
 // ── Internal combobox ────────────────────────────────────────────────────────
 
-interface TaxonomyComboboxProps {
+export interface TaxonomyComboboxProps {
   value: string;
   onChange: (uuid: string) => void;
   options: TaxonomyTerm[];
@@ -35,7 +35,7 @@ interface TaxonomyComboboxProps {
   onError?: (msg: string) => void;
 }
 
-function TaxonomyCombobox({
+export function TaxonomyCombobox({
   value,
   onChange,
   options,

@@ -25,8 +25,8 @@ use Symfony\Component\HttpFoundation\Request;
  *         "uuid":    "<node-uuid>",
  *         "type":    "study_note" | "flashcard_deck" | "todo_list",
  *         "title":   "...",
- *         "area":    { "uuid": "...", "name": "..." } | null,
- *         "subject": { "uuid": "...", "name": "..." } | null
+ *         "areas":    [ { "uuid": "...", "name": "..." } ],
+ *         "subjects": [ { "uuid": "...", "name": "..." } ]
  *       }
  *     ],
  *     "total": <int>
@@ -199,50 +199,41 @@ class SearchController extends ControllerBase {
       }
       $seen_uuids[$uuid] = TRUE;
 
-      $area_data    = NULL;
-      $subject_data = NULL;
+      $area_data    = [];
+      $subject_data = [];
+      $node_area_ids = [];
+      $node_subject_ids = [];
 
       if ($node->hasField('field_area') && !$node->get('field_area')->isEmpty()) {
-        /** @var \Drupal\taxonomy\TermInterface $term */
-        $term = $node->get('field_area')->entity;
-        if ($term) {
-          $area_data = ['uuid' => $term->uuid(), 'name' => $term->getName()];
+        foreach ($node->get('field_area')->referencedEntities() as $term) {
+          /** @var \Drupal\taxonomy\TermInterface $term */
+          $area_data[] = ['uuid' => $term->uuid(), 'name' => $term->getName()];
+          $node_area_ids[] = (int) $term->id();
         }
       }
 
       if ($node->hasField('field_subject') && !$node->get('field_subject')->isEmpty()) {
-        /** @var \Drupal\taxonomy\TermInterface $term */
-        $term = $node->get('field_subject')->entity;
-        if ($term) {
-          $subject_data = ['uuid' => $term->uuid(), 'name' => $term->getName()];
+        foreach ($node->get('field_subject')->referencedEntities() as $term) {
+          /** @var \Drupal\taxonomy\TermInterface $term */
+          $subject_data[] = ['uuid' => $term->uuid(), 'name' => $term->getName()];
+          $node_subject_ids[] = (int) $term->id();
         }
       }
 
-      // Apply area/subject post-filters (flashcard → deck resolution means
-      // we couldn't filter at the query level).
-      if ($area_tid !== NULL) {
-        $node_area_id = $node->hasField('field_area') && !$node->get('field_area')->isEmpty()
-          ? (int) $node->get('field_area')->target_id
-          : NULL;
-        if ($node_area_id !== $area_tid) {
-          continue;
-        }
+      // Apply area/subject post-filters (membership instead of equality).
+      if ($area_tid !== NULL && !in_array($area_tid, $node_area_ids, TRUE)) {
+        continue;
       }
-      if ($subject_tid !== NULL) {
-        $node_subject_id = $node->hasField('field_subject') && !$node->get('field_subject')->isEmpty()
-          ? (int) $node->get('field_subject')->target_id
-          : NULL;
-        if ($node_subject_id !== $subject_tid) {
-          continue;
-        }
+      if ($subject_tid !== NULL && !in_array($subject_tid, $node_subject_ids, TRUE)) {
+        continue;
       }
 
       $results[] = [
-        'uuid'    => $uuid,
-        'type'    => $node->bundle(),
-        'title'   => $node->getTitle(),
-        'area'    => $area_data,
-        'subject' => $subject_data,
+        'uuid'     => $uuid,
+        'type'     => $node->bundle(),
+        'title'    => $node->getTitle(),
+        'areas'    => $area_data,
+        'subjects' => $subject_data,
       ];
 
       if (count($results) >= 20) {

@@ -18,19 +18,14 @@ import {
 } from '@/components/ui/dialog';
 import { FolderOpen, ArrowLeft, Plus, Pencil, Trash2, X, Check, Layers, FileText } from 'lucide-react';
 import { cn, toSlug } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 
 interface TaxonomyResponse { data: JsonApiResource[] }
 interface SingleResponse { data: JsonApiResource }
 interface ListResponse { data: JsonApiResource[] }
 
 type ContentFilter = 'all' | 'decks' | 'notes';
-
-function relId(resource: JsonApiResource, field: string): string | null {
-  const rel = resource.relationships?.[field]?.data;
-  if (!rel || Array.isArray(rel)) return null;
-  return (rel as { id: string }).id ?? null;
-}
 
 export default function AreaDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -109,11 +104,15 @@ export default function AreaDetailPage() {
         if (subjectsRes.ok) setSubjects((await subjectsRes.json() as TaxonomyResponse).data ?? []);
         if (decksRes.ok) {
           const data: ListResponse = await decksRes.json();
-          setDecks((data.data ?? []).filter((d) => relId(d, 'field_area') === id));
+          setDecks((data.data ?? []).filter((d) =>
+            toRelIds(d.relationships?.field_area?.data).includes(id),
+          ));
         }
         if (notesRes.ok) {
           const data: ListResponse = await notesRes.json();
-          setNotes((data.data ?? []).filter((n) => relId(n, 'field_area') === id));
+          setNotes((data.data ?? []).filter((n) =>
+            toRelIds(n.relationships?.field_area?.data).includes(id),
+          ));
         }
       } finally {
         setLoading(false);
@@ -225,10 +224,14 @@ export default function AreaDetailPage() {
   }
 
   const filteredDecks = decks.filter(
-    (d) => !selectedSubjectId || relId(d, 'field_subject') === selectedSubjectId
+    (d) =>
+      !selectedSubjectId ||
+      toRelIds(d.relationships?.field_subject?.data).includes(selectedSubjectId),
   );
   const filteredNotes = notes.filter(
-    (n) => !selectedSubjectId || relId(n, 'field_subject') === selectedSubjectId
+    (n) =>
+      !selectedSubjectId ||
+      toRelIds(n.relationships?.field_subject?.data).includes(selectedSubjectId),
   );
   const visibleDecks = contentFilter !== 'notes' ? filteredDecks : [];
   const visibleNotes = contentFilter !== 'decks' ? filteredNotes : [];

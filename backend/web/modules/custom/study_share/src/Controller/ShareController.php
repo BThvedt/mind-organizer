@@ -35,17 +35,17 @@ class ShareController extends ControllerBase {
       : '';
 
     return $this->jsonNoStore([
-      'type'    => 'study_note',
-      'title'   => $node->getTitle(),
-      'body'    => $body,
-      'area'    => $this->termRef($node, 'field_area'),
-      'subject' => $this->termRef($node, 'field_subject'),
-      'links'   => array_merge(
+      'type'     => 'study_note',
+      'title'    => $node->getTitle(),
+      'body'     => $body,
+      'areas'    => $this->termRefs($node, 'field_area'),
+      'subjects' => $this->termRefs($node, 'field_subject'),
+      'links'    => array_merge(
         $this->serializeSharedLinks($node, 'field_linked_decks'),
         $this->serializeSharedLinks($node, 'field_linked_notes'),
         $this->serializeSharedLinks($node, 'field_linked_todos'),
       ),
-      'updated' => (int) $node->getChangedTime(),
+      'updated'  => (int) $node->getChangedTime(),
     ]);
   }
 
@@ -91,8 +91,8 @@ class ShareController extends ControllerBase {
       'type'        => 'flashcard_deck',
       'title'       => $node->getTitle(),
       'description' => $description,
-      'area'        => $this->termRef($node, 'field_area'),
-      'subject'     => $this->termRef($node, 'field_subject'),
+      'areas'       => $this->termRefs($node, 'field_area'),
+      'subjects'    => $this->termRefs($node, 'field_subject'),
       'cards'       => $cards,
       'links'       => array_merge(
         $this->serializeSharedLinks($node, 'field_linked_decks'),
@@ -125,17 +125,17 @@ class ShareController extends ControllerBase {
     }
 
     return $this->jsonNoStore([
-      'type'    => 'todo_list',
-      'title'   => $node->getTitle(),
-      'area'    => $this->termRef($node, 'field_area'),
-      'subject' => $this->termRef($node, 'field_subject'),
-      'items'   => $items,
-      'links'   => array_merge(
+      'type'     => 'todo_list',
+      'title'    => $node->getTitle(),
+      'areas'    => $this->termRefs($node, 'field_area'),
+      'subjects' => $this->termRefs($node, 'field_subject'),
+      'items'    => $items,
+      'links'    => array_merge(
         $this->serializeSharedLinks($node, 'field_linked_decks'),
         $this->serializeSharedLinks($node, 'field_linked_notes'),
         $this->serializeSharedLinks($node, 'field_linked_todos'),
       ),
-      'updated' => (int) $node->getChangedTime(),
+      'updated'  => (int) $node->getChangedTime(),
     ]);
   }
 
@@ -213,17 +213,20 @@ class ShareController extends ControllerBase {
   }
 
   /**
-   * Reduces a taxonomy reference field on a node to { uuid, name } | null.
+   * Reduces a multi-value taxonomy reference field on a node to a list of
+   * { uuid, name } records.
+   *
+   * @return array<int, array{uuid: string, name: string}>
    */
-  private function termRef(NodeInterface $node, string $field): ?array {
+  private function termRefs(NodeInterface $node, string $field): array {
     if (!$node->hasField($field) || $node->get($field)->isEmpty()) {
-      return NULL;
+      return [];
     }
-    $term = $node->get($field)->entity;
-    if ($term === NULL) {
-      return NULL;
+    $refs = [];
+    foreach ($node->get($field)->referencedEntities() as $term) {
+      $refs[] = ['uuid' => $term->uuid(), 'name' => $term->label()];
     }
-    return ['uuid' => $term->uuid(), 'name' => $term->label()];
+    return $refs;
   }
 
   /**

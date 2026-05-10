@@ -7,7 +7,7 @@ import {
   userFacingMessageForApiError,
 } from '@/lib/api-client-messages';
 import { Pencil, Trash2, Check, X } from 'lucide-react';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
 
 interface FlashcardItemProps {
   card: JsonApiResource;

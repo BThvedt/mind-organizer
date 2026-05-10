@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/select';
 import { Layers, ArrowLeft, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 import Link from 'next/link';
 interface DeckListResponse {
   data: JsonApiResource[];
@@ -82,9 +83,8 @@ export default function DecksPage() {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     decks.forEach((deck) => {
-      const rel = deck.relationships?.field_area?.data;
-      const id = rel && !Array.isArray(rel) ? rel.id : null;
-      if (id && !seen.has(id)) {
+      for (const id of toRelIds(deck.relationships?.field_area?.data)) {
+        if (seen.has(id)) continue;
         seen.add(id);
         const name = included.find((r) => r.id === id)?.attributes.name as string | undefined;
         if (name) result.push({ id, name });
@@ -98,12 +98,10 @@ export default function DecksPage() {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     decks.forEach((deck) => {
-      const aRel = deck.relationships?.field_area?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      if (aId !== filterAreaId) return;
-      const sRel = deck.relationships?.field_subject?.data;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (sId && !seen.has(sId)) {
+      const areaIds = toRelIds(deck.relationships?.field_area?.data);
+      if (!areaIds.includes(filterAreaId)) return;
+      for (const sId of toRelIds(deck.relationships?.field_subject?.data)) {
+        if (seen.has(sId)) continue;
         seen.add(sId);
         const name = included.find((r) => r.id === sId)?.attributes.name as string | undefined;
         if (name) result.push({ id: sId, name });
@@ -115,12 +113,10 @@ export default function DecksPage() {
   const visibleDecks = useMemo(() => {
     if (!filterAreaId && !filterSubjectId) return decks;
     return decks.filter((deck) => {
-      const aRel = deck.relationships?.field_area?.data;
-      const sRel = deck.relationships?.field_subject?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (filterAreaId && aId !== filterAreaId) return false;
-      if (filterSubjectId && sId !== filterSubjectId) return false;
+      const areaIds = toRelIds(deck.relationships?.field_area?.data);
+      const subjectIds = toRelIds(deck.relationships?.field_subject?.data);
+      if (filterAreaId && !areaIds.includes(filterAreaId)) return false;
+      if (filterSubjectId && !subjectIds.includes(filterSubjectId)) return false;
       return true;
     });
   }, [decks, filterAreaId, filterSubjectId]);

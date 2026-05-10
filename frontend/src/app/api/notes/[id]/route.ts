@@ -41,18 +41,18 @@ export async function PATCH(
   if (body.isShared !== undefined) attributes.field_is_shared = !!body.isShared;
 
   const relationships: Record<string, unknown> = {};
-  if ('areaUuid' in body) {
+  if ('areaUuids' in body) {
     relationships.field_area = {
-      data: body.areaUuid
-        ? { type: 'taxonomy_term--area', id: body.areaUuid }
-        : null,
+      data: Array.isArray(body.areaUuids)
+        ? body.areaUuids.map((id: string) => ({ type: 'taxonomy_term--area', id }))
+        : [],
     };
   }
-  if ('subjectUuid' in body) {
+  if ('subjectUuids' in body) {
     relationships.field_subject = {
-      data: body.subjectUuid
-        ? { type: 'taxonomy_term--subject', id: body.subjectUuid }
-        : null,
+      data: Array.isArray(body.subjectUuids)
+        ? body.subjectUuids.map((id: string) => ({ type: 'taxonomy_term--subject', id }))
+        : [],
     };
   }
   if ('linkedDeckUuids' in body) {

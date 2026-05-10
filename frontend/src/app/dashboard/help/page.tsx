@@ -620,7 +620,9 @@ function AreasTab() {
         lists to keep them organised. They work as a two-level hierarchy: an{' '}
         <strong className="text-foreground">area</strong> is the broad topic, and a{' '}
         <strong className="text-foreground">subject</strong> is a more specific category within
-        that area.
+        that area. Any item can be tagged with{' '}
+        <strong className="text-foreground">as many areas and subjects as you like</strong>,
+        which is handy for content that spans multiple disciplines.
       </p>
 
       <CollapsibleSection title="Areas and subjects explained" defaultOpen={false}>
@@ -633,12 +635,18 @@ function AreasTab() {
             have subjects like <em>Cell Biology</em>, <em>Genetics</em>, and <em>Ecology</em>.
           </p>
           <p>
-            Both are entirely optional. Any note, deck, or todo list can have:
+            Both are entirely optional, and both are{' '}
+            <strong className="text-foreground">multi-value</strong> — a single note, deck, or
+            todo list can carry any combination of areas and subjects, including:
           </p>
           <ul className="list-disc pl-5 flex flex-col gap-1">
-            <li>An area only</li>
-            <li>A subject only (the subject&apos;s area is implied)</li>
-            <li>Both an area and a subject</li>
+            <li>One or more areas only</li>
+            <li>One or more subjects only (each subject&apos;s parent area is implied)</li>
+            <li>
+              A mix of areas and subjects — for example, an item tagged with{' '}
+              <em>Biology · Cell Biology · Genetics</em> and{' '}
+              <em>Chemistry · Organic Chemistry</em>
+            </li>
             <li>Neither — content without any category label is perfectly fine</li>
           </ul>
           <p>
@@ -651,13 +659,61 @@ function AreasTab() {
       <CollapsibleSection title="Assigning areas and subjects to content" defaultOpen={false}>
         <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            When creating or editing a note, deck, or todo list, an area/subject selector appears
-            in the toolbar or settings panel. Click it to pick from your existing areas and
-            subjects, or leave it blank to keep the item uncategorised.
+            When creating or editing a note, deck, or todo list, two dropdown selectors appear
+            in the toolbar or settings panel:{' '}
+            <strong className="text-foreground">Area</strong> and{' '}
+            <strong className="text-foreground">Subject</strong>. Pick an area first; the
+            Subject dropdown then lists only the subjects that belong to it.
           </p>
           <p>
-            You can change or remove the area/subject at any time by editing the item and
-            updating the selector.
+            Each selection appears as a removable{' '}
+            <strong className="text-foreground">chip</strong> beneath the dropdowns. Area chips
+            are filled and bold; subject chips sit beside their parent area on the same row, in
+            a lighter outlined style — so a glance tells you which area each subject is grouped
+            under.
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              Pick another area to add a second area chip (with its own row of subjects).
+              Picking the same area again is a no-op.
+            </li>
+            <li>
+              Picking a subject{' '}
+              <strong className="text-foreground">automatically adds its parent area</strong>{' '}
+              if you haven&apos;t already selected it.
+            </li>
+            <li>
+              Click the <strong className="text-foreground">×</strong> on a subject chip to
+              remove just that subject. Click the × on an area chip to remove the area{' '}
+              <em>and</em> every subject grouped under it.
+            </li>
+            <li>
+              Need a category that doesn&apos;t exist yet? Type a new name into either dropdown
+              and confirm the &ldquo;Create…&rdquo; suggestion to add it on the spot. New
+              subjects are created under whichever area is currently active in the Area
+              dropdown.
+            </li>
+          </ul>
+          <p>
+            You can revisit the selector at any time. Changes save with the rest of the item.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Filtering by area and subject" defaultOpen={false}>
+        <div className="flex flex-col gap-3 text-sm text-muted-foreground leading-relaxed">
+          <p>
+            The Notes, Decks, and Todos pages each have an Area / Subject{' '}
+            <strong className="text-foreground">filter</strong> at the top of the list. The
+            filters are single-select — pick one area (and optionally one subject within it) to
+            narrow the list.
+          </p>
+          <p>
+            Because items can have multiple areas and subjects, an item shows up in a filtered
+            view as long as the chosen filter is{' '}
+            <strong className="text-foreground">one of</strong> its tags. For example, an item
+            tagged with both <em>Biology</em> and <em>Chemistry</em> appears in the Biology
+            filter and in the Chemistry filter.
           </p>
         </div>
       </CollapsibleSection>

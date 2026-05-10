@@ -13,7 +13,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import {
+  AreaSubjectMultiSelector,
+  AreaSubjectChipList,
+} from '@/components/area-subject-multi-selector';
 import { Plus } from 'lucide-react';
 import { userFacingMessageForApiError } from '@/lib/api-client-messages';
 
@@ -25,8 +28,8 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [areaUuid, setAreaUuid] = useState('');
-  const [subjectUuid, setSubjectUuid] = useState('');
+  const [areaUuids, setAreaUuids] = useState<string[]>([]);
+  const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [queued, setQueued] = useState(false);
@@ -34,8 +37,8 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
   const reset = () => {
     setTitle('');
     setDescription('');
-    setAreaUuid('');
-    setSubjectUuid('');
+    setAreaUuids([]);
+    setSubjectUuids([]);
     setError('');
     setQueued(false);
   };
@@ -62,8 +65,8 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
           body: JSON.stringify({
             title: title.trim(),
             description: description.trim() || undefined,
-            areaUuid: areaUuid || undefined,
-            subjectUuid: subjectUuid || undefined,
+            areaUuids,
+            subjectUuids,
           }),
         }),
         new Promise<never>((_, reject) =>
@@ -138,13 +141,31 @@ export function DeckCreateDialog({ onCreated }: DeckCreateDialogProps) {
               />
             </div>
 
-            <AreaSubjectSelector
-              areaUuid={areaUuid}
-              subjectUuid={subjectUuid}
-              onAreaChange={setAreaUuid}
-              onSubjectChange={setSubjectUuid}
-              layout="col"
-            />
+            <div className="flex flex-col gap-2">
+              <AreaSubjectMultiSelector
+                areaUuids={areaUuids}
+                subjectUuids={subjectUuids}
+                onChange={(next) => {
+                  setAreaUuids(next.areaUuids);
+                  setSubjectUuids(next.subjectUuids);
+                }}
+                layout="row"
+                hideLabels
+                compact
+                chipsRender="none"
+              />
+              {(areaUuids.length > 0 || subjectUuids.length > 0) && (
+                <AreaSubjectChipList
+                  areaUuids={areaUuids}
+                  subjectUuids={subjectUuids}
+                  onChange={(next) => {
+                    setAreaUuids(next.areaUuids);
+                    setSubjectUuids(next.subjectUuids);
+                  }}
+                  compact
+                />
+              )}
+            </div>
 
             {error && !queued && (
               <p className="text-sm text-destructive">{error}</p>

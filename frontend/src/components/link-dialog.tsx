@@ -37,18 +37,24 @@ import {
   messageWhenSearchRequestThrows,
   userFacingMessageForApiError,
 } from '@/lib/api-client-messages';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type LinkTab = 'deck' | 'note' | 'todo';
 
+interface TermRef {
+  uuid: string;
+  name: string;
+}
+
 interface SearchResult {
   uuid: string;
   type: string;
   title: string;
-  area: { uuid: string; name: string } | null;
-  subject: { uuid: string; name: string } | null;
+  areas: TermRef[];
+  subjects: TermRef[];
 }
 
 interface LinkedIds {
@@ -355,9 +361,8 @@ export function LinkDialog(props: LinkDialogProps) {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     browseable.forEach((item) => {
-      const rel = item.relationships?.field_area?.data;
-      const id = rel && !Array.isArray(rel) ? rel.id : null;
-      if (id && !seen.has(id)) {
+      for (const id of toRelIds(item.relationships?.field_area?.data)) {
+        if (seen.has(id)) continue;
         seen.add(id);
         const name = tabIncluded.find((r) => r.id === id)?.attributes.name as string | undefined;
         if (name) result.push({ id, name });
@@ -371,12 +376,10 @@ export function LinkDialog(props: LinkDialogProps) {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     browseable.forEach((item) => {
-      const aRel = item.relationships?.field_area?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      if (aId !== filterAreaId) return;
-      const sRel = item.relationships?.field_subject?.data;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (sId && !seen.has(sId)) {
+      const areaIds = toRelIds(item.relationships?.field_area?.data);
+      if (!areaIds.includes(filterAreaId)) return;
+      for (const sId of toRelIds(item.relationships?.field_subject?.data)) {
+        if (seen.has(sId)) continue;
         seen.add(sId);
         const name = tabIncluded.find((r) => r.id === sId)?.attributes.name as string | undefined;
         if (name) result.push({ id: sId, name });
@@ -387,26 +390,22 @@ export function LinkDialog(props: LinkDialogProps) {
 
   const visibleItems = useMemo(() => {
     return browseable.filter((item) => {
-      const aRel = item.relationships?.field_area?.data;
-      const sRel = item.relationships?.field_subject?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (filterAreaId && aId !== filterAreaId) return false;
-      if (filterAreaId && filterSubjectId && sId !== filterSubjectId) return false;
+      const areaIds = toRelIds(item.relationships?.field_area?.data);
+      const subjectIds = toRelIds(item.relationships?.field_subject?.data);
+      if (filterAreaId && !areaIds.includes(filterAreaId)) return false;
+      if (filterAreaId && filterSubjectId && !subjectIds.includes(filterSubjectId)) return false;
       return true;
     });
   }, [browseable, filterAreaId, filterSubjectId]);
 
   function itemMeta(item: JsonApiResource) {
-    const aRel = item.relationships?.field_area?.data;
-    const sRel = item.relationships?.field_subject?.data;
-    const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-    const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-    const areaName = aId
-      ? (tabIncluded.find((r) => r.id === aId)?.attributes.name as string | undefined)
+    const areaIds = toRelIds(item.relationships?.field_area?.data);
+    const subjectIds = toRelIds(item.relationships?.field_subject?.data);
+    const areaName = areaIds[0]
+      ? (tabIncluded.find((r) => r.id === areaIds[0])?.attributes.name as string | undefined)
       : undefined;
-    const subjectName = sId
-      ? (tabIncluded.find((r) => r.id === sId)?.attributes.name as string | undefined)
+    const subjectName = subjectIds[0]
+      ? (tabIncluded.find((r) => r.id === subjectIds[0])?.attributes.name as string | undefined)
       : undefined;
     return { areaName, subjectName };
   }
@@ -418,15 +417,13 @@ export function LinkDialog(props: LinkDialogProps) {
       const next = new Map(prev);
       (['deck', 'note', 'todo'] as LinkTab[]).forEach((tab) => {
         lists[tab].forEach((item) => {
-          const aRel = item.relationships?.field_area?.data;
-          const sRel = item.relationships?.field_subject?.data;
-          const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-          const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-          const areaName = aId
-            ? (includedMap[tab].find((r) => r.id === aId)?.attributes.name as string | undefined)
+          const areaIds = toRelIds(item.relationships?.field_area?.data);
+          const subjectIds = toRelIds(item.relationships?.field_subject?.data);
+          const areaName = areaIds[0]
+            ? (includedMap[tab].find((r) => r.id === areaIds[0])?.attributes.name as string | undefined)
             : undefined;
-          const subjectName = sId
-            ? (includedMap[tab].find((r) => r.id === sId)?.attributes.name as string | undefined)
+          const subjectName = subjectIds[0]
+            ? (includedMap[tab].find((r) => r.id === subjectIds[0])?.attributes.name as string | undefined)
             : undefined;
           next.set(item.id, {
             type: tab,
@@ -450,8 +447,8 @@ export function LinkDialog(props: LinkDialogProps) {
           next.set(r.uuid, {
             type: activeTab,
             title: r.title,
-            areaName: r.area?.name ?? undefined,
-            subjectName: r.subject?.name ?? undefined,
+            areaName: r.areas[0]?.name ?? undefined,
+            subjectName: r.subjects[0]?.name ?? undefined,
           });
         }
       });
@@ -815,7 +812,7 @@ export function LinkDialog(props: LinkDialogProps) {
               ) : (
                 <div className="divide-y divide-border">
                   {searchResults.map((r) =>
-                    renderRow(r.uuid, r.title, r.area?.name, r.subject?.name),
+                    renderRow(r.uuid, r.title, r.areas[0]?.name, r.subjects[0]?.name),
                   )}
                 </div>
               )

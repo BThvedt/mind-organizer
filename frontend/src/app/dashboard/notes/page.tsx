@@ -17,7 +17,8 @@ import {
 import { FileText, ArrowLeft, Plus, Pencil, Layers, ChevronLeft, CheckSquare, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelArray, toRelIds } from '@/lib/json-api';
 
 function stripMarkdown(md: string): string {
   return md
@@ -117,9 +118,8 @@ function NotesPageContent() {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     notes.forEach((note) => {
-      const rel = note.relationships?.field_area?.data;
-      const id = rel && !Array.isArray(rel) ? rel.id : null;
-      if (id && !seen.has(id)) {
+      for (const id of toRelIds(note.relationships?.field_area?.data)) {
+        if (seen.has(id)) continue;
         seen.add(id);
         const name = included.find((r) => r.id === id)?.attributes.name as string | undefined;
         if (name) result.push({ id, name });
@@ -133,12 +133,10 @@ function NotesPageContent() {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     notes.forEach((note) => {
-      const aRel = note.relationships?.field_area?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      if (aId !== filterAreaId) return;
-      const sRel = note.relationships?.field_subject?.data;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (sId && !seen.has(sId)) {
+      const areaIds = toRelIds(note.relationships?.field_area?.data);
+      if (!areaIds.includes(filterAreaId)) return;
+      for (const sId of toRelIds(note.relationships?.field_subject?.data)) {
+        if (seen.has(sId)) continue;
         seen.add(sId);
         const name = included.find((r) => r.id === sId)?.attributes.name as string | undefined;
         if (name) result.push({ id: sId, name });
@@ -150,12 +148,10 @@ function NotesPageContent() {
   const visibleNotes = useMemo(() => {
     if (!filterAreaId && !filterSubjectId) return notes;
     return notes.filter((note) => {
-      const aRel = note.relationships?.field_area?.data;
-      const sRel = note.relationships?.field_subject?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (filterAreaId && aId !== filterAreaId) return false;
-      if (filterSubjectId && sId !== filterSubjectId) return false;
+      const areaIds = toRelIds(note.relationships?.field_area?.data);
+      const subjectIds = toRelIds(note.relationships?.field_subject?.data);
+      if (filterAreaId && !areaIds.includes(filterAreaId)) return false;
+      if (filterSubjectId && !subjectIds.includes(filterSubjectId)) return false;
       return true;
     });
   }, [notes, filterAreaId, filterSubjectId]);
@@ -172,36 +168,34 @@ function NotesPageContent() {
   // ── Derive data for the selected note from the already-loaded list ─────────
   const selectedNote = selectedId ? (notes.find((n) => n.id === selectedId) ?? null) : null;
 
-  const areaRel = selectedNote?.relationships?.field_area?.data;
-  const subjectRel = selectedNote?.relationships?.field_subject?.data;
-  const linkedDecksRel = selectedNote?.relationships?.field_linked_decks?.data;
-  const linkedNotesRel = selectedNote?.relationships?.field_linked_notes?.data;
-  const linkedTodosRel = selectedNote?.relationships?.field_linked_todos?.data;
+  const selectedAreaIds = selectedNote
+    ? toRelIds(selectedNote.relationships?.field_area?.data)
+    : [];
+  const selectedSubjectIds = selectedNote
+    ? toRelIds(selectedNote.relationships?.field_subject?.data)
+    : [];
 
-  const areaId = areaRel && !Array.isArray(areaRel) ? areaRel.id : null;
-  const subjectId = subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : null;
-
-  const areaName = areaId
-    ? (included.find((r) => r.id === areaId)?.attributes.name as string | undefined)
-    : undefined;
-  const subjectName = subjectId
-    ? (included.find((r) => r.id === subjectId)?.attributes.name as string | undefined)
-    : undefined;
-  const linkedDecks = Array.isArray(linkedDecksRel)
-    ? (linkedDecksRel
-        .map((rel) => included.find((r) => r.id === rel.id))
-        .filter(Boolean) as JsonApiResource[])
-    : [];
-  const linkedNotes = Array.isArray(linkedNotesRel)
-    ? (linkedNotesRel
-        .map((rel) => included.find((r) => r.id === rel.id) ?? notes.find((n) => n.id === rel.id))
-        .filter(Boolean) as JsonApiResource[])
-    : [];
-  const linkedTodos = Array.isArray(linkedTodosRel)
-    ? (linkedTodosRel
-        .map((rel) => included.find((r) => r.id === rel.id))
-        .filter(Boolean) as JsonApiResource[])
-    : [];
+  const selectedAreaTags = selectedAreaIds
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
+  const selectedSubjectTags = selectedSubjectIds
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
+  const linkedDecks = (toRelArray(selectedNote?.relationships?.field_linked_decks?.data)
+    .map((rel) => included.find((r) => r.id === rel.id))
+    .filter(Boolean) as JsonApiResource[]);
+  const linkedNotes = (toRelArray(selectedNote?.relationships?.field_linked_notes?.data)
+    .map((rel) => included.find((r) => r.id === rel.id) ?? notes.find((n) => n.id === rel.id))
+    .filter(Boolean) as JsonApiResource[]);
+  const linkedTodos = (toRelArray(selectedNote?.relationships?.field_linked_todos?.data)
+    .map((rel) => included.find((r) => r.id === rel.id))
+    .filter(Boolean) as JsonApiResource[]);
 
   const noteBody = (selectedNote?.attributes.field_body as string | null) ?? '';
 
@@ -347,16 +341,18 @@ function NotesPageContent() {
               </div>
             ) : (
               visibleNotes.map((note) => {
-                const nAreaRel = note.relationships?.field_area?.data;
-                const nSubjectRel = note.relationships?.field_subject?.data;
-                const nAreaId = nAreaRel && !Array.isArray(nAreaRel) ? nAreaRel.id : null;
-                const nSubjectId = nSubjectRel && !Array.isArray(nSubjectRel) ? nSubjectRel.id : null;
-                const nAreaName = nAreaId
-                  ? (included.find((r) => r.id === nAreaId)?.attributes.name as string | undefined)
-                  : undefined;
-                const nSubjectName = nSubjectId
-                  ? (included.find((r) => r.id === nSubjectId)?.attributes.name as string | undefined)
-                  : undefined;
+                const nAreaTags = toRelIds(note.relationships?.field_area?.data)
+                  .map((id) => ({
+                    id,
+                    name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+                  }))
+                  .filter((x): x is { id: string; name: string } => !!x.name);
+                const nSubjectTags = toRelIds(note.relationships?.field_subject?.data)
+                  .map((id) => ({
+                    id,
+                    name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+                  }))
+                  .filter((x): x is { id: string; name: string } => !!x.name);
                 const rawBody = (note.attributes.field_body as string | null) ?? '';
                 const preview = stripMarkdown(rawBody).slice(0, 110);
                 const changed = note.attributes.changed as string | undefined;
@@ -389,18 +385,18 @@ function NotesPageContent() {
                         {preview}
                       </p>
                     )}
-                    {(nAreaName || nSubjectName) && (
+                    {(nAreaTags.length > 0 || nSubjectTags.length > 0) && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {nAreaName && (
-                          <Badge variant="secondary" className="text-[10px] py-0 h-4 px-1.5">
-                            {nAreaName}
+                        {nAreaTags.map((a) => (
+                          <Badge key={a.id} variant="secondary" className="text-[10px] py-0 h-4 px-1.5">
+                            {a.name}
                           </Badge>
-                        )}
-                        {nSubjectName && (
-                          <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5">
-                            {nSubjectName}
+                        ))}
+                        {nSubjectTags.map((s) => (
+                          <Badge key={s.id} variant="outline" className="text-[10px] py-0 h-4 px-1.5">
+                            {s.name}
                           </Badge>
-                        )}
+                        ))}
                       </div>
                     )}
                   </button>
@@ -438,10 +434,14 @@ function NotesPageContent() {
                     <h1 className="text-2xl font-bold tracking-tight text-foreground leading-tight">
                       {selectedNote.attributes.title as string}
                     </h1>
-                    {(areaName || subjectName) && (
+                    {(selectedAreaTags.length > 0 || selectedSubjectTags.length > 0) && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
-                        {areaName && <Badge variant="secondary">{areaName}</Badge>}
-                        {subjectName && <Badge variant="outline">{subjectName}</Badge>}
+                        {selectedAreaTags.map((a) => (
+                          <Badge key={a.id} variant="secondary">{a.name}</Badge>
+                        ))}
+                        {selectedSubjectTags.map((s) => (
+                          <Badge key={s.id} variant="outline">{s.name}</Badge>
+                        ))}
                       </div>
                     )}
                   </div>

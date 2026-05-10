@@ -15,12 +15,17 @@ import {
 type ResultType = 'study_note' | 'flashcard_deck' | 'todo_list';
 type FilterType = 'all' | 'note' | 'deck' | 'todo';
 
+interface TermRef {
+  uuid: string;
+  name: string;
+}
+
 interface SearchResult {
   uuid: string;
   type: ResultType;
   title: string;
-  area: { uuid: string; name: string } | null;
-  subject: { uuid: string; name: string } | null;
+  areas: TermRef[];
+  subjects: TermRef[];
 }
 
 interface TaxonomyTerm {
@@ -332,22 +337,24 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
                         <span className="text-xs text-muted-foreground">
                           {resultKindLabel(result.type)}
                         </span>
-                        {result.area && (
+                        {result.areas.map((a) => (
                           <Badge
+                            key={a.uuid}
                             variant="secondary"
                             className="text-[10px] py-0 h-4 px-1.5"
                           >
-                            {result.area.name}
+                            {a.name}
                           </Badge>
-                        )}
-                        {result.subject && (
+                        ))}
+                        {result.subjects.map((s) => (
                           <Badge
+                            key={s.uuid}
                             variant="outline"
                             className="text-[10px] py-0 h-4 px-1.5"
                           >
-                            {result.subject.name}
+                            {s.name}
                           </Badge>
-                        )}
+                        ))}
                       </div>
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground mt-0.5">

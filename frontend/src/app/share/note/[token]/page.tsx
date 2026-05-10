@@ -31,10 +31,14 @@ export default async function SharedNotePage({ params }: PageProps) {
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
           {note.title}
         </h1>
-        {(note.area || note.subject) && (
+        {(note.areas.length > 0 || note.subjects.length > 0) && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {note.area && <Badge variant="secondary">{note.area.name}</Badge>}
-            {note.subject && <Badge variant="outline">{note.subject.name}</Badge>}
+            {note.areas.map((a) => (
+              <Badge key={a.uuid} variant="secondary">{a.name}</Badge>
+            ))}
+            {note.subjects.map((s) => (
+              <Badge key={s.uuid} variant="outline">{s.name}</Badge>
+            ))}
           </div>
         )}
         <LinkedItems links={note.links} className="mt-4" />

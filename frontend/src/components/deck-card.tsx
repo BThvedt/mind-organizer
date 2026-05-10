@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { Layers, BookOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 
 interface DeckCardProps {
   deck: JsonApiResource;
@@ -15,18 +16,21 @@ export function DeckCard({ deck, included = [], cardCount = 0, onDoubleClick }: 
   const title = deck.attributes.title as string;
   const description = (deck.attributes.body as { value?: string } | null)?.value ?? '';
 
-  const areaRel = deck.relationships?.field_area?.data;
-  const subjectRel = deck.relationships?.field_subject?.data;
+  const areaIds = toRelIds(deck.relationships?.field_area?.data);
+  const subjectIds = toRelIds(deck.relationships?.field_subject?.data);
 
-  const areaId = areaRel && !Array.isArray(areaRel) ? areaRel.id : null;
-  const subjectId = subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : null;
-
-  const areaName = areaId
-    ? (included.find((r) => r.id === areaId)?.attributes.name as string | undefined)
-    : undefined;
-  const subjectName = subjectId
-    ? (included.find((r) => r.id === subjectId)?.attributes.name as string | undefined)
-    : undefined;
+  const areaTags = areaIds
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
+  const subjectTags = subjectIds
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
 
   return (
     <div onDoubleClick={onDoubleClick} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 transition-colors hover:border-ring/50">
@@ -46,18 +50,18 @@ export function DeckCard({ deck, included = [], cardCount = 0, onDoubleClick }: 
       </Link>
 
       {/* Taxonomy badges */}
-      {(areaName || subjectName) && (
+      {(areaTags.length > 0 || subjectTags.length > 0) && (
         <div className="flex flex-wrap gap-1.5">
-          {areaName && (
-            <Badge variant="secondary" className="text-xs">
-              {areaName}
+          {areaTags.map((a) => (
+            <Badge key={a.id} variant="secondary" className="text-xs">
+              {a.name}
             </Badge>
-          )}
-          {subjectName && (
-            <Badge variant="outline" className="text-xs">
-              {subjectName}
+          ))}
+          {subjectTags.map((s) => (
+            <Badge key={s.id} variant="outline" className="text-xs">
+              {s.name}
             </Badge>
-          )}
+          ))}
         </div>
       )}
 

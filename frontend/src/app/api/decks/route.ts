@@ -40,14 +40,20 @@ export async function POST(request: NextRequest) {
   }
 
   const relationships: Record<string, unknown> = {};
-  if (body.areaUuid) {
+  if (Array.isArray(body.areaUuids) && body.areaUuids.length > 0) {
     relationships.field_area = {
-      data: { type: 'taxonomy_term--area', id: body.areaUuid },
+      data: body.areaUuids.map((id: string) => ({
+        type: 'taxonomy_term--area',
+        id,
+      })),
     };
   }
-  if (body.subjectUuid) {
+  if (Array.isArray(body.subjectUuids) && body.subjectUuids.length > 0) {
     relationships.field_subject = {
-      data: { type: 'taxonomy_term--subject', id: body.subjectUuid },
+      data: body.subjectUuids.map((id: string) => ({
+        type: 'taxonomy_term--subject',
+        id,
+      })),
     };
   }
 

@@ -42,8 +42,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { ShareButton } from '@/components/share/share-button';
 import { LinkDialog } from '@/components/link-dialog';
-import { AreaSubjectSelector } from '@/components/area-subject-selector';
-import type { JsonApiResource } from '@/lib/drupal';
+import {
+  AreaSubjectMultiSelector,
+  AreaSubjectChipList,
+} from '@/components/area-subject-multi-selector';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 import {
   MUTATION_QUEUED_MESSAGE,
   OFFLINE_ACTION_MESSAGE,
@@ -573,7 +577,7 @@ function TodosPageContent() {
     } catch { /* queued */ }
   }
 
-  async function handleCategoryChange(next: { areaUuid?: string; subjectUuid?: string }) {
+  async function handleCategoryChange(next: { areaUuids: string[]; subjectUuids: string[] }) {
     if (!selectedList) return;
     const listId = selectedList.id;
 
@@ -583,20 +587,18 @@ function TodosPageContent() {
       prev.map((l) => {
         if (l.id !== listId) return l;
         const nextRels = { ...(l.relationships ?? {}) };
-        if ('areaUuid' in next) {
-          nextRels.field_area = {
-            data: next.areaUuid
-              ? { type: 'taxonomy_term--area', id: next.areaUuid }
-              : null,
-          };
-        }
-        if ('subjectUuid' in next) {
-          nextRels.field_subject = {
-            data: next.subjectUuid
-              ? { type: 'taxonomy_term--subject', id: next.subjectUuid }
-              : null,
-          };
-        }
+        nextRels.field_area = {
+          data: next.areaUuids.map((id) => ({
+            type: 'taxonomy_term--area',
+            id,
+          })),
+        };
+        nextRels.field_subject = {
+          data: next.subjectUuids.map((id) => ({
+            type: 'taxonomy_term--subject',
+            id,
+          })),
+        };
         return { ...l, relationships: nextRels };
       })
     );
@@ -606,8 +608,8 @@ function TodosPageContent() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...('areaUuid' in next ? { areaUuid: next.areaUuid || null } : {}),
-          ...('subjectUuid' in next ? { subjectUuid: next.subjectUuid || null } : {}),
+          areaUuids: next.areaUuids,
+          subjectUuids: next.subjectUuids,
         }),
       });
       flagTodoSessionExpired(res);
@@ -730,9 +732,8 @@ function TodosPageContent() {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     lists.forEach((list) => {
-      const rel = list.relationships?.field_area?.data;
-      const id = rel && !Array.isArray(rel) ? rel.id : null;
-      if (id && !seen.has(id)) {
+      for (const id of toRelIds(list.relationships?.field_area?.data)) {
+        if (seen.has(id)) continue;
         seen.add(id);
         const name = included.find((r) => r.id === id)?.attributes.name as string | undefined;
         if (name) result.push({ id, name });
@@ -746,12 +747,10 @@ function TodosPageContent() {
     const seen = new Set<string>();
     const result: { id: string; name: string }[] = [];
     lists.forEach((list) => {
-      const aRel = list.relationships?.field_area?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      if (aId !== filterAreaId) return;
-      const sRel = list.relationships?.field_subject?.data;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (sId && !seen.has(sId)) {
+      const areaIds = toRelIds(list.relationships?.field_area?.data);
+      if (!areaIds.includes(filterAreaId)) return;
+      for (const sId of toRelIds(list.relationships?.field_subject?.data)) {
+        if (seen.has(sId)) continue;
         seen.add(sId);
         const name = included.find((r) => r.id === sId)?.attributes.name as string | undefined;
         if (name) result.push({ id: sId, name });
@@ -763,12 +762,10 @@ function TodosPageContent() {
   const visibleLists = useMemo(() => {
     if (!filterAreaId && !filterSubjectId) return lists;
     return lists.filter((list) => {
-      const aRel = list.relationships?.field_area?.data;
-      const sRel = list.relationships?.field_subject?.data;
-      const aId = aRel && !Array.isArray(aRel) ? aRel.id : null;
-      const sId = sRel && !Array.isArray(sRel) ? sRel.id : null;
-      if (filterAreaId && aId !== filterAreaId) return false;
-      if (filterSubjectId && sId !== filterSubjectId) return false;
+      const areaIds = toRelIds(list.relationships?.field_area?.data);
+      const subjectIds = toRelIds(list.relationships?.field_subject?.data);
+      if (filterAreaId && !areaIds.includes(filterAreaId)) return false;
+      if (filterSubjectId && !subjectIds.includes(filterSubjectId)) return false;
       return true;
     });
   }, [lists, filterAreaId, filterSubjectId]);
@@ -833,16 +830,12 @@ function TodosPageContent() {
     .map((rel) => included.find((r) => r.id === rel.id))
     .filter((r): r is JsonApiResource => !!r);
 
-  const areaRel = selectedList?.relationships?.field_area?.data;
-  const subjectRel = selectedList?.relationships?.field_subject?.data;
-  const areaId = areaRel && !Array.isArray(areaRel) ? areaRel.id : null;
-  const subjectId = subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : null;
-  const areaName = areaId
-    ? (included.find((r) => r.id === areaId)?.attributes.name as string | undefined)
-    : undefined;
-  const subjectName = subjectId
-    ? (included.find((r) => r.id === subjectId)?.attributes.name as string | undefined)
-    : undefined;
+  const selectedAreaUuids = selectedList
+    ? toRelIds(selectedList.relationships?.field_area?.data)
+    : [];
+  const selectedSubjectUuids = selectedList
+    ? toRelIds(selectedList.relationships?.field_subject?.data)
+    : [];
 
   const completedCount = items.filter((i) => i.attributes.field_completed).length;
 
@@ -1013,16 +1006,20 @@ function TodosPageContent() {
               </div>
             ) : (
               visibleLists.map((list) => {
-                const lAreaRel = list.relationships?.field_area?.data;
-                const lSubjectRel = list.relationships?.field_subject?.data;
-                const lAreaId = lAreaRel && !Array.isArray(lAreaRel) ? lAreaRel.id : null;
-                const lSubjectId = lSubjectRel && !Array.isArray(lSubjectRel) ? lSubjectRel.id : null;
-                const lAreaName = lAreaId
-                  ? (included.find((r) => r.id === lAreaId)?.attributes.name as string | undefined)
-                  : undefined;
-                const lSubjectName = lSubjectId
-                  ? (included.find((r) => r.id === lSubjectId)?.attributes.name as string | undefined)
-                  : undefined;
+                const lAreaIds = toRelIds(list.relationships?.field_area?.data);
+                const lSubjectIds = toRelIds(list.relationships?.field_subject?.data);
+                const lAreaNames = lAreaIds
+                  .map((id) => ({
+                    id,
+                    name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+                  }))
+                  .filter((x): x is { id: string; name: string } => !!x.name);
+                const lSubjectNames = lSubjectIds
+                  .map((id) => ({
+                    id,
+                    name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+                  }))
+                  .filter((x): x is { id: string; name: string } => !!x.name);
 
                 const listItemRels: { id: string }[] = Array.isArray(list.relationships?.field_items?.data)
                   ? list.relationships.field_items.data
@@ -1059,18 +1056,18 @@ function TodosPageContent() {
                         {formatDate(list.attributes.created as string)}
                       </p>
                     )}
-                    {(lAreaName || lSubjectName) && (
+                    {(lAreaNames.length > 0 || lSubjectNames.length > 0) && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {lAreaName && (
-                          <Badge variant="secondary" className="text-[10px] py-0 h-4 px-1.5">
-                            {lAreaName}
+                        {lAreaNames.map((a) => (
+                          <Badge key={a.id} variant="secondary" className="text-[10px] py-0 h-4 px-1.5">
+                            {a.name}
                           </Badge>
-                        )}
-                        {lSubjectName && (
-                          <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5">
-                            {lSubjectName}
+                        ))}
+                        {lSubjectNames.map((s) => (
+                          <Badge key={s.id} variant="outline" className="text-[10px] py-0 h-4 px-1.5">
+                            {s.name}
                           </Badge>
-                        )}
+                        ))}
                       </div>
                     )}
                   </button>
@@ -1125,25 +1122,23 @@ function TodosPageContent() {
                       </h1>
                     )}
                     <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <AreaSubjectSelector
-                        areaUuid={areaId ?? ''}
-                        subjectUuid={subjectId ?? ''}
-                        onAreaChange={(uuid) => {
-                          void handleCategoryChange({ areaUuid: uuid, subjectUuid: '' });
-                        }}
-                        onSubjectChange={(uuid) => {
-                          void handleCategoryChange({ subjectUuid: uuid });
+                      <AreaSubjectMultiSelector
+                        areaUuids={selectedAreaUuids}
+                        subjectUuids={selectedSubjectUuids}
+                        onChange={(next) => {
+                          void handleCategoryChange(next);
                         }}
                         layout="row"
                         hideLabels
                         compact
+                        chipsRender="none"
                       />
                       <LinkDialog
                         mode="uncontrolled"
                         entityType="todo"
                         entityId={selectedList.id}
-                        contextAreaUuid={areaId ?? ''}
-                        contextSubjectUuid={subjectId ?? ''}
+                        contextAreaUuid={selectedAreaUuids[0] ?? ''}
+                        contextSubjectUuid={selectedSubjectUuids[0] ?? ''}
                         initialLinkedDeckIds={listLinkedIds(selectedList, 'field_linked_decks')}
                         initialLinkedNoteIds={listLinkedIds(selectedList, 'field_linked_notes')}
                         initialLinkedTodoIds={listLinkedIds(selectedList, 'field_linked_todos')}
@@ -1215,6 +1210,18 @@ function TodosPageContent() {
                         }
                       />
                     </div>
+                    {(selectedAreaUuids.length > 0 || selectedSubjectUuids.length > 0) && (
+                      <div className="mt-2">
+                        <AreaSubjectChipList
+                          areaUuids={selectedAreaUuids}
+                          subjectUuids={selectedSubjectUuids}
+                          onChange={(next) => {
+                            void handleCategoryChange(next);
+                          }}
+                          compact
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <Button

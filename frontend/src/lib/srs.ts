@@ -136,14 +136,16 @@ export interface StudyCard {
   front: string;
   back: string;
   deckId: string;
-  deckAreaId: string | null;
-  deckSubjectId: string | null;
+  deckAreaIds: string[];
+  deckSubjectIds: string[];
   created: string;
 }
 
 /**
  * Returns due, non-retired cards for a session, sorted most-overdue first.
  * Optionally scoped to an area and/or subject via the card's deck taxonomy.
+ * A card matches the area filter when any of its deck's areas equal the
+ * filter (same for subject).
  */
 export function buildSessionQueue(
   pool: SRSPool,
@@ -158,8 +160,8 @@ export function buildSessionQueue(
       const srs = pool[c.id];
       if (!srs || srs.retired) return false;
       if (srs.nextReviewAt > today) return false;
-      if (filterAreaId && c.deckAreaId !== filterAreaId) return false;
-      if (filterSubjectId && c.deckSubjectId !== filterSubjectId) return false;
+      if (filterAreaId && !c.deckAreaIds.includes(filterAreaId)) return false;
+      if (filterSubjectId && !c.deckSubjectIds.includes(filterSubjectId)) return false;
       return true;
     })
     .map((c) => ({ ...c, srs: pool[c.id] }))

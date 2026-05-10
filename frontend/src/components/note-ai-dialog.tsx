@@ -49,8 +49,8 @@ interface NoteAiDialogProps {
   noteId: string;
   noteBody: string;
   noteTitle: string;
-  noteAreaUuid?: string;
-  noteSubjectUuid?: string;
+  noteAreaUuids?: string[];
+  noteSubjectUuids?: string[];
   linkedDeckIds: string[];
   onBodyChange: (body: string) => void;
   onLinksChange: (ids: string[]) => void;
@@ -60,8 +60,8 @@ export function NoteAiDialog({
   noteId,
   noteBody,
   noteTitle,
-  noteAreaUuid = '',
-  noteSubjectUuid = '',
+  noteAreaUuids = [],
+  noteSubjectUuids = [],
   linkedDeckIds,
   onBodyChange,
   onLinksChange,
@@ -257,8 +257,8 @@ export function NoteAiDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: deckTitle.trim(),
-          ...(noteAreaUuid ? { areaUuid: noteAreaUuid } : {}),
-          ...(noteSubjectUuid ? { subjectUuid: noteSubjectUuid } : {}),
+          areaUuids: noteAreaUuids,
+          subjectUuids: noteSubjectUuids,
         }),
       });
       const deckBody = await deckRes.json().catch(() => ({}));

@@ -12,14 +12,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import {
+  AreaSubjectMultiSelector,
+  AreaSubjectChipList,
+} from '@/components/area-subject-multi-selector';
 import { LinkDialog } from '@/components/link-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
 import { ArrowLeft, Pencil, Eye, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useMediaDropPaste } from '@/hooks/useMediaDropPaste';
 import { useBrokenMedia } from '@/hooks/useBrokenMedia';
@@ -39,14 +43,14 @@ interface NoteResponse {
 type NoteSnapshot = {
   title: string;
   body: string;
-  areaUuid: string;
-  subjectUuid: string;
+  areaUuids: string[];
+  subjectUuids: string[];
   linkedDeckIds: string[];
   linkedNoteIds: string[];
   linkedTodoIds: string[];
 };
 
-function linkedIdsEqual(a: string[], b: string[]) {
+function idListsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
   const sa = [...a].sort();
   const sb = [...b].sort();
@@ -67,8 +71,8 @@ export default function EditNotePage({
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const { ref: editorRef, onKeyDown: editorKeyDown } = useMarkdownEditor(body, setBody);
-  const [areaUuid, setAreaUuid] = useState('');
-  const [subjectUuid, setSubjectUuid] = useState('');
+  const [areaUuids, setAreaUuids] = useState<string[]>([]);
+  const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
   const [linkedTodoIds, setLinkedTodoIds] = useState<string[]>([]);
@@ -105,8 +109,8 @@ export default function EditNotePage({
   const draftRef = useRef({
     title: '',
     body: '',
-    areaUuid: '',
-    subjectUuid: '',
+    areaUuids: [] as string[],
+    subjectUuids: [] as string[],
     linkedDeckIds: [] as string[],
     linkedNoteIds: [] as string[],
     linkedTodoIds: [] as string[],
@@ -130,16 +134,13 @@ export default function EditNotePage({
           const note = data.data;
           setTitle((note.attributes.title as string) ?? '');
           setBody((note.attributes.field_body as string) ?? '');
-          const areaRel = note.relationships?.field_area?.data;
-          const subjectRel = note.relationships?.field_subject?.data;
-          const linkedDecksRel = note.relationships?.field_linked_decks?.data;
-          const linkedNotesRel = note.relationships?.field_linked_notes?.data;
-          const linkedTodosRel = note.relationships?.field_linked_todos?.data;
-          setAreaUuid(areaRel && !Array.isArray(areaRel) ? areaRel.id : '');
-          setSubjectUuid(subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : '');
-          const deckIds = Array.isArray(linkedDecksRel) ? linkedDecksRel.map((r) => r.id) : [];
-          const noteIds = Array.isArray(linkedNotesRel) ? linkedNotesRel.map((r) => r.id) : [];
-          const todoIds = Array.isArray(linkedTodosRel) ? linkedTodosRel.map((r) => r.id) : [];
+          const areaIds = toRelIds(note.relationships?.field_area?.data);
+          const subjectIds = toRelIds(note.relationships?.field_subject?.data);
+          const deckIds = toRelIds(note.relationships?.field_linked_decks?.data);
+          const noteIds = toRelIds(note.relationships?.field_linked_notes?.data);
+          const todoIds = toRelIds(note.relationships?.field_linked_todos?.data);
+          setAreaUuids(areaIds);
+          setSubjectUuids(subjectIds);
           setLinkedDeckIds(deckIds);
           setLinkedNoteIds(noteIds);
           setLinkedTodoIds(todoIds);
@@ -148,8 +149,8 @@ export default function EditNotePage({
           setSavedSnapshot({
             title: (note.attributes.title as string) ?? '',
             body: (note.attributes.field_body as string) ?? '',
-            areaUuid: areaRel && !Array.isArray(areaRel) ? areaRel.id : '',
-            subjectUuid: subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : '',
+            areaUuids: areaIds,
+            subjectUuids: subjectIds,
             linkedDeckIds: deckIds,
             linkedNoteIds: noteIds,
             linkedTodoIds: todoIds,
@@ -174,11 +175,11 @@ export default function EditNotePage({
       const dirty =
         d.title !== d.savedSnapshot.title ||
         d.body !== d.savedSnapshot.body ||
-        d.areaUuid !== d.savedSnapshot.areaUuid ||
-        d.subjectUuid !== d.savedSnapshot.subjectUuid ||
-        !linkedIdsEqual(d.linkedDeckIds, d.savedSnapshot.linkedDeckIds) ||
-        !linkedIdsEqual(d.linkedNoteIds, d.savedSnapshot.linkedNoteIds) ||
-        !linkedIdsEqual(d.linkedTodoIds, d.savedSnapshot.linkedTodoIds);
+        !idListsEqual(d.areaUuids, d.savedSnapshot.areaUuids) ||
+        !idListsEqual(d.subjectUuids, d.savedSnapshot.subjectUuids) ||
+        !idListsEqual(d.linkedDeckIds, d.savedSnapshot.linkedDeckIds) ||
+        !idListsEqual(d.linkedNoteIds, d.savedSnapshot.linkedNoteIds) ||
+        !idListsEqual(d.linkedTodoIds, d.savedSnapshot.linkedTodoIds);
 
       if (opts.onlyIfDirty && !dirty) return;
 
@@ -201,8 +202,8 @@ export default function EditNotePage({
             body: JSON.stringify({
               title: trimmed,
               fieldBody: d.body,
-              areaUuid: d.areaUuid || null,
-              subjectUuid: d.subjectUuid || null,
+              areaUuids: d.areaUuids,
+              subjectUuids: d.subjectUuids,
               linkedDeckUuids: d.linkedDeckIds,
               linkedNoteUuids: d.linkedNoteIds,
               linkedTodoUuids: d.linkedTodoIds,
@@ -232,8 +233,8 @@ export default function EditNotePage({
         const nextSnapshot: NoteSnapshot = {
           title: trimmed,
           body: d.body,
-          areaUuid: d.areaUuid,
-          subjectUuid: d.subjectUuid,
+          areaUuids: [...d.areaUuids],
+          subjectUuids: [...d.subjectUuids],
           linkedDeckIds: [...d.linkedDeckIds],
           linkedNoteIds: [...d.linkedNoteIds],
           linkedTodoIds: [...d.linkedTodoIds],
@@ -299,8 +300,8 @@ export default function EditNotePage({
   draftRef.current = {
     title,
     body,
-    areaUuid,
-    subjectUuid,
+    areaUuids,
+    subjectUuids,
     linkedDeckIds,
     linkedNoteIds,
     linkedTodoIds,
@@ -338,11 +339,11 @@ export default function EditNotePage({
     !loading &&
     (title !== savedSnapshot.title ||
       body !== savedSnapshot.body ||
-      areaUuid !== savedSnapshot.areaUuid ||
-      subjectUuid !== savedSnapshot.subjectUuid ||
-      !linkedIdsEqual(linkedDeckIds, savedSnapshot.linkedDeckIds) ||
-      !linkedIdsEqual(linkedNoteIds, savedSnapshot.linkedNoteIds) ||
-      !linkedIdsEqual(linkedTodoIds, savedSnapshot.linkedTodoIds));
+      !idListsEqual(areaUuids, savedSnapshot.areaUuids) ||
+      !idListsEqual(subjectUuids, savedSnapshot.subjectUuids) ||
+      !idListsEqual(linkedDeckIds, savedSnapshot.linkedDeckIds) ||
+      !idListsEqual(linkedNoteIds, savedSnapshot.linkedNoteIds) ||
+      !idListsEqual(linkedTodoIds, savedSnapshot.linkedTodoIds));
 
   return (
     <>
@@ -425,14 +426,17 @@ export default function EditNotePage({
 
         {/* Row 2: area · subject · decks · AI (scrollable on mobile) */}
         <div className="mx-auto max-w-screen-2xl px-4 pb-2.5 flex items-center gap-2 overflow-x-auto">
-          <AreaSubjectSelector
-            areaUuid={areaUuid}
-            subjectUuid={subjectUuid}
-            onAreaChange={(uuid) => { setAreaUuid(uuid); setSubjectUuid(''); }}
-            onSubjectChange={setSubjectUuid}
+          <AreaSubjectMultiSelector
+            areaUuids={areaUuids}
+            subjectUuids={subjectUuids}
+            onChange={(next) => {
+              setAreaUuids(next.areaUuids);
+              setSubjectUuids(next.subjectUuids);
+            }}
             layout="row"
             hideLabels
             compact
+            chipsRender="none"
           />
           <LinkDialog
             mode="controlled"
@@ -445,15 +449,15 @@ export default function EditNotePage({
               setLinkedTodoIds(next.todo);
             }}
             excludeSelf={{ type: 'note', id: noteid }}
-            contextAreaUuid={areaUuid}
-            contextSubjectUuid={subjectUuid}
+            contextAreaUuid={areaUuids[0] ?? ''}
+            contextSubjectUuid={subjectUuids[0] ?? ''}
           />
           <NoteAiDialog
             noteId={noteid}
             noteBody={body}
             noteTitle={title}
-            noteAreaUuid={areaUuid}
-            noteSubjectUuid={subjectUuid}
+            noteAreaUuids={areaUuids}
+            noteSubjectUuids={subjectUuids}
             linkedDeckIds={linkedDeckIds}
             onBodyChange={setBody}
             onLinksChange={setLinkedDeckIds}
@@ -470,6 +474,19 @@ export default function EditNotePage({
             disabled={loading}
           />
         </div>
+        {(areaUuids.length > 0 || subjectUuids.length > 0) && (
+          <div className="mx-auto max-w-screen-2xl px-4 pb-2.5">
+            <AreaSubjectChipList
+              areaUuids={areaUuids}
+              subjectUuids={subjectUuids}
+              onChange={(next) => {
+                setAreaUuids(next.areaUuids);
+                setSubjectUuids(next.subjectUuids);
+              }}
+              compact
+            />
+          </div>
+        )}
 
         {/* Row 3: write / preview toggle — mobile only */}
         <div className="md:hidden mx-auto max-w-screen-2xl px-4 pb-2.5 flex items-center gap-2">

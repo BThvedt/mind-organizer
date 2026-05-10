@@ -19,7 +19,8 @@ import {
   RETIREMENT_STREAK,
 } from '@/lib/srs';
 import type { StudyCard, SRSPool } from '@/lib/srs';
-import type { JsonApiResource, JsonApiRelData } from '@/lib/drupal';
+import type { JsonApiResource, JsonApiRelData } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 import { logSession } from '@/lib/sessions';
 
 type Result = 'correct' | 'incorrect';
@@ -167,16 +168,13 @@ export default function StudyNowPage() {
           const deckRel = c.relationships?.field_deck?.data as JsonApiRelData | null;
           const deck = deckRel ? deckMap.get(deckRel.id) : undefined;
 
-          const areaRel = deck?.relationships?.field_area?.data as JsonApiRelData | null | undefined;
-          const subjectRel = deck?.relationships?.field_subject?.data as JsonApiRelData | null | undefined;
-
           return {
             id: c.id,
             front: (c.attributes.field_front as string) ?? '',
             back: (c.attributes.field_back as string) ?? '',
             deckId: deckRel?.id ?? '',
-            deckAreaId: areaRel?.id ?? null,
-            deckSubjectId: subjectRel?.id ?? null,
+            deckAreaIds: toRelIds(deck?.relationships?.field_area?.data),
+            deckSubjectIds: toRelIds(deck?.relationships?.field_subject?.data),
             created: (c.attributes.created as string) ?? new Date().toISOString(),
           };
         });
@@ -485,9 +483,9 @@ export default function StudyNowPage() {
       <div className="flex flex-1 flex-col items-center justify-center px-4 sm:px-8 py-8 gap-5">
 
         {/* Deck/subject context */}
-        {(currentCard.deckAreaId || currentCard.deckSubjectId) && (
+        {(currentCard.deckAreaIds.length > 0 || currentCard.deckSubjectIds.length > 0) && (
           <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">
-            {currentCard.deckAreaId ?? currentCard.deckSubjectId}
+            {currentCard.deckAreaIds[0] ?? currentCard.deckSubjectIds[0]}
           </p>
         )}
 

@@ -8,15 +8,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { FolderMinus, ArrowLeft, Layers, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelArray } from '@/lib/json-api';
 
 interface ListResponse { data: JsonApiResource[] }
 
 type ContentFilter = 'all' | 'decks' | 'notes';
 
 function hasArea(resource: JsonApiResource): boolean {
-  const rel = resource.relationships?.field_area?.data;
-  return !!rel && !Array.isArray(rel) && !!(rel as { id: string }).id;
+  return toRelArray(resource.relationships?.field_area?.data).length > 0;
 }
 
 export default function UncategorizedPage() {

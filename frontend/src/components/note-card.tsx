@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { FileText, Layers } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds, toRelArray } from '@/lib/json-api';
 
 interface NoteCardProps {
   note: JsonApiResource;
@@ -24,20 +25,22 @@ export function NoteCard({ note, included = [] }: NoteCardProps) {
   const rawBody = (note.attributes.field_body as string | null) ?? '';
   const preview = stripMarkdown(rawBody).slice(0, 120);
 
-  const areaRel = note.relationships?.field_area?.data;
-  const subjectRel = note.relationships?.field_subject?.data;
-  const linkedDecksRel = note.relationships?.field_linked_decks?.data;
+  const areaIds = toRelIds(note.relationships?.field_area?.data);
+  const subjectIds = toRelIds(note.relationships?.field_subject?.data);
+  const linkedDeckCount = toRelArray(note.relationships?.field_linked_decks?.data).length;
 
-  const areaId = areaRel && !Array.isArray(areaRel) ? areaRel.id : null;
-  const subjectId = subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : null;
-  const linkedDeckCount = Array.isArray(linkedDecksRel) ? linkedDecksRel.length : 0;
-
-  const areaName = areaId
-    ? (included.find((r) => r.id === areaId)?.attributes.name as string | undefined)
-    : undefined;
-  const subjectName = subjectId
-    ? (included.find((r) => r.id === subjectId)?.attributes.name as string | undefined)
-    : undefined;
+  const areaTags = areaIds
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
+  const subjectTags = subjectIds
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
 
   return (
     <Link
@@ -59,16 +62,16 @@ export function NoteCard({ note, included = [] }: NoteCardProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        {areaName && (
-          <Badge variant="secondary" className="text-xs">
-            {areaName}
+        {areaTags.map((a) => (
+          <Badge key={a.id} variant="secondary" className="text-xs">
+            {a.name}
           </Badge>
-        )}
-        {subjectName && (
-          <Badge variant="outline" className="text-xs">
-            {subjectName}
+        ))}
+        {subjectTags.map((s) => (
+          <Badge key={s.id} variant="outline" className="text-xs">
+            {s.name}
           </Badge>
-        )}
+        ))}
         {linkedDeckCount > 0 && (
           <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
             <Layers className="h-3 w-3" />

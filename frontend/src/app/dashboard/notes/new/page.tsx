@@ -13,7 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import {
+  AreaSubjectMultiSelector,
+  AreaSubjectChipList,
+} from '@/components/area-subject-multi-selector';
 import { LinkDialog } from '@/components/link-dialog';
 import { ArrowLeft, Save, Eye, Pencil, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,8 +32,8 @@ export default function NewNotePage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const { ref: editorRef, onKeyDown: editorKeyDown } = useMarkdownEditor(body, setBody);
-  const [areaUuid, setAreaUuid] = useState('');
-  const [subjectUuid, setSubjectUuid] = useState('');
+  const [areaUuids, setAreaUuids] = useState<string[]>([]);
+  const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
   const [linkedTodoIds, setLinkedTodoIds] = useState<string[]>([]);
@@ -75,8 +78,8 @@ export default function NewNotePage() {
           body: JSON.stringify({
             title: title.trim(),
             fieldBody: body,
-            areaUuid: areaUuid || undefined,
-            subjectUuid: subjectUuid || undefined,
+            areaUuids,
+            subjectUuids,
             linkedDeckUuids: linkedDeckIds.length > 0 ? linkedDeckIds : undefined,
             linkedNoteUuids: linkedNoteIds.length > 0 ? linkedNoteIds : undefined,
             linkedTodoUuids: linkedTodoIds.length > 0 ? linkedTodoIds : undefined,
@@ -119,8 +122,8 @@ export default function NewNotePage() {
   const isDirty =
     title.trim() !== '' ||
     body.trim() !== '' ||
-    areaUuid !== '' ||
-    subjectUuid !== '' ||
+    areaUuids.length > 0 ||
+    subjectUuids.length > 0 ||
     linkedDeckIds.length > 0 ||
     linkedNoteIds.length > 0 ||
     linkedTodoIds.length > 0;
@@ -184,14 +187,17 @@ export default function NewNotePage() {
         </div>
         {/* Row 2: area · subject · link */}
         <div className="mx-auto max-w-screen-2xl px-4 pb-2.5 flex items-center gap-2 overflow-x-auto">
-          <AreaSubjectSelector
-            areaUuid={areaUuid}
-            subjectUuid={subjectUuid}
-            onAreaChange={(uuid) => { setAreaUuid(uuid); setSubjectUuid(''); }}
-            onSubjectChange={setSubjectUuid}
+          <AreaSubjectMultiSelector
+            areaUuids={areaUuids}
+            subjectUuids={subjectUuids}
+            onChange={(next) => {
+              setAreaUuids(next.areaUuids);
+              setSubjectUuids(next.subjectUuids);
+            }}
             layout="row"
             hideLabels
             compact
+            chipsRender="none"
           />
           <LinkDialog
             mode="controlled"
@@ -203,11 +209,24 @@ export default function NewNotePage() {
               setLinkedNoteIds(next.note);
               setLinkedTodoIds(next.todo);
             }}
-            contextAreaUuid={areaUuid}
-            contextSubjectUuid={subjectUuid}
+            contextAreaUuid={areaUuids[0] ?? ''}
+            contextSubjectUuid={subjectUuids[0] ?? ''}
             disabled
           />
         </div>
+        {(areaUuids.length > 0 || subjectUuids.length > 0) && (
+          <div className="mx-auto max-w-screen-2xl px-4 pb-2.5">
+            <AreaSubjectChipList
+              areaUuids={areaUuids}
+              subjectUuids={subjectUuids}
+              onChange={(next) => {
+                setAreaUuids(next.areaUuids);
+                setSubjectUuids(next.subjectUuids);
+              }}
+              compact
+            />
+          </div>
+        )}
         {error && !queued && (
           <p className="px-4 pb-2 text-xs text-destructive">{error}</p>
         )}

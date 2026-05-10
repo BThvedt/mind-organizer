@@ -8,12 +8,17 @@ export interface SharedLink {
   token: string;
 }
 
+export interface SharedTermRef {
+  uuid: string;
+  name: string;
+}
+
 export interface SharedNote {
   type: 'study_note';
   title: string;
   body: string;
-  area: { uuid: string; name: string } | null;
-  subject: { uuid: string; name: string } | null;
+  areas: SharedTermRef[];
+  subjects: SharedTermRef[];
   links: SharedLink[];
   updated: number;
 }
@@ -28,8 +33,8 @@ export interface SharedDeck {
   type: 'flashcard_deck';
   title: string;
   description: string;
-  area: { uuid: string; name: string } | null;
-  subject: { uuid: string; name: string } | null;
+  areas: SharedTermRef[];
+  subjects: SharedTermRef[];
   cards: SharedDeckCard[];
   links: SharedLink[];
   updated: number;
@@ -46,8 +51,8 @@ export interface SharedTodoItem {
 export interface SharedTodoList {
   type: 'todo_list';
   title: string;
-  area: { uuid: string; name: string } | null;
-  subject: { uuid: string; name: string } | null;
+  areas: SharedTermRef[];
+  subjects: SharedTermRef[];
   items: SharedTodoItem[];
   links: SharedLink[];
   updated: number;

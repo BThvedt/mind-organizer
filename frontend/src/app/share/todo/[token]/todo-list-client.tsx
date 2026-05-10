@@ -65,10 +65,14 @@ export function SharedTodoListClient({ token, list }: Props) {
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
           {list.title}
         </h1>
-        {(list.area || list.subject) && (
+        {(list.areas.length > 0 || list.subjects.length > 0) && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {list.area && <Badge variant="secondary">{list.area.name}</Badge>}
-            {list.subject && <Badge variant="outline">{list.subject.name}</Badge>}
+            {list.areas.map((a) => (
+              <Badge key={a.uuid} variant="secondary">{a.name}</Badge>
+            ))}
+            {list.subjects.map((s) => (
+              <Badge key={s.uuid} variant="outline">{s.name}</Badge>
+            ))}
           </div>
         )}
         <LinkedItems links={list.links} className="mt-4" />

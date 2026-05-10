@@ -161,10 +161,14 @@ export function StudyDeckClient({ deck }: { deck: SharedDeck }) {
     return (
       <div className="mx-auto max-w-3xl px-4 sm:px-6 py-16 text-center">
         <h1 className="text-2xl font-bold tracking-tight">{deck.title}</h1>
-        {(deck.area || deck.subject) && (
+        {(deck.areas.length > 0 || deck.subjects.length > 0) && (
           <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-            {deck.area && <Badge variant="secondary">{deck.area.name}</Badge>}
-            {deck.subject && <Badge variant="outline">{deck.subject.name}</Badge>}
+            {deck.areas.map((a) => (
+              <Badge key={a.uuid} variant="secondary">{a.name}</Badge>
+            ))}
+            {deck.subjects.map((s) => (
+              <Badge key={s.uuid} variant="outline">{s.name}</Badge>
+            ))}
           </div>
         )}
         <p className="mt-6 text-muted-foreground">This deck has no cards yet.</p>

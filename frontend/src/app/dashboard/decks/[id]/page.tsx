@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, X, Brain, Play, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import {
   MUTATION_QUEUED_MESSAGE,
@@ -298,17 +299,18 @@ export default function DeckDetailPage({
         (!front.trim() || !back.trim()) && addCardFocusedField === null
       ));
 
-  // Resolve area / subject names from included
-  const areaRel = deck?.relationships?.field_area?.data;
-  const subjectRel = deck?.relationships?.field_subject?.data;
-  const areaId = areaRel && !Array.isArray(areaRel) ? areaRel.id : null;
-  const subjectId = subjectRel && !Array.isArray(subjectRel) ? subjectRel.id : null;
-  const areaName = areaId
-    ? (included.find((r) => r.id === areaId)?.attributes.name as string | undefined)
-    : undefined;
-  const subjectName = subjectId
-    ? (included.find((r) => r.id === subjectId)?.attributes.name as string | undefined)
-    : undefined;
+  const areaTags = toRelIds(deck?.relationships?.field_area?.data)
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
+  const subjectTags = toRelIds(deck?.relationships?.field_subject?.data)
+    .map((id) => ({
+      id,
+      name: included.find((r) => r.id === id)?.attributes.name as string | undefined,
+    }))
+    .filter((x): x is { id: string; name: string } => !!x.name);
   const description =
     (deck?.attributes.body as { value?: string } | null)?.value ?? '';
 
@@ -342,10 +344,14 @@ export default function DeckDetailPage({
                     <h1 className="text-3xl font-bold tracking-tight text-foreground truncate">
                       {deck.attributes.title as string}
                     </h1>
-                    {(areaName || subjectName) && (
+                    {(areaTags.length > 0 || subjectTags.length > 0) && (
                       <div className="flex flex-wrap items-center gap-1.5 sm:ml-3">
-                        {areaName && <Badge variant="secondary">{areaName}</Badge>}
-                        {subjectName && <Badge variant="outline">{subjectName}</Badge>}
+                        {areaTags.map((a) => (
+                          <Badge key={a.id} variant="secondary">{a.name}</Badge>
+                        ))}
+                        {subjectTags.map((s) => (
+                          <Badge key={s.id} variant="outline">{s.name}</Badge>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -437,8 +443,8 @@ export default function DeckDetailPage({
                       mode="uncontrolled"
                       entityType="deck"
                       entityId={id}
-                      contextAreaUuid={areaId ?? ''}
-                      contextSubjectUuid={subjectId ?? ''}
+                      contextAreaUuid={areaTags[0]?.id ?? ''}
+                      contextSubjectUuid={subjectTags[0]?.id ?? ''}
                       initialLinkedDeckIds={linkedDeckIds}
                       initialLinkedNoteIds={linkedNoteIds}
                       initialLinkedTodoIds={linkedTodoIds}

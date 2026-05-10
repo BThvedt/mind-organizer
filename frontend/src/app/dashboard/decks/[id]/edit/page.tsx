@@ -9,11 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import {
+  AreaSubjectMultiSelector,
+  AreaSubjectChipList,
+} from '@/components/area-subject-multi-selector';
 import { ShareButton } from '@/components/share/share-button';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+import { toRelIds } from '@/lib/json-api';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import {
   MUTATION_QUEUED_MESSAGE,
@@ -25,6 +29,13 @@ import {
 interface DeckResponse {
   data: JsonApiResource;
   included?: JsonApiResource[];
+}
+
+function idListsEqual(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
 }
 
 export default function EditDeckPage({
@@ -46,12 +57,12 @@ export default function EditDeckPage({
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [areaUuid, setAreaUuid] = useState('');
-  const [subjectUuid, setSubjectUuid] = useState('');
+  const [areaUuids, setAreaUuids] = useState<string[]>([]);
+  const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [isShared, setIsShared] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<{
-    title: string; description: string; areaUuid: string; subjectUuid: string;
+    title: string; description: string; areaUuids: string[]; subjectUuids: string[];
   } | null>(null);
 
   const authenticated = useAuth();
@@ -68,33 +79,22 @@ export default function EditDeckPage({
           (deck.attributes.body as { value?: string } | null)?.value ?? ''
         );
 
-        const areaRel = deck.relationships?.field_area?.data;
-        const subjectRel = deck.relationships?.field_subject?.data;
-        const areaId =
-          areaRel && !Array.isArray(areaRel) ? (areaRel as { id: string }).id : '';
-        const subjectId =
-          subjectRel && !Array.isArray(subjectRel)
-            ? (subjectRel as { id: string }).id
-            : '';
+        const areaIds = toRelIds(deck.relationships?.field_area?.data);
+        const subjectIds = toRelIds(deck.relationships?.field_subject?.data);
 
-        setAreaUuid(areaId);
-        setSubjectUuid(subjectId);
+        setAreaUuids(areaIds);
+        setSubjectUuids(subjectIds);
         setIsShared(Boolean(deck.attributes.field_is_shared));
         setShareToken((deck.attributes.field_share_token as string | null) ?? null);
         setSavedSnapshot({
           title: (deck.attributes.title as string) ?? '',
           description: (deck.attributes.body as { value?: string } | null)?.value ?? '',
-          areaUuid: areaId,
-          subjectUuid: subjectId,
+          areaUuids: areaIds,
+          subjectUuids: subjectIds,
         });
       })
       .finally(() => setLoading(false));
   }, [authenticated, id]);
-
-  const handleAreaChange = (uuid: string) => {
-    setAreaUuid(uuid);
-    setSubjectUuid('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,8 +112,8 @@ export default function EditDeckPage({
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim(),
-          areaUuid: areaUuid || null,
-          subjectUuid: subjectUuid || null,
+          areaUuids,
+          subjectUuids,
         }),
       });
 
@@ -179,8 +179,8 @@ export default function EditDeckPage({
   const isDirty = !!savedSnapshot && !loading && (
     title !== savedSnapshot.title ||
     description !== savedSnapshot.description ||
-    areaUuid !== savedSnapshot.areaUuid ||
-    subjectUuid !== savedSnapshot.subjectUuid
+    !idListsEqual(areaUuids, savedSnapshot.areaUuids) ||
+    !idListsEqual(subjectUuids, savedSnapshot.subjectUuids)
   );
 
   return (
@@ -245,13 +245,31 @@ export default function EditDeckPage({
               />
             </div>
 
-            <AreaSubjectSelector
-              areaUuid={areaUuid}
-              subjectUuid={subjectUuid}
-              onAreaChange={handleAreaChange}
-              onSubjectChange={setSubjectUuid}
-              layout="col"
-            />
+            <div className="flex flex-col gap-2">
+              <AreaSubjectMultiSelector
+                areaUuids={areaUuids}
+                subjectUuids={subjectUuids}
+                onChange={(next) => {
+                  setAreaUuids(next.areaUuids);
+                  setSubjectUuids(next.subjectUuids);
+                }}
+                layout="row"
+                hideLabels
+                compact
+                chipsRender="none"
+              />
+              {(areaUuids.length > 0 || subjectUuids.length > 0) && (
+                <AreaSubjectChipList
+                  areaUuids={areaUuids}
+                  subjectUuids={subjectUuids}
+                  onChange={(next) => {
+                    setAreaUuids(next.areaUuids);
+                    setSubjectUuids(next.subjectUuids);
+                  }}
+                  compact
+                />
+              )}
+            </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 

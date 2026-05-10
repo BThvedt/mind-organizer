@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, X, RotateCcw, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
 import { logSession } from '@/lib/sessions';
 
 type Result = 'correct' | 'incorrect';

@@ -17,7 +17,7 @@ import {
 import { FolderOpen, FolderMinus, Pencil, Trash2, Plus, Check, X } from 'lucide-react';
 import Link from 'next/link';
 import { toSlug } from '@/lib/utils';
-import type { JsonApiResource } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
 
 interface TaxonomyResponse {
   data: JsonApiResource[];

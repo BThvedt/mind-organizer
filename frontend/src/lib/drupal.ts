@@ -114,25 +114,15 @@ export async function getCurrentUserUuid(): Promise<string | null> {
   }
 }
 
-/** Minimal shape of a JSON:API resource object */
-export interface JsonApiResource {
-  id: string;
-  type: string;
-  attributes: Record<string, unknown>;
-  relationships?: Record<string, { data: JsonApiRelData | JsonApiRelData[] | null }>;
-}
-
-export interface JsonApiRelData {
-  id: string;
-  type: string;
-}
-
-export interface JsonApiListResponse {
-  data: JsonApiResource[];
-  included?: JsonApiResource[];
-}
-
-export interface JsonApiSingleResponse {
-  data: JsonApiResource;
-  included?: JsonApiResource[];
-}
+// Type-only re-exports of JSON:API shapes for backwards compat with
+// server-side callers. The actual implementations and runtime helpers
+// (`toRelArray`, `toRelIds`) live in `@/lib/json-api`, which is safe to
+// import from client components — this file pulls in `next/headers` for
+// `drupalFetch`, so it must NOT be imported (even for value re-exports)
+// from any client component.
+export type {
+  JsonApiResource,
+  JsonApiRelData,
+  JsonApiListResponse,
+  JsonApiSingleResponse,
+} from '@/lib/json-api';

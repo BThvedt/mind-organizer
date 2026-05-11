@@ -56,7 +56,7 @@ export function RotatingQuotes() {
     return () => clearTimeout(t);
   }, [previousIdx]);
 
-  if (!quotes || quotes.length === 0) return null;
+  const hasQuotes = quotes !== null && quotes.length > 0;
 
   return (
     <div
@@ -65,19 +65,22 @@ export function RotatingQuotes() {
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
+      aria-busy={quotes === null}
     >
-      {previousIdx !== null && (
+      {hasQuotes && previousIdx !== null && (
         <QuoteLayer
           key={`out-${previousIdx}`}
           quote={quotes[previousIdx]}
           phase="exit"
         />
       )}
-      <QuoteLayer
-        key={`in-${currentIdx}`}
-        quote={quotes[currentIdx]}
-        phase="enter"
-      />
+      {hasQuotes && (
+        <QuoteLayer
+          key={`in-${currentIdx}`}
+          quote={quotes[currentIdx]}
+          phase="enter"
+        />
+      )}
     </div>
   );
 }

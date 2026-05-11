@@ -70,8 +70,13 @@ jobs:
 
             # Post-deploy sanity check: every module listed in core.extension.yml
             # must actually be enabled. Catches silent config:import failures.
-            # Lines look like `  admin_toolbar: 0` — strip leading spaces and
-            # everything from the `:` onward to get just the module name.
+            # Lines under `module:` look like `  admin_toolbar: 0` — strip
+            # leading spaces and everything from the `:` onward to get just
+            # the name. Drupal also stores the install profile under `module:`
+            # (e.g. `standard: 1000`), so filter it out using the profile
+            # name declared on the `profile:` line. `drush pm:list --type=module`
+            # excludes profiles, so otherwise we'd hit a phantom mismatch.
+            expected_profile=$(awk '/^profile:/ { print $2 }' config/sync/core.extension.yml)
             expected_modules=$(awk '
               /^module:/ { in_modules=1; next }
               /^[^[:space:]]/ { in_modules=0 }
@@ -80,7 +85,7 @@ jobs:
                 sub(/:.*$/, "")
                 print
               }
-            ' config/sync/core.extension.yml)
+            ' config/sync/core.extension.yml | grep -vx "${expected_profile:-__no_profile__}" || true)
             enabled_modules=$(docker compose -f docker-compose.prod.yml exec -T --user www-data php \
               ./vendor/bin/drush pm:list --type=module --status=enabled --field=name --format=list)
             for module in $expected_modules; do

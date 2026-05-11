@@ -72,7 +72,7 @@ jobs:
             # must actually be enabled. Catches silent config:import failures.
             expected_modules=$(awk '/^module:/{flag=1; next} /^[^[:space:]]/{flag=0} flag && /^  [a-z_]+:/{gsub(/[: ]/, ""); print}' config/sync/core.extension.yml)
             enabled_modules=$(docker compose -f docker-compose.prod.yml exec -T --user www-data php \
-              ./vendor/bin/drush pm:list --type=module --status=enabled --field=name --pipe)
+              ./vendor/bin/drush pm:list --type=module --status=enabled --field=name --format=list)
             for module in $expected_modules; do
               if ! grep -qx "$module" <<< "$enabled_modules"; then
                 echo "ERROR: module '$module' is in core.extension.yml but not enabled on the server." >&2

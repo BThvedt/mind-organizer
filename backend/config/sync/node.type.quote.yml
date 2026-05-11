@@ -4,7 +4,7 @@ status: true
 dependencies: {  }
 name: Quote
 type: quote
-description: 'A quotation displayed on the marketing site (e.g. rotating front-page quotes). Title holds the quote text; field_author holds the attribution.'
+description: 'A quotation displayed on the marketing site (front-page rotator and dashboard). Title holds the quote text; field_author is optional attribution; field_featured opts a quote into the front-page rotator.'
 help: ''
 new_revision: false
 preview_mode: 1

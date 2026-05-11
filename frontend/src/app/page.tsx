@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { AuthModals } from '@/components/auth-modals';
 import { RotatingQuotes } from '@/components/rotating-quotes';
 import { Button } from '@/components/ui/button';
-import { BookOpen, ListTodo, Sparkles, Zap } from 'lucide-react';
+import { BookOpen, Download, ListTodo, Sparkles, Zap } from 'lucide-react';
 import { useAuth, useMarkSignedOut, useRefreshSession } from '@/hooks/useAuth';
 
 type AuthModal = 'signin' | 'signup' | null;
@@ -52,23 +53,31 @@ export default function Home() {
 
       <main className="flex flex-col min-h-screen">
         {/* Hero */}
-        <section className="flex flex-col items-center justify-center text-center gap-6 px-6 pt-40 pb-24">
+        <section className="flex flex-col items-center justify-center text-center gap-6 px-6 pt-24 pb-12 sm:pt-40 sm:pb-16">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
             <Zap className="h-3 w-3" />
             Memory and Focus Start Here.
           </div>
 
-          <h1 className="max-w-2xl text-5xl font-bold tracking-tight leading-snug">
+          <h1 className="max-w-2xl text-3xl sm:text-5xl font-bold tracking-tight leading-snug">
             Organize Your Mind and{' '}
             <span className="text-primary">Unlock Your Ability.</span>
           </h1>
 
           <RotatingQuotes />
 
-          <p className="max-w-xl text-muted-foreground text-lg leading-relaxed">
+          <p className="sm:hidden max-w-xl text-muted-foreground text-base leading-relaxed">
+            Improve performance by always having access to the crucial information. Todos, AI assisted notes, flashcards, and search. There's sharing too. Save mental load for thinking that counts.
+          </p>
+
+          <p className="hidden sm:block max-w-xl text-muted-foreground text-lg leading-relaxed">
+            Science says cognitive offloading reliably improves performance. And if retrieving your knowlege is fast and easy, you'll offload more. However there is a cost to memory.<br/>What if both were easy?
+          </p>
+
+          <p className="hidden sm:block max-w-xl text-muted-foreground text-lg leading-relaxed">
             Capture ideas. Track what's next. Commit anything to memory.
             <br />
-            Notes, todos, and AI-powered flashcards. Make to be easy as possible, never forget anything, and save your mental load for the thinking that counts.
+            Notes, todos, and AI-powered search and flashcards. Share too. Easy, never forget anything, and save your mental load for the thinking that counts.
           </p>
 
           {auth === null ? null : auth ? (
@@ -100,6 +109,16 @@ export default function Home() {
                 Sign in
               </Button>
             </div>
+          )}
+
+          {auth !== null && (
+            <Link
+              href="/install"
+              className="inline-flex items-center gap-2 text-base text-muted-foreground hover:text-foreground underline-offset-4 hover:underline mt-4"
+            >
+              <Download className="h-4 w-4" />
+              Download the app
+            </Link>
           )}
         </section>
 

@@ -3,6 +3,7 @@ import { Poppins } from "next/font/google";
 import { SerwistProvider } from "./serwist";
 import { AuthProvider } from "@/hooks/useAuth";
 import { OfflineIndicator } from "@/components/offline-indicator";
+import { InstallPromptProvider } from "@/components/install-prompt-provider";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -54,8 +55,10 @@ export default function RootLayout({
             // Service worker + Serwist's history hooks fight Turbopack/HMR in dev (wrong routes, panics).
             disable={process.env.NODE_ENV === 'development'}
           >
-            {children}
-            <OfflineIndicator />
+            <InstallPromptProvider>
+              {children}
+              <OfflineIndicator />
+            </InstallPromptProvider>
           </SerwistProvider>
         </AuthProvider>
       </body>

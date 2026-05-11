@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -19,7 +21,14 @@ jobs:
           script: |
             set -euo pipefail
             cd /home/deploy/mind-organizer
-            git pull origin main
+            # Hard-sync the working tree to origin/main. Safe: gitignored files
+            # (.env.prod, keys/, web/sites/default/files/, vendor/, etc.) are
+            # preserved. This avoids deploys silently failing on `git pull`
+            # when prod's working tree drifts (uncommitted changes or untracked
+            # files that collide with newly-tracked files).
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
             cd backend
             docker compose -f docker-compose.prod.yml up -d
             docker compose -f docker-compose.prod.yml exec -T php chown -R www-data:www-data web/sites/default/files

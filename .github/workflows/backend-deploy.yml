@@ -20,7 +20,22 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             set -euo pipefail
-            cd /home/deploy/mind-organizer
+            cd /home/deploy/mind-organizer/backend
+
+            # Past deploys ran composer / drush inside the PHP container as
+            # www-data, which on the bind-mounted host tree leaves files owned
+            # by uid 33 and unwritable by the SSH deploy user. That breaks
+            # `git reset --hard`. Bring containers up and chown the working
+            # tree back to the host user *before* any git operations. The
+            # subsequent `chown ... files/` step re-establishes www-data
+            # ownership on the user-uploads directory for runtime.
+            docker compose -f docker-compose.prod.yml up -d
+            HOST_UID=$(id -u)
+            HOST_GID=$(id -g)
+            docker compose -f docker-compose.prod.yml exec -T php \
+              chown -R "$HOST_UID:$HOST_GID" /var/www/html
+
+            cd ..
             # Hard-sync the working tree to origin/main. Safe: gitignored files
             # (.env.prod, keys/, web/sites/default/files/, vendor/, etc.) are
             # preserved. This avoids deploys silently failing on `git pull`
@@ -30,6 +45,7 @@ jobs:
             git reset --hard origin/main
             git clean -fd
             cd backend
+
             docker compose -f docker-compose.prod.yml up -d
             docker compose -f docker-compose.prod.yml exec -T php chown -R www-data:www-data web/sites/default/files
             docker compose -f docker-compose.prod.yml exec -T --user www-data php composer install --no-dev --no-interaction

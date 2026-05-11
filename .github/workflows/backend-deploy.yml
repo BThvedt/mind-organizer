@@ -22,13 +22,23 @@ jobs:
             set -euo pipefail
             cd /home/deploy/mind-organizer/backend
 
-            # Past deploys ran composer / drush inside the PHP container as
-            # www-data, which on the bind-mounted host tree leaves files owned
-            # by uid 33 and unwritable by the SSH deploy user. That breaks
-            # `git reset --hard`. Bring containers up and chown the working
-            # tree back to the host user *before* any git operations. The
-            # subsequent `chown ... files/` step re-establishes www-data
-            # ownership on the user-uploads directory for runtime.
+            # Ensure backend/.env exists. It's now gitignored so it persists
+            # across `git clean`, but a fresh prod box may only have .env.prod;
+            # auto-seed from it.
+            if [ ! -f .env ] && [ -f .env.prod ]; then
+              cp .env.prod .env
+            fi
+            if [ ! -f .env ]; then
+              echo "ERROR: backend/.env (or .env.prod to seed it) is required on prod." >&2
+              exit 1
+            fi
+
+            # Past deploys ran composer / drush as www-data inside the PHP
+            # container, which on the bind-mounted host tree leaves files
+            # owned by uid 33 and unwritable by the SSH deploy user. That
+            # breaks `git reset --hard`. Bring containers up, chown the
+            # working tree to the host SSH user for git ops, run them, then
+            # chown back to www-data so composer/drush can write.
             docker compose -f docker-compose.prod.yml up -d
             HOST_UID=$(id -u)
             HOST_GID=$(id -g)
@@ -37,8 +47,8 @@ jobs:
 
             cd ..
             # Hard-sync the working tree to origin/main. Safe: gitignored files
-            # (.env.prod, keys/, web/sites/default/files/, vendor/, etc.) are
-            # preserved. This avoids deploys silently failing on `git pull`
+            # (.env, .env.prod, keys/, web/sites/default/files/, vendor/, etc.)
+            # are preserved. This avoids deploys silently failing on `git pull`
             # when prod's working tree drifts (uncommitted changes or untracked
             # files that collide with newly-tracked files).
             git fetch origin main
@@ -46,8 +56,12 @@ jobs:
             git clean -fd
             cd backend
 
+            # Hand the tree back to www-data so composer/drush (running as
+            # www-data inside the container) can write to vendor/, files/, etc.
+            docker compose -f docker-compose.prod.yml exec -T php \
+              chown -R www-data:www-data /var/www/html
+
             docker compose -f docker-compose.prod.yml up -d
-            docker compose -f docker-compose.prod.yml exec -T php chown -R www-data:www-data web/sites/default/files
             docker compose -f docker-compose.prod.yml exec -T --user www-data php composer install --no-dev --no-interaction
             docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush cr
             docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush updatedb -y

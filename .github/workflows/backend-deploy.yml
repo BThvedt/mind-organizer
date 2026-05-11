@@ -17,6 +17,7 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /home/deploy/mind-organizer
             git pull origin main
             cd backend
@@ -27,3 +28,15 @@ jobs:
             docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush updatedb -y
             docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush config:import -y
             docker compose -f docker-compose.prod.yml exec -T --user www-data php ./vendor/bin/drush cr
+
+            # Post-deploy sanity check: every module listed in core.extension.yml
+            # must actually be enabled. Catches silent config:import failures.
+            expected_modules=$(awk '/^module:/{flag=1; next} /^[^[:space:]]/{flag=0} flag && /^  [a-z_]+:/{gsub(/[: ]/, ""); print}' config/sync/core.extension.yml)
+            enabled_modules=$(docker compose -f docker-compose.prod.yml exec -T --user www-data php \
+              ./vendor/bin/drush pm:list --type=module --status=enabled --field=name --pipe)
+            for module in $expected_modules; do
+              if ! grep -qx "$module" <<< "$enabled_modules"; then
+                echo "ERROR: module '$module' is in core.extension.yml but not enabled on the server." >&2
+                exit 1
+              fi
+            done

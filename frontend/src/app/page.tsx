@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { AuthModals } from '@/components/auth-modals';
+import { RotatingQuotes } from '@/components/rotating-quotes';
 import { Button } from '@/components/ui/button';
 import { BookOpen, ListTodo, Sparkles, Zap } from 'lucide-react';
 import { useAuth, useMarkSignedOut, useRefreshSession } from '@/hooks/useAuth';
@@ -54,7 +55,7 @@ export default function Home() {
         <section className="flex flex-col items-center justify-center text-center gap-6 px-6 pt-40 pb-24">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
             <Zap className="h-3 w-3" />
-            Memory and Focus start Here.
+            Memory and Focus Start Here.
           </div>
 
           <h1 className="max-w-2xl text-5xl font-bold tracking-tight leading-snug">
@@ -62,25 +63,40 @@ export default function Home() {
             <span className="text-primary">Unlock Your Ability.</span>
           </h1>
 
-          <p className="max-w-lg text-muted-foreground text-lg leading-relaxed">
-            Whether you're a genius, an average person trying to learn a skill or langurage, or even just an absent minded person (but one that still wants to remember stuff). Everyone benefits from the right tools.
-          </p>
+          <RotatingQuotes />
 
-          <p className="max-w-lg text-muted-foreground text-lg leading-relaxed">
-            Never lose track of what you're doing. Take down insights and ideas. Commmit to memory quickly. Share if you want. Todos, Notes, and Flashcards all together. AI helps format, embellish, and generate, so efficient and easy. Save  cognitive load for what's actually important and maximize your mind.
+          <p className="max-w-xl text-muted-foreground text-lg leading-relaxed">
+            Capture ideas. Track what's next. Commit anything to memory.
+            <br />
+            Notes, todos, and AI-powered flashcards. Make to be easy as possible, never forget anything, and save your mental load for the thinking that counts.
           </p>
 
           {auth === null ? null : auth ? (
             <div className="flex items-center gap-3 mt-4">
               <p className="text-muted-foreground text-sm">Welcome back!</p>
-              <Button size="lg" onClick={() => router.push('/dashboard')}>Go to dashboard</Button>
+              <Button
+                size="lg"
+                className="h-12 px-7 text-base"
+                onClick={() => router.push('/dashboard')}
+              >
+                Go to dashboard
+              </Button>
             </div>
           ) : (
             <div className="flex items-center gap-3 mt-4">
-              <Button size="lg" onClick={() => setModal('signup')}>
+              <Button
+                size="lg"
+                className="h-12 px-7 text-base"
+                onClick={() => setModal('signup')}
+              >
                 Get started free
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setModal('signin')}>
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 px-7 text-base"
+                onClick={() => setModal('signin')}
+              >
                 Sign in
               </Button>
             </div>
@@ -92,21 +108,21 @@ export default function Home() {
           {[
             {
               icon: <ListTodo className="h-6 w-6 text-primary" />,
-              title: 'Notes and Todos',
+              title: 'Notes & Todos',
               description:
-                'Rich organized and searchable notes with markdown. Cross an item off your todo list, save the important details.',
+                'Markdown notes and a todo list that stay searchable, organized, and out of your way.',
             },
             {
               icon: <BookOpen className="h-6 w-6 text-primary" />,
               title: 'Rich Flashcards',
               description:
-                'Need to use long term memory?Create rich cards with markdown, and review with a spaced repetition algorithm.',
+                'Spaced-repetition flashcards with full markdown — built for long-term recall, not cramming.',
             },
             {
               icon: <Sparkles className="h-6 w-6 text-primary" />,
               title: 'AI Integration',
               description:
-                'AI assisted note taking and flashcard generation, all now easier than ever!',
+                'Generate flashcards from your notes and let AI clean up the rest. One click, no busywork.',
             },
           ].map(({ icon, title, description }) => (
             <div

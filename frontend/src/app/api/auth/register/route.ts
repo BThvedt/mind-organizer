@@ -53,10 +53,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!tokenRes.ok) {
-    // Account was created but auto-login failed — user can sign in manually.
+    // Account was created but auto-login failed — surface a non-2xx so the
+    // frontend modal shows the message instead of treating it as success.
     return NextResponse.json(
       { error: 'Account created, but auto-login failed. Please sign in.' },
-      { status: 201 }
+      { status: 502 }
     );
   }
 

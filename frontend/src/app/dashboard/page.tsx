@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Header } from '@/components/header';
+import { DashboardQuote } from '@/components/dashboard-quote';
 import { Button } from '@/components/ui/button';
 import { Layers, Brain, FileText, CheckSquare } from 'lucide-react';
 
@@ -85,6 +86,8 @@ export default function Dashboard() {
             </>
           )}
         </div>
+
+        <DashboardQuote />
 
         <h2 className="text-lg font-semibold text-foreground mb-4">Your Tools</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

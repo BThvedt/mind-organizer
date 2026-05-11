@@ -7,6 +7,7 @@ interface DrupalQuote {
   attributes: {
     title: string;
     field_author: string | null;
+    field_tip?: boolean | null;
   };
 }
 
@@ -18,13 +19,14 @@ export interface RandomQuote {
   id: string;
   text: string;
   author: string | null;
+  isTip: boolean;
 }
 
 export async function GET() {
   try {
     const res = await fetch(
       `${DRUPAL_BASE_URL}/jsonapi/node/quote` +
-        `?fields[node--quote]=title,field_author` +
+        `?fields[node--quote]=title,field_author,field_tip` +
         `&page[limit]=200`,
       {
         headers: { Accept: 'application/vnd.api+json' },
@@ -47,6 +49,7 @@ export async function GET() {
       id: pick.id,
       text: pick.attributes.title,
       author,
+      isTip: pick.attributes.field_tip === true,
     };
 
     return NextResponse.json(

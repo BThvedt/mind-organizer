@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { Lightbulb, X } from 'lucide-react';
 
 const DISMISS_KEY = 'dashboard_quote_dismissed';
 
@@ -9,6 +9,7 @@ type Quote = {
   id: string;
   text: string;
   author: string | null;
+  isTip: boolean;
 };
 
 export function DashboardQuote() {
@@ -39,9 +40,19 @@ export function DashboardQuote() {
   if (hidden || !quote) return null;
 
   return (
-    <figure className="relative mb-8 rounded-xl border border-border bg-muted/30 px-12 py-4 text-center">
+    <figure className="relative mb-8 rounded-xl border border-border bg-muted/30 px-16 py-4 text-left">
+      {quote.isTip && (
+        <Lightbulb
+          aria-label="Tip"
+          className="absolute top-[1.125rem] left-[2.125rem] h-5 w-5 fill-amber-300 text-amber-500"
+        />
+      )}
       <blockquote className="text-sm sm:text-base italic text-muted-foreground leading-relaxed">
-        {quote.author ? <>&ldquo;{quote.text}&rdquo;</> : quote.text}
+        {quote.isTip
+          ? quote.text
+          : quote.author
+            ? <>&ldquo;{quote.text}&rdquo;</>
+            : quote.text}
       </blockquote>
       {quote.author && (
         <figcaption className="mt-1 text-xs text-muted-foreground/70">

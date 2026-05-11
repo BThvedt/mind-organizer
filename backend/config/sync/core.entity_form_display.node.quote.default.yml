@@ -5,6 +5,7 @@ dependencies:
   config:
     - field.field.node.quote.field_author
     - field.field.node.quote.field_featured
+    - field.field.node.quote.field_tip
     - node.type.quote
   module:
     - path
@@ -30,6 +31,13 @@ content:
   field_featured:
     type: boolean_checkbox
     weight: 2
+    region: content
+    settings:
+      display_label: true
+    third_party_settings: {  }
+  field_tip:
+    type: boolean_checkbox
+    weight: 3
     region: content
     settings:
       display_label: true

@@ -1,0 +1,23 @@
+uuid: 8d0a7e4b-3c5a-4e9d-a0f2-4c6e8a0f2d3b
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tip
+    - node.type.quote
+id: node.quote.field_tip
+field_name: field_tip
+entity_type: node
+bundle: quote
+label: 'Show as tip'
+description: 'When enabled, this entry is treated as a tip and shown with a lightbulb icon on the dashboard.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

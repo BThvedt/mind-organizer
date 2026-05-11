@@ -5,6 +5,7 @@ dependencies:
   config:
     - field.field.node.quote.field_author
     - field.field.node.quote.field_featured
+    - field.field.node.quote.field_tip
     - node.type.quote
 id: node.quote.default
 targetEntityType: node
@@ -28,6 +29,16 @@ content:
       format_custom_true: ''
     third_party_settings: {  }
     weight: 2
+    region: content
+  field_tip:
+    type: boolean
+    label: above
+    settings:
+      format: default
+      format_custom_false: ''
+      format_custom_true: ''
+    third_party_settings: {  }
+    weight: 3
     region: content
   links:
     settings: {  }

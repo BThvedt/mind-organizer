@@ -1,0 +1,19 @@
+uuid: c3d4e5f6-a7b8-4c9d-8e1f-2a3b4c5d6e7f
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_author
+    - node.type.quote
+id: node.quote.field_author
+field_name: field_author
+entity_type: node
+bundle: quote
+label: Author
+description: 'Who said it. Optional; displayed beneath the quote text on the marketing site when present.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

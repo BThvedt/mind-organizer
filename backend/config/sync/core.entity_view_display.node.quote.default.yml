@@ -1,0 +1,38 @@
+uuid: a7b8c9d0-e1f2-4a3b-94c5-d6e7f8091021
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.quote.field_author
+    - field.field.node.quote.field_featured
+    - node.type.quote
+id: node.quote.default
+targetEntityType: node
+bundle: quote
+mode: default
+content:
+  field_author:
+    type: string
+    label: above
+    settings:
+      link_to_entity: false
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_featured:
+    type: boolean
+    label: above
+    settings:
+      format: default
+      format_custom_false: ''
+      format_custom_true: ''
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden:
+  search_api_excerpt: true

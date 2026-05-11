@@ -70,7 +70,17 @@ jobs:
 
             # Post-deploy sanity check: every module listed in core.extension.yml
             # must actually be enabled. Catches silent config:import failures.
-            expected_modules=$(awk '/^module:/{flag=1; next} /^[^[:space:]]/{flag=0} flag && /^  [a-z_]+:/{gsub(/[: ]/, ""); print}' config/sync/core.extension.yml)
+            # Lines look like `  admin_toolbar: 0` — strip leading spaces and
+            # everything from the `:` onward to get just the module name.
+            expected_modules=$(awk '
+              /^module:/ { in_modules=1; next }
+              /^[^[:space:]]/ { in_modules=0 }
+              in_modules && /^  [a-zA-Z0-9_]+:/ {
+                sub(/^[[:space:]]+/, "")
+                sub(/:.*$/, "")
+                print
+              }
+            ' config/sync/core.extension.yml)
             enabled_modules=$(docker compose -f docker-compose.prod.yml exec -T --user www-data php \
               ./vendor/bin/drush pm:list --type=module --status=enabled --field=name --format=list)
             for module in $expected_modules; do

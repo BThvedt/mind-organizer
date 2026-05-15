@@ -13,10 +13,12 @@ use Symfony\Component\HttpFoundation\Request;
  * Handles GET /api/study/search.
  *
  * Query parameters:
- *   q       (string, required) — search term, minimum 2 characters
- *   type    (string, default "all") — "all" | "note" | "deck" | "todo"
- *   area    (string, optional) — area taxonomy term UUID
- *   subject (string, optional) — subject taxonomy term UUID
+ *   q         (string, required) — search term, minimum 2 characters
+ *   type      (string, default "all") — "all" | "note" | "deck" | "todo"
+ *   area      (string, optional) — area taxonomy term UUID
+ *   subject   (string, optional) — subject taxonomy term UUID
+ *   date_from (string, optional) — ISO date lower bound, e.g. "2025-01-01"
+ *   date_to   (string, optional) — ISO date upper bound, e.g. "2025-12-31"
  *
  * Response:
  *   {
@@ -56,6 +58,8 @@ class SearchController extends ControllerBase {
     $type         = (string) $request->query->get('type', 'all');
     $area_uuid    = trim((string) $request->query->get('area', ''));
     $subject_uuid = trim((string) $request->query->get('subject', ''));
+    $date_from    = trim((string) $request->query->get('date_from', ''));
+    $date_to      = trim((string) $request->query->get('date_to', ''));
 
     if (mb_strlen($q) < 2) {
       return new JsonResponse(['results' => [], 'total' => 0]);
@@ -124,6 +128,20 @@ class SearchController extends ControllerBase {
     // When area/subject filters are active we can't apply them as index
     // conditions because flashcards don't have those fields. We'll filter
     // after resolving cards → decks instead.
+
+    // Date range filter on the node's creation timestamp.
+    if ($date_from !== '') {
+      $from_ts = strtotime($date_from . 'T00:00:00');
+      if ($from_ts !== FALSE) {
+        $query->addCondition('created', $from_ts, '>=');
+      }
+    }
+    if ($date_to !== '') {
+      $to_ts = strtotime($date_to . 'T23:59:59');
+      if ($to_ts !== FALSE) {
+        $query->addCondition('created', $to_ts, '<=');
+      }
+    }
 
     $query->range(0, 50);
 

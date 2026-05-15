@@ -29,7 +29,7 @@ import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
 } from '@/components/entity-delete-dialog';
-import { ArrowLeft, ImagePlus, Pencil, Eye, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, File as FileIcon, FileArchive, FileCode, FileSpreadsheet, FileText, ImagePlus, Paperclip, Pencil, Eye, Presentation, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/json-api';
 import { toRelIds } from '@/lib/json-api';
@@ -66,6 +66,75 @@ function idListsEqual(a: string[], b: string[]) {
   return sa.every((v, i) => v === sb[i]);
 }
 
+// ── Attachment-section helpers ────────────────────────────────────────────────
+// Attachments are stored in field_body after a special HTML comment separator.
+// The comment is invisible when rendered as markdown so existing notes are
+// fully backward-compatible.
+const ATTACHMENTS_SEP = '<!-- attachments -->';
+const ATTACH_LINK_RE = /^\[([^\]]+)\]\(([^)]+)\)\s*$/;
+
+/** Returns the markdown content above the attachments separator. */
+function getContentPart(body: string): string {
+  const idx = body.indexOf(ATTACHMENTS_SEP);
+  return idx === -1 ? body : body.slice(0, idx).trimEnd();
+}
+
+/** Returns the parsed attachment links from below the separator. */
+function getAttachmentLinks(body: string): Array<{ name: string; url: string; raw: string }> {
+  const idx = body.indexOf(ATTACHMENTS_SEP);
+  if (idx === -1) return [];
+  const section = body.slice(idx + ATTACHMENTS_SEP.length);
+  return section
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .flatMap((l) => {
+      const m = ATTACH_LINK_RE.exec(l);
+      return m ? [{ name: m[1], url: m[2], raw: l }] : [];
+    });
+}
+
+/** Appends a `[name](url)` markdown snippet to the attachments section. */
+function addAttachmentToBody(body: string, link: string): string {
+  const trimmedLink = link.trim();
+  if (!trimmedLink) return body;
+  const idx = body.indexOf(ATTACHMENTS_SEP);
+  if (idx === -1) {
+    const content = body.trimEnd();
+    return (content ? content + '\n\n' : '') + ATTACHMENTS_SEP + '\n' + trimmedLink;
+  }
+  return body.trimEnd() + '\n' + trimmedLink;
+}
+
+/** Removes a specific `[name](url)` line from the body. Cleans up empty separator. */
+function removeAttachmentFromBody(body: string, link: string): string {
+  const trimmedLink = link.trim();
+  const lines = body.split('\n');
+  const filtered = lines.filter((l) => l.trim() !== trimmedLink);
+  const result = filtered.join('\n');
+  // If the separator now has nothing after it, remove it too.
+  const idx = result.indexOf(ATTACHMENTS_SEP);
+  if (idx !== -1) {
+    const after = result.slice(idx + ATTACHMENTS_SEP.length).trim();
+    if (!after) {
+      return result.slice(0, idx).trimEnd();
+    }
+  }
+  return result;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Picks a Lucide icon for a given filename extension (mirrors attachments-menu.tsx). */
+function iconForAttachment(filename: string) {
+  const ext = filename.toLowerCase().split('.').pop() ?? '';
+  if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return FileSpreadsheet;
+  if (['ppt', 'pptx', 'odp'].includes(ext)) return Presentation;
+  if (['json', 'xml'].includes(ext)) return FileCode;
+  if (ext === 'zip') return FileArchive;
+  if (['pdf', 'doc', 'docx', 'odt', 'txt', 'md', 'markdown'].includes(ext)) return FileText;
+  return FileIcon;
+}
+
 export default function EditNotePage({
   params,
 }: {
@@ -95,6 +164,7 @@ export default function EditNotePage({
   const [deleteError, setDeleteError] = useState('');
 
   const [insertOpen, setInsertOpen] = useState(false);
+  const [attachSearchOpen, setAttachSearchOpen] = useState(false);
 
   const [isShared, setIsShared] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -441,6 +511,23 @@ export default function EditNotePage({
             compact
             chipsRender="none"
           />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setInsertOpen(true)}
+            title="Insert image, audio, or file"
+          >
+            <ImagePlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Insert</span>
+          </Button>
+          <AttachmentsMenu
+            body={body}
+            onInsert={(snippet) => setBody((prev) => addAttachmentToBody(prev, snippet))}
+            onRemove={(snippet) => {
+              setBody((prev) => removeAttachmentFromBody(prev, snippet));
+            }}
+            onSearchFile={() => setAttachSearchOpen(true)}
+          />
           <LinkDialog
             mode="controlled"
             selectedDeckIds={linkedDeckIds}
@@ -455,27 +542,6 @@ export default function EditNotePage({
             contextAreaUuid={areaUuids[0] ?? ''}
             contextSubjectUuid={subjectUuids[0] ?? ''}
           />
-          <AttachmentsMenu
-            body={body}
-            onInsert={(snippet) => insertAtCursor(snippet)}
-            onRemove={(snippet) => {
-              setBody(
-                body
-                  .split(snippet)
-                  .join('')
-                  .replace(/\n{3,}/g, '\n\n'),
-              );
-            }}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setInsertOpen(true)}
-            title="Insert image, audio, or file"
-          >
-            <ImagePlus className="h-4 w-4" />
-            <span className="hidden sm:inline">Insert</span>
-          </Button>
           <ShareButton
             type="study_note"
             nodeUuid={noteid}
@@ -623,15 +689,64 @@ export default function EditNotePage({
               mobileTab === 'preview' ? 'flex w-full flex-col' : 'hidden'
             )}
           >
-            {body.trim() ? (
-              <div className="prose prose-sm max-w-none p-6">
-                <MarkdownRenderer brokenUuids={brokenSet}>{body}</MarkdownRenderer>
-              </div>
-            ) : (
-              <div className="flex min-h-[12rem] flex-1 items-center justify-center p-8 text-muted-foreground text-sm md:min-h-0">
-                Preview will appear here as you write.
-              </div>
-            )}
+            {(() => {
+              const contentPart = getContentPart(body);
+              const attachLinks = getAttachmentLinks(body);
+              const hasContent = contentPart.trim().length > 0;
+              const hasAttachments = attachLinks.length > 0;
+              if (!hasContent && !hasAttachments) {
+                return (
+                  <div className="flex min-h-[12rem] flex-1 items-center justify-center p-8 text-muted-foreground text-sm md:min-h-0">
+                    Preview will appear here as you write.
+                  </div>
+                );
+              }
+              return (
+                <>
+                  {hasContent && (
+                    <div className="prose prose-sm max-w-none p-6">
+                      <MarkdownRenderer brokenUuids={brokenSet}>{contentPart}</MarkdownRenderer>
+                    </div>
+                  )}
+                  {hasAttachments && (
+                    <div className={cn('px-6 pb-6', hasContent && 'pt-0')}>
+                      <div className="rounded-lg border border-border bg-muted/30">
+                        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+                          <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Attachments
+                          </span>
+                          <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                            {attachLinks.length}
+                          </span>
+                        </div>
+                        <ul className="divide-y divide-border">
+                          {attachLinks.map(({ name, url, raw }) => {
+                            const Icon = iconForAttachment(name);
+                            return (
+                              <li key={raw}>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-muted/50"
+                                >
+                                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                  <span className="min-w-0 flex-1 truncate text-foreground" title={name}>
+                                    {name}
+                                  </span>
+                                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                </a>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </ScrollArea>
         </div>
       </div>
@@ -664,6 +779,15 @@ export default function EditNotePage({
               ? `[${asset.originalFilename}](${asset.url})`
               : `![${asset.originalFilename.replace(/\.[^.]+$/, '')}](${asset.url})`;
           insertAtCursor(snippet);
+        }}
+      />
+      <MediaInsertDialog
+        open={attachSearchOpen}
+        onClose={() => setAttachSearchOpen(false)}
+        initialType="file"
+        onSelect={(asset: InsertableAsset) => {
+          const snippet = `[${asset.originalFilename}](${asset.url})`;
+          setBody((prev) => addAttachmentToBody(prev, snippet));
         }}
       />
     </>

@@ -425,6 +425,29 @@ export default function DeckDetailPage({
                         </>
                       )}
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      nativeButton={false}
+                      render={<Link href={`/dashboard/decks/${id}/edit`} />}
+                      title="Edit deck"
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      <span className="sr-only">Edit deck</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        setDeleteError('');
+                        setDeleteConfirm(true);
+                      }}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete deck</span>
+                    </Button>
                   </div>
 
                   {/* Row 2: tools + management */}
@@ -536,27 +559,6 @@ export default function DeckDetailPage({
                         back: (c.attributes.field_back as string) ?? '',
                       }))}
                     />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      nativeButton={false}
-                      render={<Link href={`/dashboard/decks/${id}/edit`} />}
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => {
-                        setDeleteError('');
-                        setDeleteConfirm(true);
-                      }}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete deck</span>
-                    </Button>
                   </div>
                 </div>
             </div>

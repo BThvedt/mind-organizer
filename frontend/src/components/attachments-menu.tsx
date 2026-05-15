@@ -19,6 +19,7 @@ import {
   Loader2,
   Paperclip,
   Presentation,
+  Search,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -35,18 +36,55 @@ interface FileAsset {
   url: string;
 }
 
+// ── Attachment-section parsing ────────────────────────────────────────────────
+// When the body contains an `<!-- attachments -->` separator, the links below
+// it are treated as the authoritative attachment list and displayed directly —
+// no API cross-reference needed. This matches the convention in the note editor.
+const ATTACHMENTS_SEP = '<!-- attachments -->';
+const ATTACH_LINK_RE = /^\[([^\]]+)\]\(([^)]+)\)\s*$/;
+
+interface ParsedLink {
+  name: string;
+  url: string;
+}
+
+/**
+ * Parses `[name](url)` lines from the `<!-- attachments -->` section of
+ * the body. Returns `null` if the body has no such section (legacy/viewer mode).
+ */
+function parseAttachmentSection(body: string): ParsedLink[] | null {
+  const idx = body.indexOf(ATTACHMENTS_SEP);
+  if (idx === -1) return null;
+  const section = body.slice(idx + ATTACHMENTS_SEP.length);
+  return section
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .flatMap((l) => {
+      const m = ATTACH_LINK_RE.exec(l);
+      return m ? [{ name: m[1], url: m[2] }] : [];
+    });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface AttachmentsMenuProps {
   /** Current markdown body. Parsed for `/api/media/<uuid>` references. */
   body: string;
   /**
    * Called with a fully-formed `[name](url)` markdown snippet that should
-   * be inserted at the cursor (or appended to the body — caller's choice).
-   * Set to `null` to disable uploading from this menu (viewer-only mode).
+   * be appended to the attachments section (or inserted at the cursor —
+   * caller's choice). Set to `null` to disable uploading from this menu
+   * (viewer-only mode).
    */
   onInsert: ((markdownLink: string) => void) | null;
   /** Called when the user removes an attachment. Receives the markdown
    *  link snippet that should be removed from the body. Optional. */
   onRemove?: (snippet: string) => void;
+  /**
+   * When provided (and upload is enabled), adds a "Search library…" item
+   * below "Upload file…" that opens a media-search dialog in the parent.
+   */
+  onSearchFile?: () => void;
   className?: string;
 }
 
@@ -95,6 +133,7 @@ export function AttachmentsMenu({
   body,
   onInsert,
   onRemove,
+  onSearchFile,
   className,
 }: AttachmentsMenuProps) {
   const [open, setOpen] = useState(false);
@@ -106,8 +145,15 @@ export function AttachmentsMenu({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { upload } = useMediaUpload();
 
-  // Lazily fetch the user's file list the first time the menu is opened,
-  // and refresh on every reopen so newly-attached uploads appear.
+  // Parse the attachment section directly from the body. When this returns
+  // a non-null array, it is used as the authoritative attached-files list
+  // (the API cross-reference below is used only for fileSize enrichment).
+  const parsedAttachments = useMemo(() => parseAttachmentSection(body), [body]);
+  const hasAttachmentSection = parsedAttachments !== null;
+
+  // Lazily fetch the user's file list when the menu opens. In attachment-section
+  // mode this is used only to enrich file sizes; in legacy mode it drives the
+  // displayed list via the cross-reference below.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -134,17 +180,31 @@ export function AttachmentsMenu({
 
   const referencedUuids = useMemo(() => extractReferencedUuids(body), [body]);
 
-  // Cross-reference body UUIDs against the user's file library to find
-  // file-class attachments (image/audio refs are silently filtered out).
-  const attached = useMemo<FileAsset[]>(() => {
-    if (!allFiles) return [];
+  // Legacy mode: cross-reference body UUIDs against the user's file library
+  // (image/audio refs are silently filtered out). Not used when the body has
+  // an `<!-- attachments -->` section.
+  const legacyAttached = useMemo<FileAsset[]>(() => {
+    if (hasAttachmentSection || !allFiles) return [];
     const byUuid = new Map(allFiles.map((f) => [f.uuid.toLowerCase(), f]));
     return referencedUuids
       .map((uuid) => byUuid.get(uuid))
       .filter((f): f is FileAsset => f !== undefined);
-  }, [allFiles, referencedUuids]);
+  }, [hasAttachmentSection, allFiles, referencedUuids]);
 
-  const acceptAttr = useMemo(() => ALLOWED_FILE_MIMES.join(','), []);
+  // Build a URL → fileSize map from the API response for enriching the
+  // attachment-section list (best-effort; no fileSize shown while loading).
+  const fileSizeByUrl = useMemo<Map<string, number>>(() => {
+    if (!allFiles) return new Map();
+    return new Map(allFiles.map((f) => [f.url, f.fileSize]));
+  }, [allFiles]);
+
+  // For the badge count: prefer the parsed section length; fall back to the
+  // legacy cross-reference count.
+  const attachCount = hasAttachmentSection
+    ? parsedAttachments.length
+    : legacyAttached.length;
+
+  const acceptAttr = useMemo(() => ALLOWED_FILE_MIMES.join(',') + ',.zip', []);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -161,15 +221,13 @@ export function AttachmentsMenu({
           setUploadingCount((n) => Math.max(0, n - 1));
         }
       }
-      // Force the file refetch on next open by clearing the cache.
-      setAllFiles(null);
     },
     [onInsert, upload],
   );
 
-  function handleRemove(asset: FileAsset) {
+  function handleRemove(name: string, url: string) {
     if (!onRemove) return;
-    onRemove(`[${asset.originalFilename}](${asset.url})`);
+    onRemove(`[${name}](${url})`);
   }
 
   const showUpload = onInsert !== null;
@@ -191,9 +249,9 @@ export function AttachmentsMenu({
                 <Paperclip className="h-4 w-4" />
               )}
               <span className="hidden sm:inline">Attach</span>
-              {attached.length > 0 && (
+              {attachCount > 0 && (
                 <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-medium tabular-nums text-muted-foreground">
-                  {attached.length}
+                  {attachCount}
                 </span>
               )}
             </Button>
@@ -214,6 +272,15 @@ export function AttachmentsMenu({
                 <Upload className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">Upload file…</span>
               </DropdownMenuItem>
+              {onSearchFile && (
+                <DropdownMenuItem
+                  onClick={() => onSearchFile()}
+                  className="flex items-center gap-2"
+                >
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Search library…</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
             </>
           )}
@@ -222,26 +289,77 @@ export function AttachmentsMenu({
             <p className="px-3 py-1.5 text-xs text-destructive">{uploadError}</p>
           )}
 
-          {loading && (
+          {/* ── Attachment-section mode (notes) ──────────────────────── */}
+          {hasAttachmentSection && parsedAttachments.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              No files attached yet.
+            </p>
+          )}
+
+          {hasAttachmentSection && parsedAttachments.length > 0 && (
+            <ul className="flex flex-col">
+              {parsedAttachments.map(({ name, url }) => {
+                const Icon = iconForFilename(name);
+                const fileSize = fileSizeByUrl.get(url);
+                return (
+                  <li
+                    key={url}
+                    className="group flex items-center gap-2 px-2 py-1.5"
+                  >
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-muted"
+                    >
+                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate" title={name}>
+                        {name}
+                      </span>
+                      {fileSize !== undefined && (
+                        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                          {formatBytes(fileSize)}
+                        </span>
+                      )}
+                      <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    </a>
+                    {onRemove && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(name, url)}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                        aria-label={`Remove ${name} from this entry`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {/* ── Legacy mode (decks, todos — no attachment section) ───── */}
+          {!hasAttachmentSection && loading && (
             <p className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
               Loading files…
             </p>
           )}
 
-          {!loading && error && (
+          {!hasAttachmentSection && !loading && error && (
             <p className="px-3 py-2 text-xs text-destructive">{error}</p>
           )}
 
-          {!loading && !error && attached.length === 0 && (
+          {!hasAttachmentSection && !loading && !error && legacyAttached.length === 0 && (
             <p className="px-3 py-2 text-xs text-muted-foreground">
               No files attached yet.
             </p>
           )}
 
-          {!loading && !error && attached.length > 0 && (
+          {!hasAttachmentSection && !loading && !error && legacyAttached.length > 0 && (
             <ul className="flex flex-col">
-              {attached.map((asset) => {
+              {legacyAttached.map((asset) => {
                 const Icon = iconForFilename(asset.originalFilename);
                 return (
                   <li
@@ -266,7 +384,7 @@ export function AttachmentsMenu({
                     {onRemove && (
                       <button
                         type="button"
-                        onClick={() => handleRemove(asset)}
+                        onClick={() => handleRemove(asset.originalFilename, asset.url)}
                         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                         aria-label={`Remove ${asset.originalFilename} from this entry`}
                       >

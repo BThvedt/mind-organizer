@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { drupalFetch, getCurrentUserUuid } from '@/lib/drupal';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const userUuid = await getCurrentUserUuid();
   if (!userUuid) {
     return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
   }
 
+  const sortParam = request.nextUrl.searchParams.get('sort') ?? '-created';
+  const allowedSorts = ['-created', '-changed', '-field_last_viewed'];
+  const sort = allowedSorts.includes(sortParam) ? sortParam : '-created';
+
   const res = await drupalFetch(
     `/jsonapi/node/study_note` +
       `?filter[uid.id][value]=${userUuid}` +
       `&include=field_area,field_subject,field_linked_decks,field_linked_notes,field_linked_todos` +
-      `&sort=-changed` +
+      `&sort=${sort}` +
       `&page[limit]=50`
   );
 

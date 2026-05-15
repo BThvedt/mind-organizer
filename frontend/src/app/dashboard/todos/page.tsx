@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback, useMemo, useRef, createContext, useContext } from 'react';
+import { Suspense, Fragment, useEffect, useState, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -21,6 +21,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { ArrowLeft, Plus, Trash2, ChevronLeft, CheckSquare, X, ChevronDown, GripVertical, Check } from 'lucide-react';
 import {
@@ -49,6 +50,7 @@ import {
 } from '@/components/entity-delete-dialog';
 import { ShareIndicator } from '@/components/share-indicator';
 import { AttachmentsIndicator } from '@/components/attachments-indicator';
+import { groupByDateLabel } from '@/lib/date-groups';
 import {
   AreaSubjectMultiSelector,
   AreaSubjectChipList,
@@ -211,6 +213,8 @@ function TodosPageContent() {
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterSubjectId, setFilterSubjectId] = useState('');
+  type SortOption = 'created' | 'changed' | 'field_last_viewed';
+  const [sortBy, setSortBy] = useState<SortOption>('created');
 
   // Create-list dialog state
   const [createOpen, setCreateOpen] = useState(false);
@@ -347,7 +351,7 @@ function TodosPageContent() {
     setLoading(true);
     try {
       const res = await Promise.race([
-        fetch('/api/todos'),
+        fetch(`/api/todos?sort=-${sortBy}`),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), 8000),
         ),
@@ -364,7 +368,7 @@ function TodosPageContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sortBy]);
 
   useEffect(() => {
     if (authenticated) loadLists();
@@ -382,6 +386,9 @@ function TodosPageContent() {
     setNewItemText('');
     setEditingTitle(false);
     router.replace(`/dashboard/todos?id=${id}`, { scroll: false });
+    fetch(`/api/todos/${id}/last-viewed`, { method: 'POST' })
+      .then(() => { if (sortBy === 'field_last_viewed') void loadLists(); })
+      .catch(() => {});
   }
 
   // ── Create list ─────────────────────────────────────────────────────────────
@@ -946,30 +953,49 @@ function TodosPageContent() {
             </Button>
           </div>
 
-          {/* Filters */}
-          {!loading && uniqueAreas.length > 0 && (
+          {/* Controls: sort + area/subject filters */}
+          {!loading && (
             <div className="px-3 py-2 border-b border-border flex flex-col gap-1.5 shrink-0">
-              <Select
-                value={filterAreaId || '__all__'}
-                onValueChange={(v) => {
-                  setFilterAreaId(!v || v === '__all__' ? '' : v);
-                  setFilterSubjectId('');
-                }}
-              >
-                <SelectTrigger className="h-7 text-xs">
-                  <span className={cn(!filterAreaId && 'text-muted-foreground')}>
-                    {filterAreaId
-                      ? (uniqueAreas.find((a) => a.id === filterAreaId)?.name ?? 'All areas')
-                      : 'All areas'}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All areas</SelectItem>
-                  {uniqueAreas.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                {uniqueAreas.length > 0 && (
+                  <Select
+                    value={filterAreaId || '__all__'}
+                    onValueChange={(v) => {
+                      setFilterAreaId(!v || v === '__all__' ? '' : v);
+                      setFilterSubjectId('');
+                    }}
+                  >
+                    <SelectTrigger className="h-7 text-xs flex-1 min-w-0">
+                      <span className={cn(!filterAreaId && 'text-muted-foreground')}>
+                        {filterAreaId
+                          ? (uniqueAreas.find((a) => a.id === filterAreaId)?.name ?? 'All areas')
+                          : 'All areas'}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All areas</SelectItem>
+                      {uniqueAreas.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Select
+                  value={sortBy}
+                  onValueChange={(v) => setSortBy(v as SortOption)}
+                >
+                  <SelectTrigger className="h-7 text-xs w-36 shrink-0">
+                    <SelectValue>
+                      {{ created: 'Created', changed: 'Last Modified', field_last_viewed: 'Last Viewed' }[sortBy]}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created">Created</SelectItem>
+                    <SelectItem value="changed">Last Modified</SelectItem>
+                    <SelectItem value="field_last_viewed">Last Viewed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               {filterAreaId && (
                 <Select
@@ -1039,7 +1065,22 @@ function TodosPageContent() {
                 </button>
               </div>
             ) : (
-              visibleLists.map((list) => {
+              groupByDateLabel(
+                visibleLists,
+                (list) =>
+                  sortBy === 'field_last_viewed'
+                    ? (list.attributes.field_last_viewed as string | null | undefined)
+                    : sortBy === 'created'
+                    ? (list.attributes.created as string | undefined)
+                    : (list.attributes.changed as string | undefined),
+              ).map(({ label, items }) => (
+                <Fragment key={label}>
+                  <div className="sticky top-0 z-10 px-4 py-1.5 bg-background/95 backdrop-blur-sm border-b border-border">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      {label}
+                    </span>
+                  </div>
+                  {items.map((list) => {
                 const lAreaIds = toRelIds(list.relationships?.field_area?.data);
                 const lSubjectIds = toRelIds(list.relationships?.field_subject?.data);
                 const lAreaNames = lAreaIds
@@ -1112,7 +1153,9 @@ function TodosPageContent() {
                     )}
                   </button>
                 );
-              })
+              })}
+                </Fragment>
+              ))
             )}
           </ScrollArea>
         </aside>
@@ -1173,6 +1216,7 @@ function TodosPageContent() {
                         compact
                         chipsRender="none"
                       />
+                      <AttachmentsMenu body={todoAttachmentsBody} onInsert={null} />
                       <LinkDialog
                         mode="uncontrolled"
                         entityType="todo"
@@ -1227,7 +1271,6 @@ function TodosPageContent() {
                         }}
                         onLinksChanged={loadLists}
                       />
-                      <AttachmentsMenu body={todoAttachmentsBody} onInsert={null} />
                       <ShareButton
                         type="todo_list"
                         nodeUuid={selectedList.id}

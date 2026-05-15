@@ -16,10 +16,14 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type') ?? 'all';
   const area = searchParams.get('area') ?? '';
   const subject = searchParams.get('subject') ?? '';
+  const dateFrom = searchParams.get('date_from') ?? '';
+  const dateTo = searchParams.get('date_to') ?? '';
 
   const params = new URLSearchParams({ q, type });
   if (area) params.set('area', area);
   if (subject) params.set('subject', subject);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
 
   const res = await drupalFetch(`/api/study/search?${params.toString()}`);
 

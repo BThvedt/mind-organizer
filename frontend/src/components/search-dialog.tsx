@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { CheckSquare, FileText, Layers, Search, X, Loader2 } from 'lucide-react';
+import { CalendarDays, CheckSquare, FileText, Layers, Search, X, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   SESSION_EXPIRED_MESSAGE,
@@ -43,6 +44,9 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterSubjectId, setFilterSubjectId] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showDateRange, setShowDateRange] = useState(false);
   const [areas, setAreas] = useState<TaxonomyTerm[]>([]);
   const [subjects, setSubjects] = useState<TaxonomyTerm[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -66,6 +70,9 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
       setFilterType('all');
       setFilterAreaId('');
       setFilterSubjectId('');
+      setDateFrom('');
+      setDateTo('');
+      setShowDateRange(false);
       setResults([]);
       setTotal(0);
       setSearched(false);
@@ -87,7 +94,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
 
   // Debounced search whenever query or filters change
   const doSearch = useCallback(
-    (q: string, type: FilterType, area: string, subject: string) => {
+    (q: string, type: FilterType, area: string, subject: string, from: string, to: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (q.length < 2) {
         setResults([]);
@@ -102,6 +109,8 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
           const params = new URLSearchParams({ q, type });
           if (area) params.set('area', area);
           if (subject) params.set('subject', subject);
+          if (from) params.set('date_from', from);
+          if (to) params.set('date_to', to);
           const res = await Promise.race([
             fetch(`/api/search?${params}`),
             new Promise<never>((_, reject) =>
@@ -136,11 +145,11 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
   );
 
   useEffect(() => {
-    doSearch(query, filterType, filterAreaId, filterSubjectId);
+    doSearch(query, filterType, filterAreaId, filterSubjectId, dateFrom, dateTo);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, filterType, filterAreaId, filterSubjectId, doSearch]);
+  }, [query, filterType, filterAreaId, filterSubjectId, dateFrom, dateTo, doSearch]);
 
   // Close on Escape
   useEffect(() => {
@@ -206,7 +215,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
             placeholder="Search notes, decks, and todo lists…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
-          {query ? (
+          {query && (
             <button
               onClick={() => setQuery('')}
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -214,14 +223,17 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
             >
               <X className="h-4 w-4" />
             </button>
-          ) : (
-            <kbd className="hidden sm:inline-flex h-5 items-center rounded border border-border bg-muted px-1.5 text-[10px] text-muted-foreground font-mono">
-              Esc
-            </kbd>
           )}
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close search"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* Filter bar */}
+        {/* Filter bar — row 1: type + taxonomy */}
         <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
           {/* Type pills */}
           <div className="flex items-center rounded-lg border border-border overflow-hidden text-xs bg-background">
@@ -281,7 +293,66 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
               ))}
             </select>
           )}
+
+          {/* Date range toggle button */}
+          <button
+            onClick={() => {
+              if (showDateRange) {
+                setShowDateRange(false);
+                setDateFrom('');
+                setDateTo('');
+              } else {
+                setShowDateRange(true);
+              }
+            }}
+            className={cn(
+              'flex items-center gap-1 h-7 px-2 rounded-lg border text-xs transition-colors',
+              showDateRange || dateFrom || dateTo
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-background text-muted-foreground hover:text-foreground',
+            )}
+            aria-label="Toggle date range filter"
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            Date range
+          </button>
         </div>
+
+        {/* Filter bar — row 2: date range (shown on demand) */}
+        {showDateRange && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
+          <span className="text-xs text-muted-foreground">Date</span>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">From</span>
+            <Input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-7 w-32 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">To</span>
+            <Input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-7 w-32 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(''); setDateTo(''); }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Clear dates"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        )}
 
         {/* Results list */}
         <div className="flex-1 overflow-y-auto">

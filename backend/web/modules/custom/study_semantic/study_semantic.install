@@ -1,0 +1,122 @@
+<?php
+
+/**
+ * @file
+ * Install/uninstall hooks for the study_semantic module.
+ *
+ * Owns the `content_embeddings` MySQL table (one row per embedded entity)
+ * and creates the matching Qdrant collection on install.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_schema().
+ */
+function study_semantic_schema(): array {
+  $schema['content_embeddings'] = [
+    'description' => 'One row per embedded entity. The actual vector lives in Qdrant; this table holds the bookkeeping needed to upsert / dedupe / delete those points.',
+    'fields' => [
+      'id' => [
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'entity_type' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'description' => 'Drupal entity type id, e.g. "node".',
+      ],
+      'entity_id' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Drupal numeric entity id (nid for nodes).',
+      ],
+      'entity_uuid' => [
+        'type' => 'varchar',
+        'length' => 36,
+        'not null' => TRUE,
+        'description' => 'Drupal entity UUID — doubles as the Qdrant point id.',
+      ],
+      'bundle' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'description' => 'study_note | flashcard_deck | flashcard | todo_list.',
+      ],
+      'owner_uid' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Owning user id; mirrored into Qdrant payload for ANN-side filtering.',
+      ],
+      'content_hash' => [
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'description' => 'SHA-256 of the embedded text. Used to skip re-embedding when the searchable content hasnt changed.',
+      ],
+      'model_version' => [
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'description' => 'Embedding model identifier, e.g. "voyage-3-lite". Lets the worker re-embed stale rows after a model swap.',
+      ],
+      'embedded_at' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Unix timestamp of the most recent successful upsert.',
+      ],
+    ],
+    'primary key' => ['id'],
+    'unique keys' => [
+      'entity' => ['entity_type', 'entity_id'],
+    ],
+    'indexes' => [
+      'entity_uuid' => ['entity_uuid'],
+      'owner_bundle' => ['owner_uid', 'bundle'],
+      'bundle' => ['bundle'],
+    ],
+  ];
+
+  return $schema;
+}
+
+/**
+ * Implements hook_install().
+ *
+ * Creates the Qdrant collection if it doesnt already exist. Safe to re-run.
+ */
+function study_semantic_install(): void {
+  try {
+    /** @var \Drupal\study_semantic\Service\QdrantClient $qdrant */
+    $qdrant = \Drupal::service('study_semantic.qdrant_client');
+    $qdrant->ensureCollection();
+  }
+  catch (\Throwable $e) {
+    // Dont block module install if Qdrant happens to be down — the queue
+    // worker will retry on first run anyway. Log loudly so the operator
+    // sees it during deploy.
+    \Drupal::logger('study_semantic')->error(
+      'Failed to ensure Qdrant collection during install: @msg',
+      ['@msg' => $e->getMessage()],
+    );
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ *
+ * Leaves the Qdrant collection in place on purpose: dropping ~50k vectors
+ * because someone disabled the module for a moment is too aggressive.
+ * Operators can `curl -X DELETE $QDRANT_URL/collections/content_embeddings`
+ * manually if they really want a clean slate.
+ */
+function study_semantic_uninstall(): void {
+  \Drupal::logger('study_semantic')->notice(
+    'study_semantic uninstalled. The Qdrant collection "content_embeddings" was left in place; delete it manually if no longer needed.'
+  );
+}

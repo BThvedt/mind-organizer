@@ -1,0 +1,9 @@
+name: 'Study Semantic'
+type: module
+description: 'Semantic search and RAG over study notes, decks, flashcards, and todo lists. Embeds entity content with Voyage AI and stores vectors in Qdrant.'
+package: 'Mind Organizer'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node
+  - drupal:paragraphs
+  - drupal:serialization

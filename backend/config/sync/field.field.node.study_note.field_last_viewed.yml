@@ -1,3 +1,4 @@
+uuid: 1f98e2db-d270-4c27-ae6e-9d2153a73ab9
 langcode: en
 status: true
 dependencies:
@@ -12,7 +13,7 @@ label: 'Last Viewed'
 description: 'Timestamp of when the authenticated user last opened this note.'
 required: false
 translatable: true
-default_value: []
+default_value: {  }
 default_value_callback: ''
-settings: {}
+settings: {  }
 field_type: datetime

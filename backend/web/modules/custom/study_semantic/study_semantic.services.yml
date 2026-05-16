@@ -1,0 +1,21 @@
+services:
+  study_semantic.text_extractor:
+    class: Drupal\study_semantic\Service\TextExtractor
+
+  study_semantic.embedding_client:
+    class: Drupal\study_semantic\Service\EmbeddingClient
+    arguments:
+      - '@logger.factory'
+
+  study_semantic.qdrant_client:
+    class: Drupal\study_semantic\Service\QdrantClient
+    arguments:
+      - '@logger.factory'
+
+  study_semantic.search:
+    class: Drupal\study_semantic\Service\SemanticSearchService
+    arguments:
+      - '@study_semantic.qdrant_client'
+      - '@entity_type.manager'
+      - '@database'
+      - '@logger.factory'

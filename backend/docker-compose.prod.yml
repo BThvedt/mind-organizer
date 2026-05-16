@@ -30,6 +30,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       HASH_SALT: ${HASH_SALT}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      QDRANT_URL: http://qdrant:6333
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -37,6 +39,7 @@ services:
       AWS_S3_PREFIX: ${AWS_S3_PREFIX}
     depends_on:
       - db
+      - qdrant
 
   db:
     image: mariadb:11
@@ -48,10 +51,19 @@ services:
     volumes:
       - db_data:/var/lib/mysql
 
+  qdrant:
+    image: qdrant/qdrant:v1.11.0
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+
 volumes:
   db_data:
     external: true
     name: mind-organizer_db_data
+  qdrant_data:
+    external: true
+    name: mind-organizer_qdrant_data
 
 networks:
   traefik-public:

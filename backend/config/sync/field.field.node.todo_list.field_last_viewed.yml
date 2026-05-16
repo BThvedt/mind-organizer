@@ -1,3 +1,4 @@
+uuid: 11569494-5f98-4760-b607-2c4bcc296cb3
 langcode: en
 status: true
 dependencies:
@@ -12,7 +13,7 @@ label: 'Last Viewed'
 description: 'Timestamp of when the authenticated user last opened this todo list.'
 required: false
 translatable: true
-default_value: []
+default_value: {  }
 default_value_callback: ''
-settings: {}
+settings: {  }
 field_type: datetime

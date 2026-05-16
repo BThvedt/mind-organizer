@@ -1,0 +1,146 @@
+<?php
+
+/**
+ * @file
+ * Hooks that feed the semantic search embedding pipeline.
+ *
+ * Whenever a content entity in one of the embedded bundles is created,
+ * updated, or deleted, we enqueue a job onto the `study_semantic_embed`
+ * queue. The actual embedding API call and Qdrant upsert happens later in
+ * the QueueWorker (off the request thread) so user-facing saves stay fast.
+ *
+ * Embedded bundles:
+ *   - study_note      (title + field_body markdown)
+ *   - flashcard_deck  (title + body description)
+ *   - flashcard       (front + back) — embedded individually so RAG can
+ *                     cite a specific card
+ *   - todo_list       (title + aggregated paragraph item text/notes)
+ *
+ * todo_list content lives in `todo_item` paragraphs on field_items. When
+ * a paragraph changes we walk back up to the parent node and re-queue it.
+ */
+
+declare(strict_types=1);
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\node\NodeInterface;
+use Drupal\paragraphs\ParagraphInterface;
+
+/**
+ * Bundles whose content we embed for semantic search.
+ */
+const STUDY_SEMANTIC_EMBEDDED_BUNDLES = [
+  'study_note',
+  'flashcard_deck',
+  'flashcard',
+  'todo_list',
+];
+
+/**
+ * Queue name; matches the QueueWorker plugin id.
+ */
+const STUDY_SEMANTIC_QUEUE = 'study_semantic_embed';
+
+/**
+ * Implements hook_node_insert().
+ */
+function study_semantic_node_insert(NodeInterface $node): void {
+  if (in_array($node->bundle(), STUDY_SEMANTIC_EMBEDDED_BUNDLES, TRUE)) {
+    _study_semantic_enqueue_embed($node);
+  }
+}
+
+/**
+ * Implements hook_node_update().
+ */
+function study_semantic_node_update(NodeInterface $node): void {
+  if (in_array($node->bundle(), STUDY_SEMANTIC_EMBEDDED_BUNDLES, TRUE)) {
+    _study_semantic_enqueue_embed($node);
+  }
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function study_semantic_node_delete(NodeInterface $node): void {
+  if (!in_array($node->bundle(), STUDY_SEMANTIC_EMBEDDED_BUNDLES, TRUE)) {
+    return;
+  }
+  // Tear-down also goes through the queue so ordering vs in-flight embeds
+  // is consistent: if a node is created and immediately deleted, the
+  // delete job ends up behind the embed job.
+  \Drupal::queue(STUDY_SEMANTIC_QUEUE)->createItem([
+    'op' => 'delete',
+    'entity_type' => 'node',
+    'entity_id' => (int) $node->id(),
+    'entity_uuid' => (string) $node->uuid(),
+    'bundle' => $node->bundle(),
+  ]);
+}
+
+/**
+ * Implements hook_paragraph_presave().
+ *
+ * Re-queues the parent todo_list whenever any of its todo_item paragraphs
+ * is saved (text or notes edited, item added, etc.). The actual hook signature
+ * uses the generic entity hook for paragraphs — there is no
+ * hook_paragraph_presave — so we route via hook_entity_presave below instead.
+ */
+
+/**
+ * Implements hook_entity_update().
+ *
+ * Captures saves on paragraph entities (which dont fire node hooks on their
+ * parent automatically) and re-queues the containing todo_list.
+ */
+function study_semantic_entity_update(EntityInterface $entity): void {
+  _study_semantic_handle_paragraph_change($entity);
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function study_semantic_entity_insert(EntityInterface $entity): void {
+  _study_semantic_handle_paragraph_change($entity);
+}
+
+/**
+ * Implements hook_entity_delete().
+ */
+function study_semantic_entity_delete(EntityInterface $entity): void {
+  _study_semantic_handle_paragraph_change($entity);
+}
+
+/**
+ * Walks a todo_item paragraph up to its parent todo_list node and re-queues
+ * the parent for embedding.
+ */
+function _study_semantic_handle_paragraph_change(EntityInterface $entity): void {
+  if (!$entity instanceof ParagraphInterface) {
+    return;
+  }
+  if ($entity->bundle() !== 'todo_item') {
+    return;
+  }
+  $parent = $entity->getParentEntity();
+  if ($parent instanceof NodeInterface && $parent->bundle() === 'todo_list') {
+    _study_semantic_enqueue_embed($parent);
+  }
+}
+
+/**
+ * Pushes an embed job for the given node onto the semantic queue.
+ *
+ * Stores only the id payload — the worker re-loads the entity at run time
+ * so it always operates on the latest persisted state (and gracefully handles
+ * deletions that happen between enqueue and processing).
+ */
+function _study_semantic_enqueue_embed(NodeInterface $node): void {
+  \Drupal::queue(STUDY_SEMANTIC_QUEUE)->createItem([
+    'op' => 'embed',
+    'entity_type' => 'node',
+    'entity_id' => (int) $node->id(),
+    'entity_uuid' => (string) $node->uuid(),
+    'bundle' => $node->bundle(),
+  ]);
+}

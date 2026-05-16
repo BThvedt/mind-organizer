@@ -1,0 +1,23 @@
+uuid: 4f1a8d23-6b9c-4e5d-a7f8-1c2b3d4e5f6a
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_include_in_rag
+    - node.type.study_note
+id: node.study_note.field_include_in_rag
+field_name: field_include_in_rag
+entity_type: node
+bundle: study_note
+label: 'Include in AI Q&A'
+description: 'When on, this note is used as context when the AI answers questions on the Ask AI page.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 1
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

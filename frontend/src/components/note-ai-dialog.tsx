@@ -52,8 +52,13 @@ interface NoteAiDialogProps {
   noteAreaUuids?: string[];
   noteSubjectUuids?: string[];
   linkedDeckIds: string[];
+  /** Current value of the notes field_include_in_rag attribute. */
+  includeInRag: boolean;
   onBodyChange: (body: string) => void;
   onLinksChange: (ids: string[]) => void;
+  /** Called after include-in-RAG is successfully persisted, so the parent
+   *  page can keep its local state in sync. */
+  onIncludeInRagChange: (next: boolean) => void;
 }
 
 export function NoteAiDialog({
@@ -63,8 +68,10 @@ export function NoteAiDialog({
   noteAreaUuids = [],
   noteSubjectUuids = [],
   linkedDeckIds,
+  includeInRag,
   onBodyChange,
   onLinksChange,
+  onIncludeInRagChange,
 }: NoteAiDialogProps) {
   const generateLimitInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,6 +98,33 @@ export function NoteAiDialog({
   const [saveError, setSaveError] = useState('');
   const [generateLimitValue, setGenerateLimitValue] = useState(5);
   const [generateIsAuto, setGenerateIsAuto] = useState(false);
+
+  // Include-in-RAG toggle (persisted to Drupal on each click).
+  const [savingRag, setSavingRag] = useState(false);
+  const [ragError, setRagError] = useState('');
+
+  async function handleToggleIncludeInRag(next: boolean) {
+    // Optimistic update — flip the parent state immediately, revert on failure.
+    onIncludeInRagChange(next);
+    setSavingRag(true);
+    setRagError('');
+    try {
+      const res = await fetch(`/api/notes/${noteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeInRag: next }),
+      });
+      if (!res.ok) {
+        onIncludeInRagChange(!next);
+        setRagError('Could not save AI Q&A preference. Please try again.');
+      }
+    } catch {
+      onIncludeInRagChange(!next);
+      setRagError('Could not save AI Q&A preference. Please try again.');
+    } finally {
+      setSavingRag(false);
+    }
+  }
 
   function reset() {
     setStep('menu');
@@ -410,7 +444,27 @@ export function NoteAiDialog({
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <DialogFooter showCloseButton />
+            <DialogFooter showCloseButton>
+              {/* Include-in-RAG toggle — left-floated, secondary control. */}
+              <div className="flex items-center gap-2 sm:mr-auto">
+                <Checkbox
+                  id="note-include-in-rag"
+                  checked={includeInRag}
+                  onCheckedChange={(v) => handleToggleIncludeInRag(v === true)}
+                  disabled={savingRag}
+                />
+                <Label
+                  htmlFor="note-include-in-rag"
+                  className="text-sm cursor-pointer select-none"
+                  title={ragError || undefined}
+                >
+                  Include in AI Q&A
+                </Label>
+                {ragError && (
+                  <span className="text-xs text-destructive">{ragError}</span>
+                )}
+              </div>
+            </DialogFooter>
           </div>
         )}
 

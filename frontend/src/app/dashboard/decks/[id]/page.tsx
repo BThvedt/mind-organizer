@@ -558,6 +558,20 @@ export default function DeckDetailPage({
                         front: (c.attributes.field_front as string) ?? '',
                         back: (c.attributes.field_back as string) ?? '',
                       }))}
+                      includeInRag={Boolean(deck?.attributes.field_include_in_rag)}
+                      onIncludeInRagChange={(next) =>
+                        setDeck((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                attributes: {
+                                  ...prev.attributes,
+                                  field_include_in_rag: next,
+                                },
+                              }
+                            : prev,
+                        )
+                      }
                     />
                   </div>
                 </div>

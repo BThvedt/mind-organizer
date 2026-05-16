@@ -120,3 +120,112 @@ function study_semantic_uninstall(): void {
     'study_semantic uninstalled. The Qdrant collection "content_embeddings" was left in place; delete it manually if no longer needed.'
   );
 }
+
+/**
+ * Backfill field_include_in_rag on existing nodes after the field is added.
+ *
+ * Drupal default_value only applies to entities created after the field
+ * exists, so every pre-existing node ends up with NULL until something
+ * touches it. We set the per-bundle default explicitly here and then
+ * re-queue every affected node so the new value also makes it into the
+ * Qdrant payload (so the RAG query-time filter can apply).
+ *
+ * Per-bundle defaults:
+ *   study_note      → 1 (on)
+ *   flashcard_deck  → 0 (off)
+ *   todo_list       → 0 (off)
+ *   flashcard       → not applicable (the field is on the parent deck;
+ *                     individual cards inherit their decks include-in-RAG
+ *                     at query time)
+ */
+function study_semantic_update_10001(): void {
+  $defaultsByBundle = [
+    'study_note' => 1,
+    'flashcard_deck' => 0,
+    'todo_list' => 0,
+  ];
+
+  $storage = \Drupal::entityTypeManager()->getStorage('node');
+  $queue = \Drupal::queue('study_semantic_embed');
+  $touched = 0;
+
+  foreach ($defaultsByBundle as $bundle => $defaultValue) {
+    $nids = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', $bundle)
+      ->execute();
+    if (!$nids) {
+      continue;
+    }
+
+    foreach (array_chunk(array_map('intval', array_values($nids)), 100) as $chunk) {
+      $nodes = $storage->loadMultiple($chunk);
+      foreach ($nodes as $node) {
+        if (!$node->hasField('field_include_in_rag')) {
+          continue;
+        }
+        // Only set when empty so re-running update_10001 doesnt clobber
+        // user-edited values.
+        if ($node->get('field_include_in_rag')->isEmpty()) {
+          $node->set('field_include_in_rag', $defaultValue);
+          $node->save();
+          $touched++;
+        }
+      }
+    }
+  }
+
+  // Re-queue every embeddable node so the new include_in_rag value lands
+  // in Qdrant payload too. (Saving the node above already triggers a queue
+  // item via hook_node_update, but explicitly enqueuing here is harmless
+  // and keeps the worker the single source of truth for payload shape.)
+  foreach (array_keys($defaultsByBundle) as $bundle) {
+    $nids = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', $bundle)
+      ->execute();
+    foreach (array_chunk(array_map('intval', array_values($nids)), 100) as $chunk) {
+      $nodes = $storage->loadMultiple($chunk);
+      foreach ($nodes as $node) {
+        $queue->createItem([
+          'op' => 'embed',
+          'entity_type' => 'node',
+          'entity_id' => (int) $node->id(),
+          'entity_uuid' => (string) $node->uuid(),
+          'bundle' => $node->bundle(),
+        ]);
+      }
+    }
+  }
+
+  \Drupal::logger('study_semantic')->notice(
+    'study_semantic_update_10001 backfilled field_include_in_rag on @n node(s) and re-queued affected nodes for embedding payload refresh.',
+    ['@n' => $touched],
+  );
+}
+
+/**
+ * Add the `include_in_rag` payload index on the Qdrant collection.
+ *
+ * `ensureCollection()` only creates the index on collection-create, so
+ * existing environments need a one-shot top-up. The index is idempotent
+ * on Qdrants side.
+ */
+function study_semantic_update_10002(): void {
+  try {
+    /** @var \Drupal\study_semantic\Service\QdrantClient $qdrant */
+    $qdrant = \Drupal::service('study_semantic.qdrant_client');
+    $qdrant->ensureIncludeInRagIndex();
+    \Drupal::logger('study_semantic')->notice(
+      'study_semantic_update_10002 ensured include_in_rag payload index on Qdrant collection.'
+    );
+  }
+  catch (\Throwable $e) {
+    \Drupal::logger('study_semantic')->error(
+      'study_semantic_update_10002 failed to add include_in_rag index: @msg',
+      ['@msg' => $e->getMessage()],
+    );
+    // Dont rethrow — the worker will keep working (the index is a perf
+    // optimisation, not a correctness requirement).
+  }
+}

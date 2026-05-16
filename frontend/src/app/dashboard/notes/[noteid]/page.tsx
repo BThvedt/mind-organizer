@@ -169,6 +169,11 @@ export default function EditNotePage({
   const [isShared, setIsShared] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
 
+  // Mirrors `field_include_in_rag` on the note. Default true so a brand-new
+  // note (where the attribute hasnt been resolved yet) reflects the bundle
+  // default before we know better.
+  const [includeInRag, setIncludeInRag] = useState(true);
+
   const [savedSnapshot, setSavedSnapshot] = useState<NoteSnapshot | null>(null);
 
   const authenticated = useAuth();
@@ -228,6 +233,12 @@ export default function EditNotePage({
           setLinkedTodoIds(todoIds);
           setIsShared(Boolean(note.attributes.field_is_shared));
           setShareToken((note.attributes.field_share_token as string | null) ?? null);
+          setIncludeInRag(
+            note.attributes.field_include_in_rag === undefined ||
+              note.attributes.field_include_in_rag === null
+              ? true
+              : Boolean(note.attributes.field_include_in_rag),
+          );
           setSavedSnapshot({
             title: (note.attributes.title as string) ?? '',
             body: (note.attributes.field_body as string) ?? '',
@@ -560,8 +571,10 @@ export default function EditNotePage({
             noteAreaUuids={areaUuids}
             noteSubjectUuids={subjectUuids}
             linkedDeckIds={linkedDeckIds}
+            includeInRag={includeInRag}
             onBodyChange={setBody}
             onLinksChange={setLinkedDeckIds}
+            onIncludeInRagChange={setIncludeInRag}
           />
         </div>
         {(areaUuids.length > 0 || subjectUuids.length > 0) && (

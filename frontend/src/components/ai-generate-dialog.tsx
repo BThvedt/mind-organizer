@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Sparkles, Loader2, ChevronLeft, WifiOff } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
@@ -31,9 +32,19 @@ interface AiGenerateDialogProps {
   deckId: string;
   onSaved: () => void;
   existingCards?: { front: string; back: string }[];
+  /** Current value of the decks field_include_in_rag attribute. */
+  includeInRag: boolean;
+  /** Called after include-in-RAG is successfully persisted. */
+  onIncludeInRagChange: (next: boolean) => void;
 }
 
-export function AiGenerateDialog({ deckId, onSaved, existingCards = [] }: AiGenerateDialogProps) {
+export function AiGenerateDialog({
+  deckId,
+  onSaved,
+  existingCards = [],
+  includeInRag,
+  onIncludeInRagChange,
+}: AiGenerateDialogProps) {
   const limitInputRef = useRef<HTMLInputElement>(null);
   const { isOnline } = useOnlineStatus();
 
@@ -51,6 +62,33 @@ export function AiGenerateDialog({ deckId, onSaved, existingCards = [] }: AiGene
   const [candidates, setCandidates] = useState<EditableCandidate[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+
+  // Include-in-RAG toggle (persisted on each click). Optimistic update —
+  // flip parent state immediately, revert on failure.
+  const [savingRag, setSavingRag] = useState(false);
+  const [ragError, setRagError] = useState('');
+
+  async function handleToggleIncludeInRag(next: boolean) {
+    onIncludeInRagChange(next);
+    setSavingRag(true);
+    setRagError('');
+    try {
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeInRag: next }),
+      });
+      if (!res.ok) {
+        onIncludeInRagChange(!next);
+        setRagError('Could not save AI Q&A preference. Please try again.');
+      }
+    } catch {
+      onIncludeInRagChange(!next);
+      setRagError('Could not save AI Q&A preference. Please try again.');
+    } finally {
+      setSavingRag(false);
+    }
+  }
 
   function reset() {
     setStep('prompt');
@@ -244,6 +282,25 @@ export function AiGenerateDialog({ deckId, onSaved, existingCards = [] }: AiGene
             {genError && <p className="text-sm text-destructive">{genError}</p>}
 
             <DialogFooter showCloseButton>
+              {/* Include-in-RAG toggle — left-floated, secondary control. */}
+              <div className="flex items-center gap-2 sm:mr-auto">
+                <Checkbox
+                  id="deck-include-in-rag"
+                  checked={includeInRag}
+                  onCheckedChange={(v) => handleToggleIncludeInRag(v === true)}
+                  disabled={savingRag}
+                />
+                <Label
+                  htmlFor="deck-include-in-rag"
+                  className="text-sm cursor-pointer select-none"
+                  title={ragError || undefined}
+                >
+                  Include in AI Q&A
+                </Label>
+                {ragError && (
+                  <span className="text-xs text-destructive">{ragError}</span>
+                )}
+              </div>
               <Button type="submit" disabled={generating} className="gap-2">
                 {generating ? (
                   <>

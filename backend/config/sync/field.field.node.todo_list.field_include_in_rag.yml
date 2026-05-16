@@ -1,0 +1,23 @@
+uuid: 2c3d4e5f-6a7b-4c8d-9e0f-3a4b5c6d7e8f
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_include_in_rag
+    - node.type.todo_list
+id: node.todo_list.field_include_in_rag
+field_name: field_include_in_rag
+entity_type: node
+bundle: todo_list
+label: 'Include in AI Q&A'
+description: 'When on, this todo list is used as context when the AI answers questions on the Ask AI page.'
+required: false
+translatable: false
+default_value:
+  -
+    value: 0
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

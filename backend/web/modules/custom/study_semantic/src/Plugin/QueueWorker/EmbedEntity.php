@@ -187,12 +187,19 @@ class EmbedEntity extends QueueWorkerBase implements ContainerFactoryPluginInter
     $uuid = (string) $entity->uuid();
     $bundle = $entity->bundle();
 
+    // Resolve the include-in-RAG flag. For flashcards (which dont carry
+    // the field themselves) the flag is inherited from the parent deck —
+    // the RAG endpoint will filter on the parent deck via Qdrant payload,
+    // but mirroring it on the card too keeps payload-only filtering simple.
+    $includeInRag = $this->resolveIncludeInRag($entity);
+
     try {
       $this->qdrant->upsert($uuid, $vector, [
         'entity_type' => $entityType,
         'entity_uuid' => $uuid,
         'bundle' => $bundle,
         'owner_uid' => $ownerUid,
+        'include_in_rag' => $includeInRag,
       ]);
     }
     catch (EmbeddingException $e) {
@@ -223,6 +230,37 @@ class EmbedEntity extends QueueWorkerBase implements ContainerFactoryPluginInter
         'embedded_at' => \Drupal::time()->getRequestTime(),
       ])
       ->execute();
+  }
+
+  /**
+   * Reads the include-in-RAG flag for the given node.
+   *
+   * For `flashcard` (which doesnt carry `field_include_in_rag` directly),
+   * the flag is read off the parent deck via `field_deck`. If the parent
+   * isnt available for any reason, default to FALSE — better to omit from
+   * Q&A than to leak content the user expected to be excluded.
+   */
+  private function resolveIncludeInRag(NodeInterface $node): bool {
+    if ($node->bundle() === 'flashcard') {
+      if (!$node->hasField('field_deck') || $node->get('field_deck')->isEmpty()) {
+        return FALSE;
+      }
+      /** @var \Drupal\node\NodeInterface|null $deck */
+      $deck = $node->get('field_deck')->entity;
+      if (!$deck instanceof NodeInterface || !$deck->hasField('field_include_in_rag')) {
+        return FALSE;
+      }
+      return (bool) $deck->get('field_include_in_rag')->value;
+    }
+
+    if (!$node->hasField('field_include_in_rag')) {
+      // Bundle hasnt been migrated yet; bias-safe default depends on bundle.
+      return $node->bundle() === 'study_note';
+    }
+    if ($node->get('field_include_in_rag')->isEmpty()) {
+      return $node->bundle() === 'study_note';
+    }
+    return (bool) $node->get('field_include_in_rag')->value;
   }
 
 }

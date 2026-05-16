@@ -87,6 +87,7 @@ export async function PATCH(
       : null;
   }
   if (body.isShared !== undefined) attributes.field_is_shared = !!body.isShared;
+  if (body.includeInRag !== undefined) attributes.field_include_in_rag = !!body.includeInRag;
 
   const relationships: Record<string, unknown> = {};
   if ('areaUuids' in body) {

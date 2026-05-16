@@ -1,0 +1,18 @@
+uuid: 7d4e8c12-5a23-4b67-89f0-2c1d3e4f5a6b
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node.field_include_in_rag
+field_name: field_include_in_rag
+entity_type: node
+type: boolean
+settings: {  }
+module: core
+locked: false
+cardinality: 1
+translatable: false
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

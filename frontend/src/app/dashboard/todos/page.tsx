@@ -44,6 +44,7 @@ import { cn } from '@/lib/utils';
 import { ShareButton } from '@/components/share/share-button';
 import { LinkDialog } from '@/components/link-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
+import { TodoAiDialog } from '@/components/todo-ai-dialog';
 import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
@@ -1286,6 +1287,25 @@ function TodosPageContent() {
                                       ...l.attributes,
                                       field_is_shared: isShared,
                                       field_share_token: shareToken,
+                                    },
+                                  }
+                                : l,
+                            ),
+                          )
+                        }
+                      />
+                      <TodoAiDialog
+                        todoId={selectedList.id}
+                        includeInRag={Boolean(selectedList.attributes.field_include_in_rag)}
+                        onIncludeInRagChange={(next) =>
+                          setLists((prev) =>
+                            prev.map((l) =>
+                              l.id === selectedList.id
+                                ? {
+                                    ...l,
+                                    attributes: {
+                                      ...l.attributes,
+                                      field_include_in_rag: next,
                                     },
                                   }
                                 : l,

@@ -69,6 +69,25 @@ class QdrantClient {
       'field_name' => 'bundle',
       'field_schema' => 'keyword',
     ]);
+    // `include_in_rag` is filtered on every RAG query; bool index keeps it cheap.
+    $this->request('PUT', '/collections/' . self::COLLECTION . '/index', [
+      'field_name' => 'include_in_rag',
+      'field_schema' => 'bool',
+    ]);
+  }
+
+  /**
+   * Creates the include_in_rag payload index on a collection that already
+   * exists. Safe to call repeatedly: Qdrant returns 200 if the index is
+   * already present. Used by `study_semantic_update_10002` to backfill the
+   * index for environments that ran `ensureCollection()` before the index
+   * was added.
+   */
+  public function ensureIncludeInRagIndex(): void {
+    $this->request('PUT', '/collections/' . self::COLLECTION . '/index', [
+      'field_name' => 'include_in_rag',
+      'field_schema' => 'bool',
+    ]);
   }
 
   /**

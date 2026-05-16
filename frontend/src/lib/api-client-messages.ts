@@ -49,6 +49,18 @@ export function messageWhenSearchRequestThrows(): string {
     : SEARCH_CONNECTION_FAILED_MESSAGE;
 }
 
+/**
+ * Inline warning when the semantic half of a hybrid search fails but the
+ * keyword half succeeded (or vice versa). The dialog still renders the
+ * results it did get, and surfaces this near the divider so the user knows
+ * AI matches arent in play right now.
+ */
+export const SEMANTIC_SEARCH_DEGRADED_MESSAGE =
+  "AI search is temporarily unavailable. Showing keyword matches only.";
+
+export const KEYWORD_SEARCH_DEGRADED_MESSAGE =
+  "Keyword search is temporarily unavailable. Showing AI matches only.";
+
 /** Shown when the user tries a network-dependent action while offline (mutations, AI, etc.). */
 export const OFFLINE_ACTION_MESSAGE =
   "You're offline. Connect to the internet to continue.";

@@ -45,6 +45,7 @@ import { ShareButton } from '@/components/share/share-button';
 import { LinkDialog } from '@/components/link-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
 import { TodoAiDialog } from '@/components/todo-ai-dialog';
+import { RelatedItems } from '@/components/related-items';
 import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
@@ -1520,6 +1521,10 @@ function TodosPageContent() {
                   <p className="text-sm text-destructive">{addItemError}</p>
                 )}
               </form>
+
+              <div className="mt-8">
+                <RelatedItems entityType="todo" entityUuid={selectedList.id} />
+              </div>
             </div>
             </ScrollArea>
           ) : (

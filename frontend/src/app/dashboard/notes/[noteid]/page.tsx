@@ -19,6 +19,7 @@ import {
 import { LinkDialog } from '@/components/link-dialog';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
+import { RelatedItems } from '@/components/related-items';
 import {
   MediaInsertDialog,
   type InsertableAsset,
@@ -757,6 +758,9 @@ export default function EditNotePage({
                       </div>
                     </div>
                   )}
+                  <div className="px-6 pb-6">
+                    <RelatedItems entityType="note" entityUuid={noteid} />
+                  </div>
                 </>
               );
             })()}

@@ -23,3 +23,18 @@ study_semantic.ask:
       - oauth2
       - cookie
   methods: [POST]
+
+study_semantic.related:
+  path: '/api/search/related/{type}/{uuid}'
+  defaults:
+    _controller: '\Drupal\study_semantic\Controller\RelatedController::related'
+    _title: 'Related Items'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    type: 'note|deck|todo'
+    uuid: '[0-9a-f-]{36}'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]

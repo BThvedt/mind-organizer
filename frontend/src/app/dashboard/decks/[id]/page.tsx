@@ -24,6 +24,7 @@ import {
 import { AiGenerateDialog } from '@/components/ai-generate-dialog';
 import { LinkDialog } from '@/components/link-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
+import { RelatedItems } from '@/components/related-items';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
 import {
@@ -693,6 +694,12 @@ export default function DeckDetailPage({
                     }}
                   />
                 ))}
+          </div>
+        )}
+
+        {!loading && (
+          <div className="mt-8">
+            <RelatedItems entityType="deck" entityUuid={id} />
           </div>
         )}
 

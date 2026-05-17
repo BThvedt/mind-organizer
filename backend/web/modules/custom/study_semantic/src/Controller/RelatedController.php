@@ -6,7 +6,6 @@ namespace Drupal\study_semantic\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\node\NodeInterface;
 use Drupal\study_semantic\Service\EmbeddingException;
 use Drupal\study_semantic\Service\SemanticHit;
@@ -50,13 +49,11 @@ class RelatedController extends ControllerBase implements ContainerInjectionInte
   private const DEFAULT_LIMIT = 6;
 
   public function __construct(
-    private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly SemanticSearchService $semantic,
   ) {}
 
   public static function create(ContainerInterface $container): self {
     return new self(
-      $container->get('entity_type.manager'),
       $container->get('study_semantic.search'),
     );
   }
@@ -70,7 +67,12 @@ class RelatedController extends ControllerBase implements ContainerInjectionInte
     // Locate the seed entity by UUID. We deliberately load through the
     // node storage so Drupal access hooks fire — only the owner (or admin)
     // can see related items for their own content.
-    $storage = $this->entityTypeManager->getStorage('node');
+    //
+    // NB: `$this->entityTypeManager()` is the lazy accessor on
+    // ControllerBase; using it (instead of injecting the service) avoids
+    // a readonly-vs-non-readonly inheritance clash with the parent classs
+    // own `$entityTypeManager` property.
+    $storage = $this->entityTypeManager()->getStorage('node');
     $candidates = $storage->loadByProperties(['uuid' => $uuid]);
     $seed = reset($candidates);
     if (!$seed instanceof NodeInterface || $seed->bundle() !== $bundle) {

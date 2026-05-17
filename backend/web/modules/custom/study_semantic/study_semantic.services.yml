@@ -19,3 +19,8 @@ services:
       - '@entity_type.manager'
       - '@database'
       - '@logger.factory'
+
+  study_semantic.anthropic_stream_client:
+    class: Drupal\study_semantic\Service\AnthropicStreamClient
+    arguments:
+      - '@logger.factory'

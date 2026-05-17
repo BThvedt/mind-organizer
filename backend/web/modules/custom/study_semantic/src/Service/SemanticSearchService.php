@@ -68,6 +68,10 @@ class SemanticSearchService {
    *   `card_uuid`.
    * @param int $limit
    * @param float $scoreThreshold
+   * @param bool $requireIncludeInRag
+   *   When TRUE, drop any hit whose owning entity has `field_include_in_rag`
+   *   set to FALSE. Flashcards inherit the flag from their parent deck.
+   *   Used by the RAG controller to honour the per-entity opt-in.
    *
    * @return array<int, SemanticHit>
    */
@@ -77,12 +81,16 @@ class SemanticSearchService {
     ?array $bundles = NULL,
     int $limit = 20,
     float $scoreThreshold = self::DEFAULT_SCORE_THRESHOLD,
+    bool $requireIncludeInRag = FALSE,
   ): array {
-    // Over-fetch a bit so that the access filter + flashcard collapse can
-    // still produce `$limit` results when some hits are dropped.
-    $overFetch = max($limit * 3, $limit + 10);
+    // Over-fetch so the access filter + flashcard collapse can still
+    // produce `$limit` results when some hits are dropped. The RAG path
+    // additionally filters by include-in-RAG, so it needs a bigger pool.
+    $overFetch = $requireIncludeInRag
+      ? max($limit * 5, $limit + 20)
+      : max($limit * 3, $limit + 10);
     $hits = $this->qdrant->search($queryVector, $ownerUid, $bundles, $overFetch, $scoreThreshold);
-    return $this->resolveHits($hits, $limit);
+    return $this->resolveHits($hits, $limit, $requireIncludeInRag);
   }
 
   /**
@@ -98,6 +106,7 @@ class SemanticSearchService {
     ?array $bundles = NULL,
     int $limit = 10,
     float $scoreThreshold = self::DEFAULT_SCORE_THRESHOLD,
+    bool $requireIncludeInRag = FALSE,
   ): array {
     $row = $this->database->select('content_embeddings', 'ce')
       ->fields('ce', ['entity_uuid'])
@@ -111,7 +120,9 @@ class SemanticSearchService {
       return [];
     }
 
-    $overFetch = max($limit * 3, $limit + 10);
+    $overFetch = $requireIncludeInRag
+      ? max($limit * 5, $limit + 20)
+      : max($limit * 3, $limit + 10);
     $hits = $this->qdrant->recommend(
       [(string) $row['entity_uuid']],
       $ownerUid,
@@ -124,17 +135,24 @@ class SemanticSearchService {
     $seedUuid = (string) $row['entity_uuid'];
     $hits = array_values(array_filter($hits, static fn (array $h): bool => $h['id'] !== $seedUuid));
 
-    return $this->resolveHits($hits, $limit);
+    return $this->resolveHits($hits, $limit, $requireIncludeInRag);
   }
 
   /**
    * Hydrates a list of raw Qdrant hits into entity-backed SemanticHit objects,
    * applying entity access checks and the flashcard-to-deck collapse.
    *
+   * When `$requireIncludeInRag` is TRUE, we additionally drop any hit whose
+   * (post-collapse) display entity has `field_include_in_rag = FALSE`. We
+   * read the live Drupal field instead of trusting the Qdrant payload so
+   * the answer reflects the user toggling the flag instantly, with no
+   * embedding-queue-lag window. The payload field still exists on new
+   * upserts for future analytics / a potential Option A optimization.
+   *
    * @param array<int, array{id: string, score: float, payload: array<string, mixed>}> $rawHits
    * @return array<int, SemanticHit>
    */
-  private function resolveHits(array $rawHits, int $limit): array {
+  private function resolveHits(array $rawHits, int $limit, bool $requireIncludeInRag = FALSE): array {
     if ($rawHits === []) {
       return [];
     }
@@ -208,6 +226,13 @@ class SemanticSearchService {
       }
       $seenKey[$key] = TRUE;
 
+      // Honour the per-entity opt-in for RAG. `$entity` is the post-collapse
+      // display entity (parent deck for flashcard hits), so this single
+      // check correctly gates cards via their decks flag.
+      if ($requireIncludeInRag && !$this->isIncludedInRag($entity)) {
+        continue;
+      }
+
       $results[] = new SemanticHit(
         entity: $entity,
         score: (float) $hit['score'],
@@ -220,6 +245,26 @@ class SemanticSearchService {
     }
 
     return $results;
+  }
+
+  /**
+   * Reads the live `field_include_in_rag` value for a display entity.
+   *
+   * Missing field or empty value → bundle-default: notes default ON,
+   * decks/todos default OFF. This mirrors the per-bundle config defaults
+   * so legacy nodes that slipped through the backfill behave intuitively.
+   */
+  private function isIncludedInRag(EntityInterface $entity): bool {
+    if (!$entity instanceof NodeInterface) {
+      return FALSE;
+    }
+    if (!$entity->hasField('field_include_in_rag')) {
+      return $entity->bundle() === 'study_note';
+    }
+    if ($entity->get('field_include_in_rag')->isEmpty()) {
+      return $entity->bundle() === 'study_note';
+    }
+    return (bool) $entity->get('field_include_in_rag')->value;
   }
 
 }

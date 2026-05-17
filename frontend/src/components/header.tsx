@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff, BookOpen, HelpCircle, Share2, Image } from 'lucide-react';
+import { NotebookPen, Search, Layers, FileText, CheckSquare, User, BarChart2, LogOut, Settings, WifiOff, BookOpen, HelpCircle, Share2, Image, Sparkles } from 'lucide-react';
 import { SearchDialog } from '@/components/search-dialog';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
@@ -110,6 +110,18 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                 >
                   <Layers className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Decks</span>
+                </Link>
+                <Link
+                  href="/dashboard/ask"
+                  className={cn(
+                    'flex items-center gap-1.5 h-8 rounded-lg px-3 text-sm font-medium transition-colors',
+                    pathname.startsWith('/dashboard/ask')
+                      ? 'text-foreground bg-muted'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Ask AI</span>
                 </Link>
                 <button
                   onClick={() => isOnline && setSearchOpen(true)}

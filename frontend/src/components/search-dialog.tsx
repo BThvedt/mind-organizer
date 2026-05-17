@@ -468,6 +468,26 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
 
         {/* Results list */}
         <div className="flex-1 overflow-y-auto">
+          {/*
+            "Ask AI instead" CTA — shown whenever the user has typed something
+            that looks like a question (or is comfortably long) and the AI
+            toggle is on. The CTA stays visible above any results so users
+            can hand the same query off to the RAG page without re-typing.
+          */}
+          {aiEnabled && query.trim().length >= 2 && isLongOrQuestionLike(query) && (
+            <Link
+              href={`/dashboard/ask?q=${encodeURIComponent(query.trim())}`}
+              onClick={onClose}
+              className="flex items-center gap-2 px-4 py-2 border-b border-border bg-primary/5 text-xs text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">
+                Ask the AI instead — get a synthesized answer with citations
+              </span>
+              <span className="text-muted-foreground">↵</span>
+            </Link>
+          )}
+
           {!searched && !loading && (
             <p className="py-12 text-center text-sm text-muted-foreground">
               Type at least 2 characters to search.

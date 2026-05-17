@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -145,6 +145,7 @@ function citationIcon(type: string) {
 
 export default function AskAiPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
   const { isOnline } = useOnlineStatus();
@@ -158,14 +159,21 @@ export default function AskAiPage() {
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // Track which incoming `?q=` value weve already auto-submitted so a
+  // re-render (StrictMode double-effect, hot reload, etc.) doesnt re-fire
+  // the same question. Cleared whenever the URL `q` changes.
+  const autoSubmittedRef = useRef<string | null>(null);
+
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     markSignedOut();
     router.replace('/');
   }
 
-  const submit = useCallback(async () => {
-    const q = question.trim();
+  const submit = useCallback(async (override?: string) => {
+    // `override` lets callers (e.g. the `?q=` auto-submit effect) submit a
+    // value that hasnt yet been flushed into `question` state.
+    const q = (override ?? question).trim();
     if (q.length < 2) return;
     if (!isOnline) {
       setStatus({ kind: 'error', message: OFFLINE_ACTION_MESSAGE });
@@ -262,6 +270,20 @@ export default function AskAiPage() {
       void submit();
     }
   }
+
+  // Handoff from the global search dialog: when a `?q=` is present on
+  // mount (or changes), pre-fill the composer and auto-submit. Authentication
+  // must be resolved first so the API call doesnt fire while
+  // `useAuth()` is still in its initial null/false state.
+  useEffect(() => {
+    if (!authenticated) return;
+    const q = (searchParams.get('q') ?? '').trim();
+    if (q.length < 2) return;
+    if (autoSubmittedRef.current === q) return;
+    autoSubmittedRef.current = q;
+    setQuestion(q);
+    void submit(q);
+  }, [authenticated, searchParams, submit]);
 
   if (!authenticated) return null;
 

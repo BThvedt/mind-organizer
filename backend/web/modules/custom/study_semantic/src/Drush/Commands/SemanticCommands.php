@@ -106,6 +106,10 @@ final class SemanticCommands extends DrushCommands {
 
   /**
    * Prints quick stats about the embedding pipeline.
+   *
+   * Includes a per-bundle RAG-eligible count so we can answer "the Ask AI
+   * page says I have nothing, but I have notes — whats wrong?" with a
+   * single command.
    */
   #[CLI\Command(name: 'study:semantic-status', aliases: ['sss'])]
   public function status(): void {
@@ -130,6 +134,30 @@ final class SemanticCommands extends DrushCommands {
     foreach ($byBundle as $bundle => $n) {
       $this->output()->writeln(sprintf('  %-16s %d', $bundle, $n));
     }
+
+    $ragCounts = $this->countsByRagEligibility();
+    $this->output()->writeln('');
+    $this->output()->writeln('RAG-eligible (field_include_in_rag = 1):');
+    foreach (self::RAG_BUNDLES as $bundle) {
+      $total = $ragCounts[$bundle]['total'] ?? 0;
+      $included = $ragCounts[$bundle]['included'] ?? 0;
+      $this->output()->writeln(sprintf(
+        '  %-16s %d / %d',
+        $bundle,
+        $included,
+        $total,
+      ));
+    }
+    // Flashcards inherit from their parent deck — list them separately so
+    // the bundle column isnt misleading.
+    $flashcards = $ragCounts['flashcard'] ?? ['total' => 0, 'included' => 0];
+    $this->output()->writeln(sprintf(
+      '  %-16s %d / %d  (inherit parent deck)',
+      'flashcard',
+      $flashcards['included'],
+      $flashcards['total'],
+    ));
+
     $this->output()->writeln('');
     $this->output()->writeln('Embeddings by model_version:');
     foreach ($byVersion as $version => $n) {
@@ -139,6 +167,65 @@ final class SemanticCommands extends DrushCommands {
     $queueDepth = \Drupal::queue('study_semantic_embed')->numberOfItems();
     $this->output()->writeln('');
     $this->output()->writeln(sprintf('Pending queue items: %d', $queueDepth));
+  }
+
+  /**
+   * Bundles that carry `field_include_in_rag` directly. Flashcards are
+   * intentionally excluded — they read the flag from their parent deck.
+   */
+  private const RAG_BUNDLES = ['study_note', 'flashcard_deck', 'todo_list'];
+
+  /**
+   * Returns `[bundle => ['total' => N, 'included' => M]]` rows for the
+   * RAG-eligible breakdown. Flashcards are counted by walking parent decks.
+   *
+   * @return array<string, array{total: int, included: int}>
+   */
+  private function countsByRagEligibility(): array {
+    $out = [];
+    $storage = $this->entityTypeManager->getStorage('node');
+
+    foreach (self::RAG_BUNDLES as $bundle) {
+      $totalQuery = $storage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('type', $bundle);
+      $total = (int) $totalQuery->count()->execute();
+
+      $includedQuery = $storage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('type', $bundle)
+        ->condition('field_include_in_rag', 1);
+      $included = (int) $includedQuery->count()->execute();
+
+      $out[$bundle] = ['total' => $total, 'included' => $included];
+    }
+
+    // Flashcards: count cards whose parent deck has field_include_in_rag = 1.
+    $totalCards = (int) $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', 'flashcard')
+      ->count()
+      ->execute();
+
+    // Cards inheriting a TRUE flag = cards with a deck reference where the
+    // referenced deck has field_include_in_rag = 1. Joins the card-side
+    // field_deck table to the deck-side field_include_in_rag table on the
+    // deck nid; we count rows directly to avoid a second pass.
+    $q = $this->database->select('node__field_deck', 'fd');
+    $q->innerJoin(
+      'node__field_include_in_rag',
+      'rag',
+      'rag.entity_id = fd.field_deck_target_id AND rag.bundle = :rag_bundle',
+      [':rag_bundle' => 'flashcard_deck'],
+    );
+    $q->condition('fd.bundle', 'flashcard');
+    $q->condition('rag.field_include_in_rag_value', 1);
+    $q->addExpression('COUNT(*)');
+    $includedCards = (int) $q->execute()->fetchField();
+
+    $out['flashcard'] = ['total' => $totalCards, 'included' => $includedCards];
+
+    return $out;
   }
 
   /**

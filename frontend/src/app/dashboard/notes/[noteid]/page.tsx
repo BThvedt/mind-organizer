@@ -17,6 +17,7 @@ import {
   AreaSubjectChipList,
 } from '@/components/area-subject-multi-selector';
 import { LinkDialog } from '@/components/link-dialog';
+import { MarkdownToolbar } from '@/components/markdown-toolbar';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
 import { RelatedItems } from '@/components/related-items';
@@ -149,7 +150,11 @@ export default function EditNotePage({
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const { ref: editorRef, onKeyDown: editorKeyDown } = useMarkdownEditor(body, setBody);
+  const {
+    ref: editorRef,
+    onKeyDown: editorKeyDown,
+    actions: editorActions,
+  } = useMarkdownEditor(body, setBody);
   const [areaUuids, setAreaUuids] = useState<string[]>([]);
   const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
@@ -670,6 +675,11 @@ export default function EditNotePage({
               isDragging && 'bg-primary/5 ring-2 ring-inset ring-primary/40'
             )}
           >
+            <MarkdownToolbar
+              actions={editorActions}
+              onOpenInsert={() => setInsertOpen(true)}
+              disabled={loading}
+            />
             <Textarea
               ref={editorRef}
               value={body}

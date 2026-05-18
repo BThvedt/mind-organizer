@@ -18,6 +18,7 @@ import {
   AreaSubjectChipList,
 } from '@/components/area-subject-multi-selector';
 import { LinkDialog } from '@/components/link-dialog';
+import { MarkdownToolbar } from '@/components/markdown-toolbar';
 import { ArrowLeft, Save, Eye, Pencil, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { userFacingMessageForApiError } from '@/lib/api-client-messages';
@@ -31,7 +32,11 @@ export default function NewNotePage() {
   // Form state
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const { ref: editorRef, onKeyDown: editorKeyDown } = useMarkdownEditor(body, setBody);
+  const {
+    ref: editorRef,
+    onKeyDown: editorKeyDown,
+    actions: editorActions,
+  } = useMarkdownEditor(body, setBody);
   const [areaUuids, setAreaUuids] = useState<string[]>([]);
   const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
@@ -273,6 +278,10 @@ export default function NewNotePage() {
               isDragging && 'bg-primary/5 ring-2 ring-inset ring-primary/40'
             )}
           >
+            {/* `onOpenInsert` is intentionally omitted — MediaInsertDialog isn't
+                mounted on the new-note page yet, so the Insert button renders
+                disabled with a hint to save the note first. */}
+            <MarkdownToolbar actions={editorActions} />
             <Textarea
               ref={editorRef}
               value={body}

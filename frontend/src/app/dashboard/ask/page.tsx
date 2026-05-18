@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
@@ -152,7 +152,20 @@ function citationIcon(type: string) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+// `useSearchParams()` reads from the request URL, so any component that
+// calls it bails out of static prerender unless it's wrapped in a
+// <Suspense> boundary. Vercel's `next build` enforces this — without
+// the boundary the build fails with the "missing-suspense-with-csr-bailout"
+// error. Matches the pattern used by /dashboard/notes and /dashboard/todos.
 export default function AskAiPage() {
+  return (
+    <Suspense>
+      <AskAiPageInner />
+    </Suspense>
+  );
+}
+
+function AskAiPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authenticated = useAuth();

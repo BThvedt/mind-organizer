@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, X, RotateCcw, ChevronLeft, ChevronRight, Shuffle, BookMarked } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AreaSubjectSelector } from '@/components/area-subject-selector';
+import {
+  AreaSubjectSelector,
+  type SelectorOptions,
+  type SubjectTerm,
+  type TaxonomyTerm,
+} from '@/components/area-subject-selector';
 import {
   loadSRSPool,
   saveSRSPool,
@@ -48,6 +53,7 @@ interface SetupScreenProps {
   nextDue: string | null;
   filterAreaId: string;
   filterSubjectId: string;
+  filterOptions: SelectorOptions;
   onAreaChange: (id: string) => void;
   onSubjectChange: (id: string) => void;
   onStart: () => void;
@@ -58,6 +64,7 @@ function SetupScreen({
   nextDue,
   filterAreaId,
   filterSubjectId,
+  filterOptions,
   onAreaChange,
   onSubjectChange,
   onStart,
@@ -71,19 +78,24 @@ function SetupScreen({
         </p>
       </div>
 
-      {/* Filter */}
-      <div className="w-full max-w-sm">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Filter by area / subject
-        </p>
-        <AreaSubjectSelector
-          areaUuid={filterAreaId}
-          subjectUuid={filterSubjectId}
-          onAreaChange={onAreaChange}
-          onSubjectChange={onSubjectChange}
-          layout="col"
-        />
-      </div>
+      {/* Filter — options derived from the cards in the pool so the
+          dropdown only shows areas/subjects the user can actually
+          study right now. */}
+      {(filterOptions.areas.length > 0 || filterOptions.subjects.length > 0) && (
+        <div className="w-full max-w-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+            Filter by area / subject
+          </p>
+          <AreaSubjectSelector
+            areaUuid={filterAreaId}
+            subjectUuid={filterSubjectId}
+            onAreaChange={onAreaChange}
+            onSubjectChange={onSubjectChange}
+            layout="col"
+            options={filterOptions}
+          />
+        </div>
+      )}
 
       {/* Queue summary */}
       {queueSize > 0 ? (
@@ -126,6 +138,11 @@ export default function StudyNowPage() {
 
   // Raw card data from API
   const [allCards, setAllCards] = useState<StudyCard[]>([]);
+  // Term resources side-loaded with /api/cards. Stored unfiltered;
+  // the filter dropdown intersects them with the IDs actually present
+  // on the loaded cards via `filterOptions` below.
+  const [allAreaTerms, setAllAreaTerms] = useState<TaxonomyTerm[]>([]);
+  const [allSubjectTerms, setAllSubjectTerms] = useState<SubjectTerm[]>([]);
   const [loading, setLoading] = useState(true);
 
   // SRS pool (kept in sync with localStorage)
@@ -160,8 +177,25 @@ export default function StudyNowPage() {
         const included = json.included ?? [];
 
         const deckMap = new Map<string, JsonApiResource>();
+        const areaTerms: TaxonomyTerm[] = [];
+        const subjectTerms: SubjectTerm[] = [];
         for (const inc of included) {
-          if (inc.type === 'node--flashcard_deck') deckMap.set(inc.id, inc);
+          if (inc.type === 'node--flashcard_deck') {
+            deckMap.set(inc.id, inc);
+          } else if (inc.type === 'taxonomy_term--area') {
+            areaTerms.push({
+              id: inc.id,
+              attributes: { name: (inc.attributes.name as string) ?? '' },
+            });
+          } else if (inc.type === 'taxonomy_term--subject') {
+            const parentRel = inc.relationships?.field_area
+              ?.data as JsonApiRelData | null;
+            subjectTerms.push({
+              id: inc.id,
+              attributes: { name: (inc.attributes.name as string) ?? '' },
+              parentAreaId: parentRel?.id,
+            });
+          }
         }
 
         const cards: StudyCard[] = (json.data ?? []).map((c) => {
@@ -179,15 +213,53 @@ export default function StudyNowPage() {
           };
         });
 
+        const byName = (a: TaxonomyTerm, b: TaxonomyTerm) =>
+          a.attributes.name.localeCompare(b.attributes.name);
+
         const currentPool = loadSRSPool();
         const updatedPool = enrollNewCards(currentPool, cards);
         saveSRSPool(updatedPool);
 
         setAllCards(cards);
+        setAllAreaTerms(areaTerms.sort(byName));
+        setAllSubjectTerms(subjectTerms.sort(byName));
         setPool(updatedPool);
         setLoading(false);
       });
   }, [authenticated]);
+
+  // ── Derive filter options from the pool ──────────────────────────────────
+  // Only show areas/subjects represented in the cards we actually have.
+  // Retired cards still count — the user may want to look at a now-empty
+  // area to confirm there's nothing due.
+  const filterOptions = useMemo<SelectorOptions>(() => {
+    const areaIds = new Set<string>();
+    const subjectIds = new Set<string>();
+    for (const c of allCards) {
+      for (const id of c.deckAreaIds) areaIds.add(id);
+      for (const id of c.deckSubjectIds) subjectIds.add(id);
+    }
+    return {
+      areas: allAreaTerms.filter((t) => areaIds.has(t.id)),
+      subjects: allSubjectTerms.filter((t) => subjectIds.has(t.id)),
+    };
+  }, [allCards, allAreaTerms, allSubjectTerms]);
+
+  // If a filter ID points at a term that's no longer in the available
+  // set (e.g. all cards in that area were retired or evicted), clear
+  // it so the dropdown doesn't show a stale, unlabeled selection.
+  useEffect(() => {
+    if (loading) return;
+    if (filterAreaId && !filterOptions.areas.some((a) => a.id === filterAreaId)) {
+      setFilterAreaId('');
+      setFilterSubjectId('');
+    } else if (
+      filterSubjectId &&
+      !filterOptions.subjects.some((s) => s.id === filterSubjectId)
+    ) {
+      setFilterSubjectId('');
+    }
+  }, [loading, filterOptions, filterAreaId, filterSubjectId]);
 
   // ── Computed queue (re-runs when filter or pool changes) ──────────────────
 
@@ -417,6 +489,7 @@ export default function StudyNowPage() {
           nextDue={nextDueDate(pool)}
           filterAreaId={filterAreaId}
           filterSubjectId={filterSubjectId}
+          filterOptions={filterOptions}
           onAreaChange={(id) => { setFilterAreaId(id); setFilterSubjectId(''); }}
           onSubjectChange={setFilterSubjectId}
           onStart={handleStart}

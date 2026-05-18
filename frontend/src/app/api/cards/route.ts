@@ -8,6 +8,14 @@ const PAGE_LIMIT = 50;
  * GET /api/cards
  * Returns all flashcards owned by the current user, with full study fields
  * and included deck taxonomy (field_area, field_subject) for SRS filtering.
+ *
+ * Nested includes side-load the actual area + subject term resources
+ * (`taxonomy_term--area`, `taxonomy_term--subject`) so the Study setup
+ * screen can build its filter dropdown from the cards in the pool
+ * without a separate `/api/taxonomy` round-trip. Each subject term also
+ * carries its `field_area` relationship pointer so the dropdown can
+ * scope subjects to the currently selected area.
+ *
  * Paginates Drupal JSON:API automatically and returns a flat array.
  */
 export async function GET() {
@@ -20,8 +28,10 @@ export async function GET() {
     `/jsonapi/node/flashcard` +
     `?filter[uid.id][value]=${userUuid}` +
     `&fields[node--flashcard]=id,created,field_front,field_back,field_deck` +
-    `&include=field_deck` +
+    `&include=field_deck,field_deck.field_area,field_deck.field_subject` +
     `&fields[node--flashcard_deck]=id,field_area,field_subject` +
+    `&fields[taxonomy_term--area]=name` +
+    `&fields[taxonomy_term--subject]=name,field_area` +
     `&page[limit]=${PAGE_LIMIT}`;
 
   const allCards: JsonApiResource[] = [];

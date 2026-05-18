@@ -21,6 +21,26 @@ export interface TaxonomyTerm {
   attributes: { name: string };
 }
 
+/**
+ * Subject term with its parent area UUID — used in bypass mode so the
+ * subject combobox can scope itself to the currently selected area
+ * without an extra fetch.
+ */
+export interface SubjectTerm extends TaxonomyTerm {
+  parentAreaId?: string;
+}
+
+/**
+ * Pre-fetched options passed to {@link AreaSubjectSelector} to bypass
+ * the built-in `/api/taxonomy` calls. When supplied, the selector
+ * renders these options directly and disables the "Create new…"
+ * affordance (the option set is authoritative).
+ */
+export interface SelectorOptions {
+  areas: TaxonomyTerm[];
+  subjects: SubjectTerm[];
+}
+
 // ── Internal combobox ────────────────────────────────────────────────────────
 
 export interface TaxonomyComboboxProps {
@@ -196,6 +216,12 @@ interface AreaSubjectSelectorProps {
   layout?: 'row' | 'col';
   hideLabels?: boolean;
   compact?: boolean;
+  /**
+   * When provided, the selector uses these options instead of fetching
+   * from `/api/taxonomy`, and disables the "Create new…" affordance.
+   * Subjects are scoped to the current area via `parentAreaId`.
+   */
+  options?: SelectorOptions;
 }
 
 export function AreaSubjectSelector({
@@ -206,31 +232,45 @@ export function AreaSubjectSelector({
   layout = 'row',
   hideLabels = false,
   compact = false,
+  options,
 }: AreaSubjectSelectorProps) {
-  const [areas, setAreas] = useState<TaxonomyTerm[]>([]);
-  const [subjects, setSubjects] = useState<TaxonomyTerm[]>([]);
-  const [loadingAreas, setLoadingAreas] = useState(true);
+  const bypassFetch = options !== undefined;
+
+  const [fetchedAreas, setFetchedAreas] = useState<TaxonomyTerm[]>([]);
+  const [fetchedSubjects, setFetchedSubjects] = useState<TaxonomyTerm[]>([]);
+  const [loadingAreas, setLoadingAreas] = useState(!bypassFetch);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [taxonomyError, setTaxonomyError] = useState('');
 
   useEffect(() => {
+    if (bypassFetch) return;
     fetch('/api/taxonomy?type=areas')
       .then((r) => r.json())
-      .then((d) => setAreas(d.data ?? []))
+      .then((d) => setFetchedAreas(d.data ?? []))
       .finally(() => setLoadingAreas(false));
-  }, []);
+  }, [bypassFetch]);
 
   useEffect(() => {
+    if (bypassFetch) return;
     if (!areaUuid) {
-      setSubjects([]);
+      setFetchedSubjects([]);
       return;
     }
     setLoadingSubjects(true);
     fetch(`/api/taxonomy?type=subjects&area=${areaUuid}`)
       .then((r) => r.json())
-      .then((d) => setSubjects(d.data ?? []))
+      .then((d) => setFetchedSubjects(d.data ?? []))
       .finally(() => setLoadingSubjects(false));
-  }, [areaUuid]);
+  }, [areaUuid, bypassFetch]);
+
+  // Resolved option lists. In bypass mode subjects are scoped to the
+  // currently selected area locally instead of via a per-area fetch.
+  const areas = bypassFetch ? options.areas : fetchedAreas;
+  const subjects = bypassFetch
+    ? areaUuid
+      ? options.subjects.filter((s) => s.parentAreaId === areaUuid)
+      : []
+    : fetchedSubjects;
 
   async function createArea(name: string): Promise<string | null> {
     const res = await Promise.race([
@@ -250,7 +290,7 @@ export function AreaSubjectSelector({
     }
     if (data.queued) return null;
     const newTerm: TaxonomyTerm = { id: data.data.id, attributes: { name } };
-    setAreas((prev) =>
+    setFetchedAreas((prev) =>
       [...prev, newTerm].sort((a, b) =>
         a.attributes.name.localeCompare(b.attributes.name)
       )
@@ -277,7 +317,7 @@ export function AreaSubjectSelector({
     }
     if (data.queued) return null;
     const newTerm: TaxonomyTerm = { id: data.data.id, attributes: { name } };
-    setSubjects((prev) =>
+    setFetchedSubjects((prev) =>
       [...prev, newTerm].sort((a, b) =>
         a.attributes.name.localeCompare(b.attributes.name)
       )
@@ -306,7 +346,7 @@ export function AreaSubjectSelector({
           options={areas}
           loading={loadingAreas}
           placeholder="No area"
-          onCreate={createArea}
+          onCreate={bypassFetch ? undefined : createArea}
           compact={compact}
           onError={setTaxonomyError}
         />
@@ -321,7 +361,7 @@ export function AreaSubjectSelector({
           loading={loadingSubjects}
           disabled={!areaUuid}
           placeholder={!areaUuid ? 'Select area' : 'No subject'}
-          onCreate={areaUuid ? createSubject : undefined}
+          onCreate={bypassFetch || !areaUuid ? undefined : createSubject}
           compact={compact}
           onError={setTaxonomyError}
         />

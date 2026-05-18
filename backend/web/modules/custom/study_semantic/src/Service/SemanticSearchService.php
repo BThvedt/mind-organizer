@@ -72,6 +72,12 @@ class SemanticSearchService {
    *   When TRUE, drop any hit whose owning entity has `field_include_in_rag`
    *   set to FALSE. Flashcards inherit the flag from their parent deck.
    *   Used by the RAG controller to honour the per-entity opt-in.
+   * @param array{area?: string, subject?: string, date_from?: int, date_to?: int} $filters
+   *   Optional post-hydration predicates applied to the display entity
+   *   (parent deck for flashcard hits). All keys are optional; missing
+   *   keys mean "no filter on that dimension". UUIDs for taxonomy ids,
+   *   Unix timestamps for the date range (inclusive bounds — see
+   *   `matchesFilters`).
    *
    * @return array<int, SemanticHit>
    */
@@ -82,15 +88,15 @@ class SemanticSearchService {
     int $limit = 20,
     float $scoreThreshold = self::DEFAULT_SCORE_THRESHOLD,
     bool $requireIncludeInRag = FALSE,
+    array $filters = [],
   ): array {
     // Over-fetch so the access filter + flashcard collapse can still
-    // produce `$limit` results when some hits are dropped. The RAG path
-    // additionally filters by include-in-RAG, so it needs a bigger pool.
-    $overFetch = $requireIncludeInRag
-      ? max($limit * 5, $limit + 20)
-      : max($limit * 3, $limit + 10);
+    // produce `$limit` results when some hits are dropped. RAG-only adds
+    // include_in_rag; adding taxonomy/date filters narrows the funnel
+    // further so we widen the pool again.
+    $overFetch = $this->overFetchSize($limit, $requireIncludeInRag, $filters);
     $hits = $this->qdrant->search($queryVector, $ownerUid, $bundles, $overFetch, $scoreThreshold);
-    return $this->resolveHits($hits, $limit, $requireIncludeInRag);
+    return $this->resolveHits($hits, $limit, $requireIncludeInRag, $filters);
   }
 
   /**
@@ -149,10 +155,21 @@ class SemanticSearchService {
    * embedding-queue-lag window. The payload field still exists on new
    * upserts for future analytics / a potential Option A optimization.
    *
+   * `$filters` applies the same Option-B treatment to taxonomy and date
+   * predicates: we read the live Drupal field values rather than denormalising
+   * them into the Qdrant payload, so editing an entitys area/subject takes
+   * effect immediately without waiting for a re-embed.
+   *
    * @param array<int, array{id: string, score: float, payload: array<string, mixed>}> $rawHits
+   * @param array{area?: string, subject?: string, date_from?: int, date_to?: int} $filters
    * @return array<int, SemanticHit>
    */
-  private function resolveHits(array $rawHits, int $limit, bool $requireIncludeInRag = FALSE): array {
+  private function resolveHits(
+    array $rawHits,
+    int $limit,
+    bool $requireIncludeInRag = FALSE,
+    array $filters = [],
+  ): array {
     if ($rawHits === []) {
       return [];
     }
@@ -233,6 +250,13 @@ class SemanticSearchService {
         continue;
       }
 
+      // Caller-supplied area / subject / date predicates. Same rule as
+      // above: the check runs against the display entity, so flashcards
+      // inherit their parent decks taxonomy automatically.
+      if ($filters !== [] && !$this->matchesFilters($entity, $filters)) {
+        continue;
+      }
+
       $results[] = new SemanticHit(
         entity: $entity,
         score: (float) $hit['score'],
@@ -265,6 +289,91 @@ class SemanticSearchService {
       return $entity->bundle() === 'study_note';
     }
     return (bool) $entity->get('field_include_in_rag')->value;
+  }
+
+  /**
+   * Picks an over-fetch size for the Qdrant call based on which
+   * post-hydration filters are going to thin out the result set.
+   *
+   * Baseline (no filters, no RAG gate): `limit * 3` is generous enough to
+   * absorb access drops and the flashcard-to-deck collapse.
+   * RAG-only: `limit * 5` because the include_in_rag opt-in defaults to OFF
+   * on decks/todos.
+   * RAG + caller filters: `limit * 8` because each predicate compounds.
+   *
+   * @param array{area?: string, subject?: string, date_from?: int, date_to?: int} $filters
+   */
+  private function overFetchSize(int $limit, bool $requireIncludeInRag, array $filters): int {
+    $hasFilters = $filters !== [];
+    if ($requireIncludeInRag && $hasFilters) {
+      return max($limit * 8, $limit + 40);
+    }
+    if ($requireIncludeInRag) {
+      return max($limit * 5, $limit + 20);
+    }
+    if ($hasFilters) {
+      return max($limit * 5, $limit + 20);
+    }
+    return max($limit * 3, $limit + 10);
+  }
+
+  /**
+   * Applies the caller-supplied predicates (area / subject / date range)
+   * to a hydrated display entity.
+   *
+   * - `area`: entity must reference the area term whose UUID matches.
+   * - `subject`: entity must reference the subject term whose UUID matches.
+   * - `date_from` / `date_to`: entity->getCreatedTime() must fall within
+   *   the inclusive [from, to] window. Either bound may be omitted.
+   *
+   * Entities that lack a field referenced by a filter (e.g. a future bundle
+   * with no `field_area`) are excluded — opting in by adding a field is
+   * the right surface to enable filtering on it.
+   *
+   * @param array{area?: string, subject?: string, date_from?: int, date_to?: int} $filters
+   */
+  private function matchesFilters(EntityInterface $entity, array $filters): bool {
+    if (!$entity instanceof NodeInterface) {
+      return FALSE;
+    }
+
+    if (!empty($filters['area'])) {
+      if (!$this->referencesTermUuid($entity, 'field_area', (string) $filters['area'])) {
+        return FALSE;
+      }
+    }
+
+    if (!empty($filters['subject'])) {
+      if (!$this->referencesTermUuid($entity, 'field_subject', (string) $filters['subject'])) {
+        return FALSE;
+      }
+    }
+
+    if (isset($filters['date_from']) && $entity->getCreatedTime() < (int) $filters['date_from']) {
+      return FALSE;
+    }
+    if (isset($filters['date_to']) && $entity->getCreatedTime() > (int) $filters['date_to']) {
+      return FALSE;
+    }
+
+    return TRUE;
+  }
+
+  /**
+   * TRUE iff `$entity` references a taxonomy term with the given UUID via
+   * `$fieldName`. Missing / empty field → FALSE so the filter excludes
+   * untagged entities, matching the "I asked for this area" expectation.
+   */
+  private function referencesTermUuid(NodeInterface $entity, string $fieldName, string $uuid): bool {
+    if (!$entity->hasField($fieldName) || $entity->get($fieldName)->isEmpty()) {
+      return FALSE;
+    }
+    foreach ($entity->get($fieldName)->referencedEntities() as $term) {
+      if ($term->uuid() === $uuid) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
 }

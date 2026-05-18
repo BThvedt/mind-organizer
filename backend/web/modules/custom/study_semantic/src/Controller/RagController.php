@@ -23,12 +23,26 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Handles POST /api/ai/ask — retrieval-augmented Q&A streamed via SSE.
  *
  * Request body:
- *   { "question": "<string, >= 2 chars>", "limit": <int 1..16, default 8> }
+ *   {
+ *     "question": "<string, >= 2 chars>",
+ *     "limit":    <int 1..16, default 8>,
+ *     "filters":  {                            // optional, all keys optional
+ *       "area":     "<area term uuid>",
+ *       "subject":  "<subject term uuid>",
+ *       "dateFrom": "YYYY-MM-DD",
+ *       "dateTo":   "YYYY-MM-DD"
+ *     }
+ *   }
  *
  * Response:
  *   - 200 application/json when no RAG-eligible context exists:
  *       { "answer": null, "reason": "no_rag_content" }
  *     The frontend renders an empty state and does not parse a stream.
+ *   - 200 application/json with `reason: "no_match_for_filters"` when the
+ *     user has RAG-eligible content but the supplied filters narrowed it
+ *     to zero. The frontend uses this to render a distinct empty state
+ *     that prompts the user to relax the filters instead of toggling more
+ *     content on.
  *
  *   - 200 text/event-stream otherwise:
  *
@@ -99,6 +113,9 @@ class RagController extends ControllerBase implements ContainerInjectionInterfac
       ? max(1, min(self::MAX_LIMIT, $payload['limit']))
       : self::DEFAULT_LIMIT;
 
+    $filters = $this->normaliseFilters($payload['filters'] ?? NULL);
+    $hasFilters = $filters !== [];
+
     $ownerUid = (int) $this->currentUser()->id();
 
     // 1) Embed the question.
@@ -118,6 +135,7 @@ class RagController extends ControllerBase implements ContainerInjectionInterfac
         bundles: NULL,
         limit: $limit,
         requireIncludeInRag: TRUE,
+        filters: $filters,
       );
     }
     catch (EmbeddingException $e) {
@@ -126,11 +144,12 @@ class RagController extends ControllerBase implements ContainerInjectionInterfac
     }
 
     if ($hits === []) {
-      // No usable context. Hand the frontend a non-streaming sentinel so
-      // it can render an empty state without parsing an SSE stream.
+      // No usable context. The empty state copy depends on whether filters
+      // narrowed everything out vs. the user simply has no RAG-eligible
+      // content yet, so the frontend gets a distinct `reason` for each.
       return new JsonResponse([
         'answer' => NULL,
-        'reason' => 'no_rag_content',
+        'reason' => $hasFilters ? 'no_match_for_filters' : 'no_rag_content',
       ]);
     }
 
@@ -274,6 +293,92 @@ PROMPT;
       $out[] = $row;
     }
     return $out;
+  }
+
+  /**
+   * Validates and normalises the optional `filters` object from the request
+   * payload into the shape that `SemanticSearchService::findSimilar`
+   * expects: `['area' => uuid, 'subject' => uuid, 'date_from' => int,
+   * 'date_to' => int]`. Unknown / blank / malformed keys are silently
+   * dropped so a malformed filter never produces a 400 — it just doesnt
+   * apply.
+   *
+   * Date inputs are parsed as `YYYY-MM-DD` in UTC. `dateTo` is widened to
+   * the end of the day (23:59:59 UTC) so the inclusive bound matches the
+   * users intuition ("answer from todays notes" should match anything
+   * created today, not only the first second).
+   *
+   * @return array{area?: string, subject?: string, date_from?: int, date_to?: int}
+   */
+  private function normaliseFilters(mixed $raw): array {
+    if (!is_array($raw)) {
+      return [];
+    }
+
+    $out = [];
+
+    if (isset($raw['area']) && is_string($raw['area'])) {
+      $area = trim($raw['area']);
+      if ($this->looksLikeUuid($area)) {
+        $out['area'] = $area;
+      }
+    }
+    if (isset($raw['subject']) && is_string($raw['subject'])) {
+      $subject = trim($raw['subject']);
+      if ($this->looksLikeUuid($subject)) {
+        $out['subject'] = $subject;
+      }
+    }
+
+    if (isset($raw['dateFrom']) && is_string($raw['dateFrom']) && $raw['dateFrom'] !== '') {
+      $ts = $this->parseIsoDate($raw['dateFrom'], FALSE);
+      if ($ts !== NULL) {
+        $out['date_from'] = $ts;
+      }
+    }
+    if (isset($raw['dateTo']) && is_string($raw['dateTo']) && $raw['dateTo'] !== '') {
+      $ts = $this->parseIsoDate($raw['dateTo'], TRUE);
+      if ($ts !== NULL) {
+        $out['date_to'] = $ts;
+      }
+    }
+
+    // If both bounds are present and inverted, just drop the filter rather
+    // than silently never matching anything.
+    if (
+      isset($out['date_from'], $out['date_to'])
+      && $out['date_from'] > $out['date_to']
+    ) {
+      unset($out['date_from'], $out['date_to']);
+    }
+
+    return $out;
+  }
+
+  /**
+   * Cheap UUID-shape gate. We only forward strings that look like UUIDs so
+   * a stray "foo" filter cant turn into a stringly-typed query in PHP-land.
+   */
+  private function looksLikeUuid(string $candidate): bool {
+    return (bool) preg_match('/^[0-9a-f-]{36}$/i', $candidate);
+  }
+
+  /**
+   * Parses an ISO `YYYY-MM-DD` string into a UTC Unix timestamp. When
+   * `$endOfDay` is TRUE, the time component is set to 23:59:59 instead of
+   * 00:00:00.
+   */
+  private function parseIsoDate(string $value, bool $endOfDay): ?int {
+    $value = trim($value);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+      return NULL;
+    }
+    $suffix = $endOfDay ? ' 23:59:59' : ' 00:00:00';
+    $dt = \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $value . $suffix, new \DateTimeZone('UTC'));
+    if (!$dt instanceof \DateTimeImmutable) {
+      return NULL;
+    }
+    return $dt->getTimestamp();
   }
 
   /**

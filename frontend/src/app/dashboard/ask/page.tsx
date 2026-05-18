@@ -18,7 +18,10 @@ import {
   CheckSquare,
   WifiOff,
   AlertCircle,
+  Filter,
+  X,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   OFFLINE_ACTION_MESSAGE,
@@ -48,7 +51,13 @@ type Status =
   | { kind: 'streaming' }
   | { kind: 'done' }
   | { kind: 'empty' /* no_rag_content */ }
+  | { kind: 'empty_filtered' /* no_match_for_filters */ }
   | { kind: 'error'; message: string };
+
+interface TaxonomyTerm {
+  id: string;
+  attributes: { name: string };
+}
 
 // ── SSE parsing ──────────────────────────────────────────────────────────────
 
@@ -155,6 +164,18 @@ export default function AskAiPage() {
   const [citations, setCitations] = useState<Citation[]>([]);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
+  // Optional retrieval filters. Empty values mean "no filter on that
+  // dimension" and the request body omits them, so a fresh visit to the
+  // page behaves exactly as before. Filters apply at submit time only —
+  // we deliberately do not auto-resubmit when these change.
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterAreaId, setFilterAreaId] = useState('');
+  const [filterSubjectId, setFilterSubjectId] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [areas, setAreas] = useState<TaxonomyTerm[]>([]);
+  const [subjects, setSubjects] = useState<TaxonomyTerm[]>([]);
+
   // Track the active fetch so we can cancel on unmount / new submission.
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -189,11 +210,26 @@ export default function AskAiPage() {
     setCitations([]);
     setStatus({ kind: 'streaming' });
 
+    // Build the optional `filters` object. We omit keys with empty values
+    // so an unfiltered submission produces the exact same request body the
+    // backend already understands. Subject is intentionally only sent when
+    // an area is set — the cascade UI prevents an orphan subject anyway,
+    // but the extra guard keeps the contract honest.
+    const filters: Record<string, string> = {};
+    if (filterAreaId) filters.area = filterAreaId;
+    if (filterAreaId && filterSubjectId) filters.subject = filterSubjectId;
+    if (filterDateFrom) filters.dateFrom = filterDateFrom;
+    if (filterDateTo) filters.dateTo = filterDateTo;
+
     try {
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, limit: 8 }),
+        body: JSON.stringify({
+          question: q,
+          limit: 8,
+          ...(Object.keys(filters).length > 0 ? { filters } : {}),
+        }),
         signal: controller.signal,
       });
 
@@ -215,6 +251,8 @@ export default function AskAiPage() {
         const data = await res.json().catch(() => ({}));
         if (data?.reason === 'no_rag_content') {
           setStatus({ kind: 'empty' });
+        } else if (data?.reason === 'no_match_for_filters') {
+          setStatus({ kind: 'empty_filtered' });
         } else {
           setStatus({ kind: 'error', message: 'Unexpected response from the server.' });
         }
@@ -261,7 +299,7 @@ export default function AskAiPage() {
       if ((err as Error)?.name === 'AbortError') return;
       setStatus({ kind: 'error', message: messageWhenNetworkRequestThrows() });
     }
-  }, [question, isOnline]);
+  }, [question, isOnline, filterAreaId, filterSubjectId, filterDateFrom, filterDateTo]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     // Cmd/Ctrl-Enter submits.
@@ -284,6 +322,63 @@ export default function AskAiPage() {
     setQuestion(q);
     void submit(q);
   }, [authenticated, searchParams, submit]);
+
+  // Load the users areas once auth resolves. Same endpoint and shape the
+  // search dialog uses, so the term ids returned here are JSON:API UUIDs.
+  useEffect(() => {
+    if (!authenticated) return;
+    let cancelled = false;
+    fetch('/api/taxonomy?type=areas')
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((d) => {
+        if (!cancelled) setAreas(d.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAreas([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated]);
+
+  // Reload the subject list whenever the chosen area changes. Clearing the
+  // area also clears the subject so the user cant submit an orphaned
+  // subject filter that no longer belongs to a selected area.
+  useEffect(() => {
+    if (!filterAreaId) {
+      setSubjects([]);
+      setFilterSubjectId('');
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/taxonomy?type=subjects&area=${encodeURIComponent(filterAreaId)}`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((d) => {
+        if (!cancelled) setSubjects(d.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSubjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterAreaId]);
+
+  // Count of dimensions currently constraining the query. Drives the badge
+  // on the Filters toggle. Subject is only counted when it would actually
+  // be sent (i.e. area is set too).
+  const activeFilterCount =
+    (filterAreaId ? 1 : 0) +
+    (filterSubjectId && filterAreaId ? 1 : 0) +
+    (filterDateFrom ? 1 : 0) +
+    (filterDateTo ? 1 : 0);
+
+  const clearFilters = useCallback(() => {
+    setFilterAreaId('');
+    setFilterSubjectId('');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  }, []);
 
   if (!authenticated) return null;
 
@@ -323,11 +418,136 @@ export default function AskAiPage() {
             disabled={streaming}
             autoFocus
           />
+
+          {/*
+            Filters panel. Off by default; the toggle reveals area / subject /
+            date-range inputs that narrow the retrieval pool when set. The
+            panel is collapsible (rather than always-visible) so the page
+            stays low-noise for users who never need filtering.
+          */}
+          {showFilters && (
+            <div className="mt-3 rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-foreground">
+                  Filters
+                </p>
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-3 w-3" aria-hidden />
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Area */}
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  Area
+                  <select
+                    value={filterAreaId}
+                    onChange={(e) => {
+                      setFilterAreaId(e.target.value);
+                      setFilterSubjectId('');
+                    }}
+                    disabled={areas.length === 0 || streaming}
+                    className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+                  >
+                    <option value="">Any area</option>
+                    {areas.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.attributes.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Subject — only meaningful once an area is picked */}
+                {filterAreaId && subjects.length > 0 && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    Subject
+                    <select
+                      value={filterSubjectId}
+                      onChange={(e) => setFilterSubjectId(e.target.value)}
+                      disabled={streaming}
+                      className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+                    >
+                      <option value="">Any subject</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.attributes.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Date range — both bounds optional and inclusive on the backend */}
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  From
+                  <Input
+                    type="date"
+                    value={filterDateFrom}
+                    max={filterDateTo || undefined}
+                    onChange={(e) => setFilterDateFrom(e.target.value)}
+                    disabled={streaming}
+                    className="h-7 w-36 rounded-md border border-border bg-background px-2 text-xs"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  To
+                  <Input
+                    type="date"
+                    value={filterDateTo}
+                    min={filterDateFrom || undefined}
+                    onChange={(e) => setFilterDateTo(e.target.value)}
+                    disabled={streaming}
+                    className="h-7 w-36 rounded-md border border-border bg-background px-2 text-xs"
+                  />
+                </label>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                Filters apply on the next <span className="font-medium">Ask</span>;
+                changes here do not auto-resubmit. Cards inherit their parent
+                deck&apos;s area and subject.
+              </p>
+            </div>
+          )}
+
           <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              <kbd className="font-mono">⌘</kbd>
-              <kbd className="font-mono">↵</kbd> to send. Answers cite the source notes used.
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-muted-foreground">
+                <kbd className="font-mono">⌘</kbd>
+                <kbd className="font-mono">↵</kbd> to send. Answers cite the source notes used.
+              </p>
+              {/* Filter toggle — mirrors the search dialogs Date range pill */}
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                aria-pressed={showFilters}
+                aria-label="Toggle filters"
+                className={cn(
+                  'inline-flex items-center gap-1 h-7 px-2 rounded-md border text-xs transition-colors',
+                  showFilters || activeFilterCount > 0
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-background text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Filter className="h-3.5 w-3.5" aria-hidden />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
             <Button
               size="sm"
               disabled={!isOnline || streaming || question.trim().length < 2}
@@ -385,6 +605,42 @@ export default function AskAiPage() {
             Toggle <span className="font-medium text-foreground">Include in AI Q&amp;A</span> on a
             note, deck, or todo list to make it available here. Notes are included by default;
             decks and todo lists are off until you flip them on.
+          </div>
+        )}
+
+        {status.kind === 'empty_filtered' && (
+          <div className="rounded-xl border border-border bg-card px-4 py-6">
+            <div className="flex items-start gap-3">
+              <Filter className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" aria-hidden />
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  No matching content for the current filters
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  You have AI&nbsp;Q&amp;A content, but nothing matches the area, subject, or date
+                  range you selected. Try clearing or widening the filters.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={clearFilters}
+                    disabled={activeFilterCount === 0}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                    Clear filters
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowFilters(true)}
+                  >
+                    <Filter className="h-3.5 w-3.5" aria-hidden />
+                    Edit filters
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

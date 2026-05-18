@@ -253,6 +253,89 @@ button:not(:disabled),
   font-weight: 400;
 }
 
+/* MathLive virtual keyboard — mapped to app semantic tokens so it
+   automatically follows light/dark mode.
+
+   Scoped with the extra `html` selector to outrank MathLive's own
+   `@media (prefers-color-scheme: dark)` rule (specificity 0,1,0) which
+   hardcodes a few values without var() fallbacks. MathLive's
+   `[theme='dark|light']` rules never match — we use the `.dark` class
+   strategy. */
+html .ML__keyboard {
+  --keyboard-background: var(--popover);
+  --keyboard-border: var(--border);
+  --keyboard-accent-color: var(--primary);
+  --keyboard-horizontal-rule: 1px solid var(--border);
+
+  --keyboard-toolbar-text: var(--muted-foreground);
+  --keyboard-toolbar-text-active: var(--foreground);
+  --keyboard-toolbar-background: transparent;
+  --keyboard-toolbar-background-hover: var(--muted);
+  --keyboard-toolbar-background-selected: var(--muted);
+
+  --keycap-background: var(--background);
+  --keycap-background-hover: var(--muted);
+  --keycap-background-active: var(--primary);
+  --keycap-background-pressed: var(--primary);
+  --keycap-border: var(--border);
+  --keycap-border-bottom: var(--border);
+  --keycap-text: var(--foreground);
+  --keycap-text-hover: var(--foreground);
+  --keycap-text-active: var(--primary-foreground);
+  --keycap-text-pressed: var(--primary-foreground);
+  --keycap-shift-text: var(--muted-foreground);
+  --keycap-shift-color: var(--primary);
+
+  --keycap-primary-background: var(--primary);
+  --keycap-primary-text: var(--primary-foreground);
+  --keycap-primary-background-hover: var(--primary);
+
+  --keycap-secondary-background: var(--secondary);
+  --keycap-secondary-background-hover: var(--muted);
+  --keycap-secondary-text: var(--secondary-foreground);
+  --keycap-secondary-border: var(--border);
+  --keycap-secondary-border-bottom: var(--border);
+
+  --variant-panel-background: var(--popover);
+  --variant-keycap-text: var(--foreground);
+  --variant-keycap-text-active: var(--primary-foreground);
+  --variant-keycap-background-active: var(--primary);
+
+  /* Sizing — snugger than MathLive's 60px default so the keyboard
+     fits comfortably inside the insert modal. */
+  --keycap-height: 44px;
+  --keycap-gap: 5px;
+  --keycap-font-size: clamp(13px, 3cqw, 18px);
+
+  /* Breathing room around the keycap grid (MathLive defaults are
+     5px top / 0 sides / 0 bottom). */
+  --keyboard-padding-top: 8px;
+  --keyboard-padding-bottom: 16px;
+  --keyboard-padding-horizontal: 8px;
+}
+
+/* Keycap chrome that MathLive doesn't expose via variables. */
+html .ML__keyboard button {
+  font-family: var(--font-poppins), system-ui, sans-serif;
+  border-radius: var(--radius-sm);
+}
+
+/* MathLive mathfield input — match the look of the app's other inputs
+   (caret, selection, placeholder, inline-LaTeX colour). Same `html`
+   specificity trick as the keyboard block above so MathLive's own
+   `@media (prefers-color-scheme: dark)` overrides don't win. */
+html .ML__container {
+  --caret-color: var(--foreground);
+  --selection-color: var(--accent-foreground);
+  --selection-background-color: var(--accent);
+  --placeholder-color: var(--muted-foreground);
+  --placeholder-opacity: 0.6;
+  --smart-fence-color: var(--muted-foreground);
+  --smart-fence-opacity: 0.6;
+  --latex-color: var(--foreground);
+  --contains-highlight-background-color: var(--muted);
+}
+
 /* Flashcard slide animations */
 @keyframes card-slide-out-left {
   from { transform: translateX(0px);    opacity: 1; }

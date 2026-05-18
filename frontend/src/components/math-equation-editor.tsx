@@ -111,12 +111,18 @@ export function MathEquationEditor({ onInsert, onCancel }: MathEquationEditorPro
         </span>
       </div>
 
-      <div className="rounded-md border border-border bg-background p-2">
+      <div
+        className={cn(
+          'rounded-lg border border-input bg-transparent px-2 py-1 transition-colors',
+          'focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
+          'dark:bg-input/30',
+        )}
+      >
         {ready ? (
           <math-field
             ref={mathFieldRef as RefObject<MathfieldElement>}
-            className="block w-full text-base outline-none"
-            style={{ minHeight: '2.75rem' }}
+            className="block w-full bg-transparent text-base outline-none"
+            style={{ minHeight: '2.5rem' }}
           />
         ) : (
           <p className="text-xs text-muted-foreground px-2 py-3">Loading editor…</p>

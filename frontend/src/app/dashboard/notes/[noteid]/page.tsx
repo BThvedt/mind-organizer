@@ -22,7 +22,7 @@ import { AttachmentsMenu } from '@/components/attachments-menu';
 import { RelatedItems } from '@/components/related-items';
 import {
   MediaInsertDialog,
-  type InsertableAsset,
+  type InsertPayload,
 } from '@/components/media-insert-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
@@ -787,10 +787,22 @@ export default function EditNotePage({
       <MediaInsertDialog
         open={insertOpen}
         onClose={() => setInsertOpen(false)}
-        onSelect={(asset: InsertableAsset) => {
+        onSelect={(payload: InsertPayload) => {
+          if (payload.kind === 'math') {
+            // Block math gets its own line(s); inline math drops straight
+            // at the caret. Both use the standard `$` delimiters picked up
+            // by `remark-math` + `rehype-katex` in the renderer.
+            const snippet =
+              payload.display === 'block'
+                ? `\n$$\n${payload.latex}\n$$\n`
+                : `$${payload.latex}$`;
+            insertAtCursor(snippet);
+            return;
+          }
           // Files render as plain markdown links (the renderer upgrades
           // them to a styled box); images and audio keep the `![]()`
           // embed syntax so they continue to render inline.
+          const { asset } = payload;
           const snippet =
             asset.mediaType === 'file'
               ? `[${asset.originalFilename}](${asset.url})`
@@ -802,7 +814,11 @@ export default function EditNotePage({
         open={attachSearchOpen}
         onClose={() => setAttachSearchOpen(false)}
         initialType="file"
-        onSelect={(asset: InsertableAsset) => {
+        onSelect={(payload: InsertPayload) => {
+          // The attachments search is file-only; math is not a valid
+          // attachment shape here, so just ignore that branch.
+          if (payload.kind !== 'asset') return;
+          const { asset } = payload;
           const snippet = `[${asset.originalFilename}](${asset.url})`;
           setBody((prev) => addAttachmentToBody(prev, snippet));
         }}

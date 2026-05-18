@@ -9,7 +9,7 @@ import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, HelpCircle, Sparkles, WandSparkles, PlusCircle, Layers, ImagePlus, Paperclip, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, HelpCircle, Sparkles, WandSparkles, PlusCircle, Layers, ImagePlus, Paperclip, Pencil, Trash2, Search, MessagesSquare, Filter, Compass, CheckSquare } from 'lucide-react';
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
@@ -479,10 +479,12 @@ function AITab() {
     <div className="flex flex-col gap-6 pt-6">
       <p className="text-sm text-muted-foreground leading-relaxed">
         AI features in Mind Organizer are powered by Claude and require an internet
-        connection. They are accessed via the{' '}
-        <strong className="text-foreground">AI</strong> button that appears in the toolbar
-        of any note or deck. All AI actions show a preview before making any changes — nothing
-        is applied until you confirm.
+        connection. They fall into two groups. <strong className="text-foreground">Per-item
+        actions</strong> — like generating cards or formatting a note — live behind the{' '}
+        <strong className="text-foreground">AI</strong> button in the toolbar of any note or
+        deck, and always show a preview before saving anything. <strong className="text-foreground">
+        Global tools</strong> — AI search and the Ask AI page — work across your whole library
+        and never modify your content; they just help you find or summarise it.
       </p>
 
       <CollapsibleSection title="Generating cards for a deck" defaultOpen={false}>
@@ -605,6 +607,305 @@ function AITab() {
           </p>
           <p>
             The note itself is not modified by this action — only a new deck is created.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Searching with AI" defaultOpen={false}>
+        <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5">
+            <Search className="h-5 w-5 mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-0.5">AI-assisted search</p>
+              <p className="text-xs text-muted-foreground">
+                Available from the search dialog — click the magnifying-glass icon in the header,
+                or press <Kbd>/</Kbd> anywhere outside a text field.
+              </p>
+            </div>
+          </div>
+          <p>
+            The search dialog mixes two kinds of matching. <strong className="text-foreground">
+            Keyword</strong> search finds exact words in titles and bodies — fast and predictable.
+            The <strong className="text-foreground">AI</strong> toggle adds{' '}
+            <strong className="text-foreground">semantic</strong> matching on top: the dialog
+            also looks for content that <em>means</em> what you typed, even if the actual words
+            differ. Asking for{' '}
+            <em>&ldquo;how cells make energy&rdquo;</em> will surface notes about{' '}
+            <em>mitochondria</em>, <em>respiration</em>, and{' '}
+            <em>ATP</em> alongside any exact-text hits.
+          </p>
+          <p>
+            Results are merged and ranked into three bands:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              <strong className="text-foreground">Both kinds matched</strong> — items found by
+              keyword <em>and</em> semantic similarity sit at the top. These are the
+              highest-confidence results.
+            </li>
+            <li>
+              <strong className="text-foreground">Keyword only</strong> — exact-text hits that
+              weren&apos;t strong semantic matches. Useful when you remember the exact phrasing.
+            </li>
+            <li>
+              <strong className="text-foreground">Semantic only</strong> — items the AI thinks are
+              about the same thing, even though none of your literal words appear. Each is shown
+              with a percentage match score, and low-confidence noise is filtered out.
+            </li>
+          </ul>
+          <p>
+            For longer queries — anything with a question mark, or more than three words — a
+            very-high-confidence semantic match can be promoted above keyword-only matches, because
+            in that case the user almost certainly meant a fuzzy match rather than a literal one.
+          </p>
+          <p>
+            The AI toggle&apos;s state is{' '}
+            <strong className="text-foreground">remembered across sessions</strong>, so if you
+            prefer plain keyword search you can turn it off once and it stays off.
+          </p>
+          <p>
+            <strong className="text-foreground">Filters</strong>: pick a type (Notes / Decks /
+            Todos / All), an area, an optional subject, and an optional date range. The filters
+            apply to both keyword and semantic results, so they narrow the matched set rather
+            than changing the matching technique.
+          </p>
+          <p>
+            When the query looks like a question (it ends with{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">?</code> or has
+            more than three words), a small{' '}
+            <strong className="text-foreground">Ask the AI instead</strong> banner appears at
+            the top of the results — clicking it hands the same query off to the{' '}
+            <strong className="text-foreground">Ask AI</strong> page, which can produce a
+            synthesized answer with citations.
+          </p>
+          <p>
+            Semantic search only finds content that has been{' '}
+            <strong className="text-foreground">embedded</strong>, which happens automatically
+            in the background a few seconds after you save a note, deck, or todo list. A brand
+            new item may take a moment to appear in semantic results; it shows up in keyword
+            search immediately.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Including content in AI Q&A" defaultOpen={false}>
+        <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5">
+            <CheckSquare className="h-5 w-5 mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-0.5">Include in AI Q&amp;A toggle</p>
+              <p className="text-xs text-muted-foreground">
+                Available on any note, deck, or todo list via the AI button in its toolbar.
+              </p>
+            </div>
+          </div>
+          <p>
+            The <strong className="text-foreground">Include in AI Q&amp;A</strong> toggle decides
+            whether a particular note, deck, or todo list is allowed to be used as a source by
+            the <strong className="text-foreground">Ask AI</strong> page. It is the only place
+            where you opt content into the AI Q&amp;A pool — search, &ldquo;More like this&rdquo;,
+            and every per-item AI action work on all your content regardless.
+          </p>
+          <p>
+            Defaults are picked to be sensible without being noisy:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              <strong className="text-foreground">Notes</strong> — on by default. Notes are
+              long-form prose, which is exactly the kind of source material the Ask AI page
+              answers from best.
+            </li>
+            <li>
+              <strong className="text-foreground">Decks</strong> — off by default. Decks are
+              summaries; opting them in is a deliberate choice. When a deck is on, every
+              flashcard inside it is automatically eligible too.
+            </li>
+            <li>
+              <strong className="text-foreground">Todo lists</strong> — off by default. Todo
+              items are usually short and transient, so they&apos;re not great context out of
+              the box.
+            </li>
+          </ul>
+          <p>
+            To change a setting, open the note / deck / todo list, click{' '}
+            <strong className="text-foreground">AI</strong> in the toolbar, and flip the{' '}
+            <strong className="text-foreground">Include in AI Q&amp;A</strong> switch. The
+            change saves immediately — no separate confirm step. The next Ask AI query reflects
+            it with no embedding delay.
+          </p>
+          <p>
+            Flashcards always{' '}
+            <strong className="text-foreground">inherit their parent deck&apos;s setting</strong>,
+            so toggling a deck on or off cascades to all its cards without needing to set them
+            individually.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Ask AI (Q&A grounded in your content)" defaultOpen={false}>
+        <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5">
+            <MessagesSquare className="h-5 w-5 mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-0.5">Ask AI page</p>
+              <p className="text-xs text-muted-foreground">
+                Available from the <strong className="text-foreground">Ask AI</strong> link in
+                the dashboard nav, or by clicking the &ldquo;Ask the AI instead&rdquo; banner
+                in the search dialog.
+              </p>
+            </div>
+          </div>
+          <p>
+            The <strong className="text-foreground">Ask AI</strong> page lets you ask a free-form
+            question and get a synthesised answer drawn from your own notes, decks, and todo
+            lists. It is a <strong className="text-foreground">retrieval-augmented</strong>{' '}
+            assistant — it never answers from general world knowledge alone, and it never
+            invents facts. If your library doesn&apos;t contain the answer, it says so.
+          </p>
+          <p>
+            Type the question into the composer and click <strong className="text-foreground">
+            Ask</strong> (or press <Kbd>⌘</Kbd>+<Kbd>↵</Kbd> /{' '}
+            <Kbd>Ctrl</Kbd>+<Kbd>↵</Kbd>). The answer{' '}
+            <strong className="text-foreground">streams in token-by-token</strong>; while it
+            streams, the source documents the AI selected appear as numbered{' '}
+            <strong className="text-foreground">citation chips</strong> just above the answer.
+            Citations are inline in the text in the form{' '}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">[Source N]</code>,
+            and each chip links to the original note, deck, or todo list so you can verify the
+            material yourself.
+          </p>
+          <p>
+            Only content where the{' '}
+            <strong className="text-foreground">Include in AI Q&amp;A</strong> toggle is on can
+            be used as a source. If you haven&apos;t opted any content in yet, Ask AI shows a
+            dedicated empty state with quick links to your Notes, Decks, and Todos pages so you
+            can flip toggles on. See{' '}
+            <strong className="text-foreground">Including content in AI Q&amp;A</strong> above.
+          </p>
+          <p>
+            Some practical guidance:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              <strong className="text-foreground">Specific questions work best.</strong>{' '}
+              <em>&ldquo;What is the difference between active and passive transport?&rdquo;</em>{' '}
+              is easier to answer well than{' '}
+              <em>&ldquo;tell me about cells&rdquo;</em>.
+            </li>
+            <li>
+              <strong className="text-foreground">The AI uses up to eight sources</strong>{' '}
+              per question, picked for relevance to the wording you used. If you don&apos;t see
+              an expected source in the citations, try rephrasing to mention the key terms more
+              directly.
+            </li>
+            <li>
+              <strong className="text-foreground">Flashcard hits cite the parent deck</strong>{' '}
+              rather than the individual card, but the card&apos;s front-and-back text is still
+              included in the context the AI sees, and the chip&apos;s hover tooltip shows the
+              card text.
+            </li>
+            <li>
+              <strong className="text-foreground">If you arrive from the search dialog</strong>{' '}
+              via the &ldquo;Ask the AI instead&rdquo; banner, the page auto-submits the query
+              you typed — no need to re-enter it.
+            </li>
+          </ul>
+          <p>
+            Two empty states are possible after a query:{' '}
+            <strong className="text-foreground">no AI Q&amp;A content yet</strong> (nothing in
+            your library is opted in) and{' '}
+            <strong className="text-foreground">no matching content for the current filters</strong>{' '}
+            (you have eligible content, but the filters narrowed it to zero). Each suggests a
+            specific next step rather than a generic &ldquo;try again&rdquo;.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Filtering Ask AI by area, subject, or date" defaultOpen={false}>
+        <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5">
+            <Filter className="h-5 w-5 mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-0.5">Ask AI filters</p>
+              <p className="text-xs text-muted-foreground">
+                Available on the Ask AI page via the{' '}
+                <strong className="text-foreground">Filters</strong> pill next to the composer.
+              </p>
+            </div>
+          </div>
+          <p>
+            By default Ask AI considers every piece of content you&apos;ve opted in. When
+            you&apos;d rather restrict the answer to a slice of your library — &ldquo;answer
+            from my Biology notes only&rdquo;, &ldquo;answer from what I&apos;ve written this
+            week&rdquo; — click the <strong className="text-foreground">Filters</strong> pill
+            to reveal three optional constraints:
+          </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1.5">
+            <li>
+              <strong className="text-foreground">Area</strong> — pick one of your areas to
+              keep only content tagged with it.
+            </li>
+            <li>
+              <strong className="text-foreground">Subject</strong> — appears once an area is
+              chosen; further narrows to one subject within that area.
+            </li>
+            <li>
+              <strong className="text-foreground">From</strong> /{' '}
+              <strong className="text-foreground">To</strong> — keep only content whose
+              creation date falls within the range. Either bound is optional, so &ldquo;from
+              last Monday&rdquo; works without a to-date and vice-versa.
+            </li>
+          </ul>
+          <p>
+            A small badge on the Filters pill tells you how many filters are currently active.
+            Clicking <strong className="text-foreground">Clear all</strong> inside the panel
+            resets every filter in one step.
+          </p>
+          <p>
+            Filters apply on the <strong className="text-foreground">next</strong>{' '}
+            <em>Ask</em> only — changing them mid-page doesn&apos;t auto-resubmit a pending
+            question. Flashcards inherit their parent deck&apos;s area and subject, so a deck
+            filter implicitly catches every card in that deck without you having to label
+            cards individually.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Related content — “More like this”" defaultOpen={false}>
+        <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5">
+            <Compass className="h-5 w-5 mt-0.5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-0.5">More like this</p>
+              <p className="text-xs text-muted-foreground">
+                Appears automatically on every note, deck, and todo list detail page.
+              </p>
+            </div>
+          </div>
+          <p>
+            Every detail page has a <strong className="text-foreground">More like this</strong>{' '}
+            section that surfaces other items the AI thinks are about the same things. Unlike
+            the search dialog, this widget needs no input — it&apos;s computed from the entity
+            you&apos;re looking at, and it updates automatically when you switch to a different
+            note / deck / list.
+          </p>
+          <p>
+            Each related item is shown as a chip with its type icon, title, and a percentage
+            match score. Clicking a chip opens that item in a new tab so you can explore without
+            losing your place. Area and subject labels appear inline on each chip, which is
+            useful for spotting cross-area connections you might not have realised existed.
+          </p>
+          <p>
+            <strong className="text-foreground">No opt-in required.</strong> Related content
+            ignores the Include in AI Q&amp;A toggle on purpose — discovery is a different
+            activity from grounded Q&amp;A, and it&apos;s perfectly reasonable to want to find
+            related decks even if you wouldn&apos;t want them used as sources in an answer.
+          </p>
+          <p>
+            The widget shows nothing when there&apos;s no comparably similar content in your
+            library yet. As you add more notes / decks / lists on overlapping topics, the
+            related list fills out automatically — there&apos;s no setting to flip and no
+            index to rebuild.
           </p>
         </div>
       </CollapsibleSection>

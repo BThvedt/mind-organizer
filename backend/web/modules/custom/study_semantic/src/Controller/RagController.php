@@ -24,8 +24,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *
  * Request body:
  *   {
- *     "question": "<string, >= 2 chars>",
- *     "limit":    <int 1..16, default 8>,
+ *     "question":       "<string, >= 2 chars>",
+ *     "limit":          <int 1..16, default 8>,
+ *     "scoreThreshold": <float 0.0..0.95, default 0.30>,  // optional
  *     "filters":  {                            // optional, all keys optional
  *       "area":     "<area term uuid>",
  *       "subject":  "<subject term uuid>",
@@ -33,6 +34,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *       "dateTo":   "YYYY-MM-DD"
  *     }
  *   }
+ *
+ * `scoreThreshold` is the cosine-similarity floor for which Qdrant points
+ * are retrieved. Lower → more permissive (more sources, more noise). Higher
+ * → pickier (fewer, stronger sources). When the caller sends *any* value
+ * (including the default), the no-hits response uses `no_match_for_filters`
+ * so the empty-state copy can point at the knob the user already touched.
  *
  * Response:
  *   - 200 application/json when no RAG-eligible context exists:
@@ -80,6 +87,28 @@ class RagController extends ControllerBase implements ContainerInjectionInterfac
    */
   private const PER_SOURCE_CHARS = 1500;
 
+  /**
+   * Default cosine-similarity floor for RAG retrieval.
+   *
+   * Intentionally lower than `SemanticSearchService::DEFAULT_SCORE_THRESHOLD`
+   * (which is tuned for the "Related results" pickiness in the search dialog).
+   * RAG is happy to look at weaker matches because Claude is instructed to
+   * refuse if the supplied SOURCES dont actually answer the question — so
+   * over-retrieval is much cheaper than under-retrieval. Real-world corpora
+   * with voyage-3-lite top out around 0.35-0.55 even for relevant content, so
+   * 0.30 is the practical floor that "just lets RAG see things" without
+   * forcing every user to discover the threshold knob to get a first answer.
+   */
+  public const DEFAULT_RAG_SCORE_THRESHOLD = 0.30;
+
+  /**
+   * Bounds enforced on the caller-supplied `scoreThreshold` knob. Anything
+   * outside this range is clamped silently rather than 400ed — the value is
+   * a tuning preference, not a security boundary.
+   */
+  private const MIN_SCORE_THRESHOLD = 0.0;
+  private const MAX_SCORE_THRESHOLD = 0.95;
+
   public function __construct(
     private readonly EmbeddingClient $embedding,
     private readonly SemanticSearchService $semantic,
@@ -113,8 +142,16 @@ class RagController extends ControllerBase implements ContainerInjectionInterfac
       ? max(1, min(self::MAX_LIMIT, $payload['limit']))
       : self::DEFAULT_LIMIT;
 
+    [$scoreThreshold, $thresholdWasCustomised] = $this->normaliseScoreThreshold(
+      $payload['scoreThreshold'] ?? NULL,
+    );
+
     $filters = $this->normaliseFilters($payload['filters'] ?? NULL);
-    $hasFilters = $filters !== [];
+    // The threshold lives in the same UI panel as the content filters and
+    // when the user nudges it, the empty-state copy should suggest relaxing
+    // their tuning (not "you have no AI Q&A content"). So we treat it as a
+    // soft filter for the no-hits messaging.
+    $hasFilters = $filters !== [] || $thresholdWasCustomised;
 
     $ownerUid = (int) $this->currentUser()->id();
 
@@ -134,6 +171,7 @@ class RagController extends ControllerBase implements ContainerInjectionInterfac
         $ownerUid,
         bundles: NULL,
         limit: $limit,
+        scoreThreshold: $scoreThreshold,
         requireIncludeInRag: TRUE,
         filters: $filters,
       );
@@ -293,6 +331,34 @@ PROMPT;
       $out[] = $row;
     }
     return $out;
+  }
+
+  /**
+   * Validates and normalises the optional `scoreThreshold` knob from the
+   * request payload.
+   *
+   * Accepts ints (e.g. `0`, `1`) and floats; anything else falls back to
+   * the default. Values outside [MIN, MAX] are clamped silently rather
+   * than 400ed so a slightly-out-of-range slider value never surfaces an
+   * error to the user — its a tuning preference, not a security boundary.
+   *
+   * Returns a tuple of `[float threshold, bool wasCustomised]`. The boolean
+   * is TRUE iff the caller sent any usable value at all (regardless of
+   * whether it happened to equal the default), so the empty-state copy can
+   * point the user at the threshold knob theyre clearly already aware of.
+   *
+   * @return array{0: float, 1: bool}
+   */
+  private function normaliseScoreThreshold(mixed $raw): array {
+    if (!is_int($raw) && !is_float($raw)) {
+      return [self::DEFAULT_RAG_SCORE_THRESHOLD, FALSE];
+    }
+    $value = (float) $raw;
+    if (!is_finite($value)) {
+      return [self::DEFAULT_RAG_SCORE_THRESHOLD, FALSE];
+    }
+    $clamped = max(self::MIN_SCORE_THRESHOLD, min(self::MAX_SCORE_THRESHOLD, $value));
+    return [$clamped, TRUE];
   }
 
   /**

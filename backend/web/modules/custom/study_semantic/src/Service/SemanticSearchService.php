@@ -40,8 +40,12 @@ class SemanticSearchService {
    *
    * Voyage cosine scores are in [-1, 1]; in practice anything above ~0.55
    * on this corpus is meaningfully related, anything below ~0.45 is noise.
-   * 0.60 gives the search dialog a sensible "Related results" floor and
-   * still lets RAG see decent context.
+   * 0.60 gives the search dialog a sensible "Related results" floor.
+   *
+   * NB: RAG retrieval intentionally uses a *lower* floor — see
+   * `RagController::DEFAULT_RAG_SCORE_THRESHOLD` — because Claude is told
+   * to refuse if the SOURCES dont actually answer the question, so
+   * over-retrieval there is cheaper than under-retrieval.
    */
   public const DEFAULT_SCORE_THRESHOLD = 0.60;
 

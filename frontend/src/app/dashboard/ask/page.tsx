@@ -59,6 +59,17 @@ interface TaxonomyTerm {
   attributes: { name: string };
 }
 
+// ── Score-threshold tuning ───────────────────────────────────────────────────
+// Kept in sync with `RagController::DEFAULT_RAG_SCORE_THRESHOLD` on the
+// backend. The page-default is what we use when the user hasn't moved the
+// slider yet; nudging it away from the default makes the page send
+// `scoreThreshold` in the request body so the backend treats it as a
+// filter (for empty-state copy purposes) and applies the user's value.
+const SCORE_THRESHOLD_DEFAULT = 0.3;
+const SCORE_THRESHOLD_MIN = 0;
+const SCORE_THRESHOLD_MAX = 0.95;
+const SCORE_THRESHOLD_STEP = 0.05;
+
 // ── SSE parsing ──────────────────────────────────────────────────────────────
 
 /**
@@ -186,6 +197,7 @@ function AskAiPageInner() {
   const [filterSubjectId, setFilterSubjectId] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterScoreThreshold, setFilterScoreThreshold] = useState(SCORE_THRESHOLD_DEFAULT);
   const [areas, setAreas] = useState<TaxonomyTerm[]>([]);
   const [subjects, setSubjects] = useState<TaxonomyTerm[]>([]);
 
@@ -234,6 +246,13 @@ function AskAiPageInner() {
     if (filterDateFrom) filters.dateFrom = filterDateFrom;
     if (filterDateTo) filters.dateTo = filterDateTo;
 
+    // `scoreThreshold` lives at the top-level of the request (not inside
+    // `filters`) because it's a retrieval tuning knob rather than a
+    // content predicate. We only send it when the user moved the slider
+    // away from the page default — otherwise the backend default applies
+    // and the empty-state for users with no content stays unchanged.
+    const thresholdCustomised = filterScoreThreshold !== SCORE_THRESHOLD_DEFAULT;
+
     try {
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
@@ -242,6 +261,7 @@ function AskAiPageInner() {
           question: q,
           limit: 8,
           ...(Object.keys(filters).length > 0 ? { filters } : {}),
+          ...(thresholdCustomised ? { scoreThreshold: filterScoreThreshold } : {}),
         }),
         signal: controller.signal,
       });
@@ -312,7 +332,7 @@ function AskAiPageInner() {
       if ((err as Error)?.name === 'AbortError') return;
       setStatus({ kind: 'error', message: messageWhenNetworkRequestThrows() });
     }
-  }, [question, isOnline, filterAreaId, filterSubjectId, filterDateFrom, filterDateTo]);
+  }, [question, isOnline, filterAreaId, filterSubjectId, filterDateFrom, filterDateTo, filterScoreThreshold]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     // Cmd/Ctrl-Enter submits.
@@ -379,18 +399,21 @@ function AskAiPageInner() {
 
   // Count of dimensions currently constraining the query. Drives the badge
   // on the Filters toggle. Subject is only counted when it would actually
-  // be sent (i.e. area is set too).
+  // be sent (i.e. area is set too). The threshold counts only when it
+  // differs from the page default.
   const activeFilterCount =
     (filterAreaId ? 1 : 0) +
     (filterSubjectId && filterAreaId ? 1 : 0) +
     (filterDateFrom ? 1 : 0) +
-    (filterDateTo ? 1 : 0);
+    (filterDateTo ? 1 : 0) +
+    (filterScoreThreshold !== SCORE_THRESHOLD_DEFAULT ? 1 : 0);
 
   const clearFilters = useCallback(() => {
     setFilterAreaId('');
     setFilterSubjectId('');
     setFilterDateFrom('');
     setFilterDateTo('');
+    setFilterScoreThreshold(SCORE_THRESHOLD_DEFAULT);
   }, []);
 
   if (!authenticated) return null;
@@ -523,6 +546,43 @@ function AskAiPageInner() {
                     className="h-7 w-36 rounded-md border border-border bg-background px-2 text-xs"
                   />
                 </label>
+              </div>
+
+              {/*
+                Match-strength slider. Cosine score on voyage-3-lite ranges
+                roughly 0–0.95 in practice; we cap the range there to keep
+                the slider's working surface usable. Lower values include
+                weaker matches as context (good for vague questions and
+                small corpora); higher values demand a stronger overlap
+                between the question and a source.
+              */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="filter-score-threshold"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Match strength
+                  </label>
+                  <span className="font-mono text-xs text-foreground tabular-nums">
+                    {filterScoreThreshold.toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  id="filter-score-threshold"
+                  type="range"
+                  min={SCORE_THRESHOLD_MIN}
+                  max={SCORE_THRESHOLD_MAX}
+                  step={SCORE_THRESHOLD_STEP}
+                  value={filterScoreThreshold}
+                  onChange={(e) => setFilterScoreThreshold(parseFloat(e.target.value))}
+                  disabled={streaming}
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-border accent-primary disabled:opacity-60"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Everyone&apos;s notes are different. Too many results? Raise the
+                  threshold. Too few? Lower it.
+                </p>
               </div>
 
               <p className="text-[11px] text-muted-foreground">

@@ -26,6 +26,7 @@ function detectTheme(): 'dark' | 'default' {
 
 interface MermaidBlockProps {
   source: string;
+  'data-source-line'?: number;
 }
 
 /**
@@ -36,7 +37,7 @@ interface MermaidBlockProps {
  * bloat the initial bundle. Each instance re-renders only when its `source`
  * prop changes.
  */
-export function MermaidBlock({ source }: MermaidBlockProps) {
+export function MermaidBlock({ source, 'data-source-line': sourceLine }: MermaidBlockProps) {
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Stable per-instance id; mermaid requires unique DOM ids for each render.
@@ -84,7 +85,7 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
 
   if (error) {
     return (
-      <div className="my-4 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+      <div data-source-line={sourceLine} className="my-4 rounded-md border border-destructive/40 bg-destructive/5 p-3">
         <p className="mb-2 text-sm font-medium text-destructive">
           Mermaid render error
         </p>
@@ -100,7 +101,7 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
 
   if (!svg) {
     return (
-      <div className="my-4 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+      <div data-source-line={sourceLine} className="my-4 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
         Loading diagram…
       </div>
     );
@@ -108,6 +109,7 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
 
   return (
     <div
+      data-source-line={sourceLine}
       className="my-4 overflow-x-auto rounded-md border border-border bg-muted/40 p-3 [&>svg]:mx-auto [&>svg]:max-w-full"
       dangerouslySetInnerHTML={{ __html: svg }}
     />

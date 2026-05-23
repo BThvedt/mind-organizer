@@ -20,6 +20,7 @@ function loadShiki(): Promise<typeof import('shiki')> {
 interface SyntaxHighlightedBlockProps {
   source: string;
   language: string;
+  'data-source-line'?: number;
 }
 
 const SHIKI_THEMES = {
@@ -40,7 +41,7 @@ const SHIKI_THEMES = {
  * Unknown / misspelled language fences fall back to plaintext highlighting
  * rather than throwing.
  */
-export function SyntaxHighlightedBlock({ source, language }: SyntaxHighlightedBlockProps) {
+export function SyntaxHighlightedBlock({ source, language, 'data-source-line': sourceLine }: SyntaxHighlightedBlockProps) {
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const sourceRef = useRef(source);
@@ -98,7 +99,7 @@ export function SyntaxHighlightedBlock({ source, language }: SyntaxHighlightedBl
   }
 
   return (
-    <div className="group relative my-4">
+    <div data-source-line={sourceLine} className="group relative my-4">
       {html ? (
         <div className="syntax-block" dangerouslySetInnerHTML={{ __html: html }} />
       ) : (

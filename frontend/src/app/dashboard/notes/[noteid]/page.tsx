@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useMarkdownEditor } from '@/hooks/use-markdown-editor';
+import { usePreviewScrollSync } from '@/hooks/usePreviewScrollSync';
 import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -155,6 +156,8 @@ export default function EditNotePage({
     onKeyDown: editorKeyDown,
     actions: editorActions,
   } = useMarkdownEditor(body, setBody);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
+  const { onEditorMouseUp } = usePreviewScrollSync(editorRef, previewViewportRef, body);
   const [areaUuids, setAreaUuids] = useState<string[]>([]);
   const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
@@ -686,6 +689,7 @@ export default function EditNotePage({
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={editorKeyDown}
               onPaste={onPaste}
+              onMouseUp={onEditorMouseUp}
               placeholder="Write your notes in Markdown… (drop or paste images / audio to embed)"
               className="flex-1 resize-none rounded-none border-0 bg-transparent font-mono text-sm leading-relaxed focus-visible:ring-0 p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
               disabled={loading}
@@ -707,6 +711,7 @@ export default function EditNotePage({
 
           {/* Preview pane */}
           <ScrollArea
+            viewportRef={previewViewportRef}
             className={cn(
               'min-h-0 flex-1',
               'md:w-1/2 md:flex md:flex-col',

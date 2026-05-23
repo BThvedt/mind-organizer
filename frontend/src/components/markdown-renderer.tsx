@@ -19,6 +19,7 @@ import {
 import type { ComponentType, SVGProps } from 'react';
 import { MarkdownPre } from './markdown-pre';
 import { MermaidBlock } from './mermaid-block';
+import { remarkSourceLines } from '@/lib/remark-source-lines';
 
 interface MarkdownRendererProps {
   children: string;
@@ -128,22 +129,33 @@ export function MarkdownRenderer({
     return {
       pre: (preProps) => {
         const child = Array.isArray(preProps.children)
-          ? preProps.children[0]
+          ? (preProps.children as React.ReactNode[])[0]
           : preProps.children;
+
+        // mdast-util-to-hast calls applyData (which copies hProperties) on the
+        // inner <code> element, and only patch (position only) on the outer
+        // <pre>. So data-source-line lives on the child's props, not preProps.
+        let sourceLine: number | undefined;
         if (isValidElement(child)) {
-          const mermaidSource = extractMermaidSource(child);
+          sourceLine = (child.props as Record<string, unknown>)['data-source-line'] as number | undefined;
+        }
+
+        if (isValidElement(child)) {
+          const mermaidSource = extractMermaidSource(child as ReactElement);
           if (mermaidSource !== null) {
-            return <MermaidBlock source={mermaidSource} />;
+            return <MermaidBlock source={mermaidSource} data-source-line={sourceLine} />;
           }
         }
-        return <MarkdownPre {...preProps} />;
+        return <MarkdownPre data-source-line={sourceLine} {...preProps} />;
       },
-      img: ({ src, alt }) => {
+      img: (imgProps) => {
+        const { src, alt } = imgProps;
+        const sourceLine = (imgProps as Record<string, unknown>)['data-source-line'] as number | undefined;
         const srcStr = typeof src === 'string' ? src : undefined;
         const assetUuid = extractAssetUuid(srcStr);
         if (assetUuid && brokenSet.has(assetUuid)) {
           return (
-            <span className="my-2 inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive">
+            <span data-source-line={sourceLine as number | undefined} className="my-2 inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive">
               <ImageOff className="h-3.5 w-3.5" />
               <span>{alt ? `${alt} (deleted)` : 'Media deleted'}</span>
             </span>
@@ -152,7 +164,7 @@ export function MarkdownRenderer({
         const finalSrc = withShareToken(srcStr);
         if (isAudioUrl(srcStr)) {
           return (
-            <span className="my-3 block rounded-lg border border-border bg-muted/40 px-4 py-3">
+            <span data-source-line={sourceLine as number | undefined} className="my-3 block rounded-lg border border-border bg-muted/40 px-4 py-3">
               {alt ? (
                 <span className="mb-1 block text-xs text-muted-foreground">{alt}</span>
               ) : null}
@@ -166,6 +178,7 @@ export function MarkdownRenderer({
         // eslint-disable-next-line @next/next/no-img-element
         return (
           <img
+            data-source-line={sourceLine as number | undefined}
             src={finalSrc ?? undefined}
             alt={alt ?? ''}
             className="max-w-full rounded-md"
@@ -234,7 +247,7 @@ export function MarkdownRenderer({
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
+      remarkPlugins={[remarkGfm, remarkMath, remarkSourceLines]}
       rehypePlugins={[rehypeKatex]}
       components={components}
     >

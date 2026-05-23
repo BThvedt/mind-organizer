@@ -33,14 +33,20 @@ export function MarkdownPre({
   children,
   className,
   ...props
-}: React.HTMLAttributes<HTMLPreElement>) {
+}: React.HTMLAttributes<HTMLPreElement> & { 'data-source-line'?: number }) {
   const preRef = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState(false);
 
   const child = Array.isArray(children) ? children[0] : children;
   const fenced = extractFencedCode(child);
   if (fenced) {
-    return <SyntaxHighlightedBlock source={fenced.code} language={fenced.language} />;
+    return (
+      <SyntaxHighlightedBlock
+        source={fenced.code}
+        language={fenced.language}
+        data-source-line={(props as { 'data-source-line'?: number })['data-source-line']}
+      />
+    );
   }
 
   function handleCopy() {

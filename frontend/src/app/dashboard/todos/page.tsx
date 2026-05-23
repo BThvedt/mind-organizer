@@ -26,11 +26,14 @@ import {
 import { ArrowLeft, Plus, Trash2, ChevronLeft, CheckSquare, X, ChevronDown, GripVertical, Check } from 'lucide-react';
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -57,7 +60,7 @@ import {
   AreaSubjectMultiSelector,
   AreaSubjectChipList,
 } from '@/components/area-subject-multi-selector';
-import type { JsonApiResource } from '@/lib/json-api';
+import type { JsonApiResource, JsonApiRelData } from '@/lib/json-api';
 import { toRelIds } from '@/lib/json-api';
 import {
   MUTATION_QUEUED_MESSAGE,
@@ -114,6 +117,35 @@ function DragHandle() {
     >
       <GripVertical className="h-4 w-4" />
     </button>
+  );
+}
+
+// ── Cross-list droppable target (sidebar list row) ─────────────────────────────
+
+function DroppableListItem({ listId, children }: { listId: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `list-${listId}` });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'transition-colors',
+        isOver && 'bg-primary/10 outline outline-2 outline-primary rounded-sm'
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Floating drag preview ──────────────────────────────────────────────────────
+
+function DraggedItemPreview({ id, included }: { id: string; included: JsonApiResource[] }) {
+  const item = included.find((r) => r.id === id);
+  if (!item) return null;
+  return (
+    <div className="rounded-lg border border-border bg-background shadow-lg px-3 py-2.5 text-sm opacity-90 max-w-xs truncate cursor-grabbing">
+      {(item.attributes.field_item_text as string) ?? ''}
+    </div>
   );
 }
 
@@ -248,6 +280,9 @@ function TodosPageContent() {
   // Per-item optimistic toggle tracking
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  // Active drag item id for DragOverlay
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
   // Inline editing — items
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -812,9 +847,28 @@ function TodosPageContent() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveItemId(String(event.active.id));
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
+    setActiveItemId(null);
     const { active, over } = event;
-    if (!over || active.id === over.id || !selectedList) return;
+    if (!over || !selectedList) return;
+
+    const overId = String(over.id);
+
+    // Cross-list drop — over.id is a sidebar list droppable
+    if (overId.startsWith('list-')) {
+      const targetListId = overId.slice(5);
+      if (targetListId !== selectedList.id) {
+        await handleMoveToList(String(active.id), targetListId);
+      }
+      return;
+    }
+
+    // Same-list reorder (existing logic)
+    if (active.id === over.id) return;
 
     const currentRels = (
       Array.isArray(selectedList.relationships?.field_items?.data)
@@ -845,6 +899,78 @@ function TodosPageContent() {
       });
       flagTodoSessionExpired(res);
     } catch { /* queued */ }
+  }
+
+  async function handleMoveToList(itemId: string, targetListId: string) {
+    if (!selectedList) return;
+    const sourceListId = selectedList.id;
+
+    // Optimistic update: remove from source, add stub to target
+    setLists((prev) =>
+      prev.map((l): JsonApiResource => {
+        if (l.id === sourceListId) {
+          const filtered = (
+            Array.isArray(l.relationships?.field_items?.data)
+              ? (l.relationships!.field_items.data as JsonApiRelData[])
+              : []
+          ).filter((r) => r.id !== itemId);
+          return { ...l, relationships: { ...l.relationships, field_items: { data: filtered } } };
+        }
+        if (l.id === targetListId) {
+          const existing: JsonApiRelData[] = Array.isArray(l.relationships?.field_items?.data)
+            ? (l.relationships!.field_items.data as JsonApiRelData[])
+            : [];
+          return {
+            ...l,
+            relationships: {
+              ...l.relationships,
+              field_items: { data: [...existing, { type: 'paragraph--todo_item', id: itemId }] },
+            },
+          };
+        }
+        return l;
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/todo-items/${itemId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceListId, targetListId }),
+      });
+      flagTodoSessionExpired(res);
+      if (!res.ok) {
+        setTodoSessionMessage('Failed to move item. Please try again.');
+        void loadLists();
+        return;
+      }
+      const { data: newPara } = await res.json();
+
+      // Replace old paragraph with new one in included and fix the relationship stub
+      setIncluded((prev) => [...prev.filter((r) => r.id !== itemId), newPara]);
+      setLists((prev) =>
+        prev.map((l): JsonApiResource => {
+          if (l.id !== targetListId) return l;
+          const rels = (
+            Array.isArray(l.relationships?.field_items?.data)
+              ? (l.relationships!.field_items.data as JsonApiRelData[])
+              : []
+          ).map((r) =>
+            r.id === itemId
+              ? {
+                  type: 'paragraph--todo_item',
+                  id: newPara.id,
+                  meta: { target_revision_id: newPara.attributes.drupal_internal__revision_id },
+                }
+              : r
+          );
+          return { ...l, relationships: { ...l.relationships, field_items: { data: rels } } };
+        })
+      );
+    } catch {
+      setTodoSessionMessage('Failed to move item. Please try again.');
+      void loadLists();
+    }
   }
 
   if (!authenticated) return null;
@@ -921,6 +1047,12 @@ function TodosPageContent() {
             </Button>
           </div>
         )}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
         <div className="flex min-h-0 flex-1">
         {/* ── Sidebar ─────────────────────────────────────────────────────── */}
         <aside
@@ -1110,8 +1242,8 @@ function TodosPageContent() {
                 const isSelected = selectedId === list.id;
 
                 return (
+                  <DroppableListItem key={list.id} listId={list.id}>
                   <button
-                    key={list.id}
                     onClick={() => selectList(list.id)}
                     className={cn(
                       'w-full text-left px-4 py-3 border-b border-border transition-colors',
@@ -1154,6 +1286,7 @@ function TodosPageContent() {
                       </div>
                     )}
                   </button>
+                  </DroppableListItem>
                 );
               })}
                 </Fragment>
@@ -1370,8 +1503,7 @@ function TodosPageContent() {
 
               {/* Checklist */}
               {items.length > 0 ? (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                 <ul className="space-y-1 mb-6">
                   {items.map((item) => {
                     const completed = item.attributes.field_completed as boolean;
@@ -1474,7 +1606,6 @@ function TodosPageContent() {
                   })}
                 </ul>
                   </SortableContext>
-                </DndContext>
               ) : (
                 <p className="text-sm text-muted-foreground mb-6">No items yet. Add one below.</p>
               )}
@@ -1535,6 +1666,10 @@ function TodosPageContent() {
           )}
         </main>
         </div>
+          <DragOverlay>
+            {activeItemId && <DraggedItemPreview id={activeItemId} included={included} />}
+          </DragOverlay>
+        </DndContext>
       </div>
 
       {/* Create list dialog */}

@@ -157,7 +157,7 @@ export default function EditNotePage({
     actions: editorActions,
   } = useMarkdownEditor(body, setBody);
   const previewViewportRef = useRef<HTMLDivElement>(null);
-  const { onEditorMouseUp } = usePreviewScrollSync(editorRef, previewViewportRef, body);
+  const { onEditorMouseUp, onPreviewMouseUp } = usePreviewScrollSync(editorRef, previewViewportRef, body);
   const [areaUuids, setAreaUuids] = useState<string[]>([]);
   const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
@@ -712,6 +712,7 @@ export default function EditNotePage({
           {/* Preview pane */}
           <ScrollArea
             viewportRef={previewViewportRef}
+            onMouseUp={onPreviewMouseUp}
             className={cn(
               'min-h-0 flex-1',
               'md:w-1/2 md:flex md:flex-col',

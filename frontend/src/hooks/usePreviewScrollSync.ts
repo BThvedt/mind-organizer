@@ -254,5 +254,55 @@ export function usePreviewScrollSync(
     syncPreview();
   }, [syncPreview]);
 
-  return { onEditorMouseUp };
+  /**
+   * Called on mouseUp inside the preview pane. Finds the source line of the
+   * clicked element, then scrolls the editor so that line sits at the same
+   * screen Y as the click.
+   */
+  const onPreviewMouseUp = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      // Walk up from the click target to find the nearest element annotated
+      // with data-source-line (could be the element itself or an ancestor).
+      let node = e.target as HTMLElement | null;
+      let sourceLine: number | null = null;
+      while (node && node !== (e.currentTarget as HTMLElement).parentElement) {
+        const attr = node.getAttribute('data-source-line');
+        if (attr) {
+          sourceLine = Number(attr);
+          break;
+        }
+        node = node.parentElement;
+      }
+      if (!sourceLine) return;
+
+      const clickScreenY = e.clientY;
+      const editorRect = editor.getBoundingClientRect();
+
+      // Char offset of the first character of sourceLine (1-based).
+      const bodyLines = body.split('\n');
+      const charOffset =
+        bodyLines.slice(0, sourceLine - 1).join('\n').length + (sourceLine > 1 ? 1 : 0);
+
+      // Absolute Y of that line within the textarea's scrollable content.
+      const contentY = getCursorContentY(editor, charOffset);
+
+      // Scroll so the line appears at clickScreenY relative to the editor.
+      // Derivation: screenY = editorRect.top + contentY - scrollTop
+      //   → scrollTop = editorRect.top + contentY - clickScreenY
+      // But clamp clickScreenY to the editor's visible region first so we
+      // don't scroll wildly when the click is outside the editor bounds.
+      const clampedClickY = Math.max(
+        editorRect.top,
+        Math.min(editorRect.bottom, clickScreenY),
+      );
+      const targetScrollTop = editorRect.top + contentY - clampedClickY;
+      smoothScrollTo(editor, Math.max(0, targetScrollTop));
+    },
+    [editorRef, body],
+  );
+
+  return { onEditorMouseUp, onPreviewMouseUp };
 }

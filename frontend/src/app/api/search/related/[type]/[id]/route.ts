@@ -21,7 +21,11 @@ export async function GET(
 
   const { type, id } = await params;
   const limitParam = request.nextUrl.searchParams.get('limit');
-  const query = limitParam ? `?limit=${encodeURIComponent(limitParam)}` : '';
+  const thresholdParam = request.nextUrl.searchParams.get('score_threshold');
+  const qs = new URLSearchParams();
+  if (limitParam) qs.set('limit', limitParam);
+  if (thresholdParam) qs.set('score_threshold', thresholdParam);
+  const query = qs.toString() ? `?${qs.toString()}` : '';
 
   const res = await drupalFetch(
     `/api/search/related/${encodeURIComponent(type)}/${encodeURIComponent(id)}${query}`,

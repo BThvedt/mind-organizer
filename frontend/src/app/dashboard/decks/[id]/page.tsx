@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useState, useCallback, use } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -22,9 +22,9 @@ import {
   userFacingMessageForApiError,
 } from '@/lib/api-client-messages';
 import { AiGenerateDialog } from '@/components/ai-generate-dialog';
-import { LinkDialog } from '@/components/link-dialog';
+import { LinkDialog, type LinkDialogHandle } from '@/components/link-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
-import { RelatedItems } from '@/components/related-items';
+import { RelatedItems, type LinkedItem } from '@/components/related-items';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
 import { ShareButton } from '@/components/share/share-button';
 import {
@@ -63,6 +63,10 @@ export default function DeckDetailPage({
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
   const [linkedTodoIds, setLinkedTodoIds] = useState<string[]>([]);
+  const [linkedNoteItems, setLinkedNoteItems] = useState<LinkedItem[]>([]);
+  const [linkedDeckItems, setLinkedDeckItems] = useState<LinkedItem[]>([]);
+  const [linkedTodoItems, setLinkedTodoItems] = useState<LinkedItem[]>([]);
+  const linkDialogRef = useRef<LinkDialogHandle>(null);
 
   // Delete state
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -100,7 +104,9 @@ export default function DeckDetailPage({
       const res = await fetch(`/api/decks/${id}/notes`);
       if (res.ok) {
         const d: LinkedNotesResponse = await res.json();
-        setLinkedNoteIds((d.data ?? []).map((n: JsonApiResource) => n.id as string));
+        const items = (d.data ?? []) as JsonApiResource[];
+        setLinkedNoteIds(items.map((n) => n.id as string));
+        setLinkedNoteItems(items.map((n) => ({ uuid: n.id as string, title: String(n.attributes.title ?? ''), type: 'study_note' })));
       }
     } catch {
       // non-critical
@@ -112,7 +118,9 @@ export default function DeckDetailPage({
       const res = await fetch(`/api/decks/${id}/linked-decks`);
       if (res.ok) {
         const d = await res.json();
-        setLinkedDeckIds((d.data ?? []).map((deck: JsonApiResource) => deck.id as string));
+        const items = (d.data ?? []) as JsonApiResource[];
+        setLinkedDeckIds(items.map((deck) => deck.id as string));
+        setLinkedDeckItems(items.map((deck) => ({ uuid: deck.id as string, title: String(deck.attributes.title ?? ''), type: 'flashcard_deck' })));
       }
     } catch {
       // non-critical
@@ -124,7 +132,9 @@ export default function DeckDetailPage({
       const res = await fetch(`/api/decks/${id}/todos`);
       if (res.ok) {
         const d = await res.json();
-        setLinkedTodoIds((d.data ?? []).map((todo: JsonApiResource) => todo.id as string));
+        const items = (d.data ?? []) as JsonApiResource[];
+        setLinkedTodoIds(items.map((todo) => todo.id as string));
+        setLinkedTodoItems(items.map((todo) => ({ uuid: todo.id as string, title: String(todo.attributes.title ?? ''), type: 'todo_list' })));
       }
     } catch {
       // non-critical
@@ -152,6 +162,11 @@ export default function DeckDetailPage({
       setLoading(false);
     }
   }, [id]);
+
+  const linkedItems = useMemo(
+    () => [...linkedDeckItems, ...linkedNoteItems, ...linkedTodoItems],
+    [linkedDeckItems, linkedNoteItems, linkedTodoItems],
+  );
 
   useEffect(() => {
     if (authenticated) {
@@ -455,6 +470,7 @@ export default function DeckDetailPage({
                   <div className="flex items-center gap-2">
                     <AttachmentsMenu body={deckAttachmentsBody} onInsert={null} />
                     <LinkDialog
+                      ref={linkDialogRef}
                       mode="uncontrolled"
                       entityType="deck"
                       entityId={id}
@@ -699,7 +715,26 @@ export default function DeckDetailPage({
 
         {!loading && (
           <div className="mt-8">
-            <RelatedItems entityType="deck" entityUuid={id} />
+            <RelatedItems
+              entityType="deck"
+              entityUuid={id}
+              linkedItems={linkedItems}
+              onEditLinks={() => linkDialogRef.current?.openDialog()}
+              onRemoveLinkedItem={async (item) => {
+                const endpoint =
+                  item.type === 'study_note' ? `/api/decks/${id}/notes`
+                  : item.type === 'todo_list' ? `/api/decks/${id}/todos`
+                  : `/api/decks/${id}/linked-decks`;
+                await fetch(endpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ add: [], remove: [item.uuid] }),
+                }).catch(() => {});
+                if (item.type === 'study_note') loadLinkedNotes();
+                else if (item.type === 'todo_list') loadLinkedTodos();
+                else loadLinkedDecks();
+              }}
+            />
           </div>
         )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,6 +111,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+/** Imperative handle exposed via `ref` — lets parents open the menu programmatically. */
+export interface AttachmentsMenuHandle {
+  openMenu: () => void;
+}
+
 /** All distinct asset UUIDs referenced anywhere in the body. */
 function extractReferencedUuids(body: string): string[] {
   const seen = new Set<string>();
@@ -129,14 +134,16 @@ function extractReferencedUuids(body: string): string[] {
  * Pass `onInsert={null}` for a viewer-only variant (e.g. todos page,
  * where there's no single body to insert into).
  */
-export function AttachmentsMenu({
+export const AttachmentsMenu = forwardRef<AttachmentsMenuHandle, AttachmentsMenuProps>(
+function AttachmentsMenu({
   body,
   onInsert,
   onRemove,
   onSearchFile,
   className,
-}: AttachmentsMenuProps) {
+}, ref) {
   const [open, setOpen] = useState(false);
+  useImperativeHandle(ref, () => ({ openMenu: () => setOpen(true) }), []);
   const [allFiles, setAllFiles] = useState<FileAsset[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -415,4 +422,4 @@ export function AttachmentsMenu({
       )}
     </>
   );
-}
+});

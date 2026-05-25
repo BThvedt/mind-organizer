@@ -48,6 +48,12 @@ class RelatedController extends ControllerBase implements ContainerInjectionInte
   /** Default related items count when the caller doesnt specify. */
   private const DEFAULT_LIMIT = 6;
 
+  /** Mirrors SemanticSearchService::DEFAULT_SCORE_THRESHOLD. */
+  private const DEFAULT_SCORE_THRESHOLD = 0.60;
+
+  private const MIN_SCORE_THRESHOLD = 0.0;
+  private const MAX_SCORE_THRESHOLD = 0.95;
+
   public function __construct(
     private readonly SemanticSearchService $semantic,
   ) {}
@@ -84,6 +90,7 @@ class RelatedController extends ControllerBase implements ContainerInjectionInte
     }
 
     $limit = $this->resolveLimit($request->query->get('limit'));
+    $scoreThreshold = $this->resolveScoreThreshold($request->query->get('score_threshold'));
     $ownerUid = (int) $this->currentUser()->id();
 
     try {
@@ -92,6 +99,7 @@ class RelatedController extends ControllerBase implements ContainerInjectionInte
         $ownerUid,
         bundles: NULL,
         limit: $limit,
+        scoreThreshold: $scoreThreshold,
         requireIncludeInRag: FALSE,
       );
     }
@@ -119,6 +127,17 @@ class RelatedController extends ControllerBase implements ContainerInjectionInte
       return self::DEFAULT_LIMIT;
     }
     return min(self::MAX_LIMIT, $n);
+  }
+
+  /**
+   * Normalises the `score_threshold` query param into [MIN, MAX] with a default.
+   */
+  private function resolveScoreThreshold(mixed $raw): float {
+    if (!is_string($raw) || $raw === '') {
+      return self::DEFAULT_SCORE_THRESHOLD;
+    }
+    $v = (float) $raw;
+    return max(self::MIN_SCORE_THRESHOLD, min(self::MAX_SCORE_THRESHOLD, $v));
   }
 
   /**

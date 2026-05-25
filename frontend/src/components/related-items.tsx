@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { FileText, Layers, CheckSquare, Sparkles, Loader2 } from 'lucide-react';
+import { FileText, Layers, CheckSquare, Sparkles, Loader2, Pencil, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -38,6 +38,13 @@ interface ApiResponse {
   total?: number;
 }
 
+export interface LinkedItem {
+  uuid: string;
+  title: string;
+  /** Bundle string: 'study_note' | 'flashcard_deck' | 'todo_list' */
+  type: string;
+}
+
 interface RelatedItemsProps {
   /**
    * Which content type the seed entity is. Used in the URL the endpoint
@@ -49,6 +56,22 @@ interface RelatedItemsProps {
   limit?: number;
   /** Optional className for the outer wrapper. */
   className?: string;
+  /**
+   * Explicitly linked items to show above AI suggestions. When provided,
+   * they are rendered in a "Linked" subsection. The component returns null
+   * only when both this array and the AI results are empty (after loading).
+   */
+  linkedItems?: LinkedItem[];
+  /**
+   * When provided, a pencil icon appears in the header that calls this
+   * callback — typically used to open the Link dialog.
+   */
+  onEditLinks?: () => void;
+  /**
+   * When provided, each linked item gets an X button that calls this
+   * callback with the item to remove.
+   */
+  onRemoveLinkedItem?: (item: LinkedItem) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,6 +137,9 @@ export function RelatedItems({
   entityUuid,
   limit = 6,
   className,
+  linkedItems,
+  onEditLinks,
+  onRemoveLinkedItem,
 }: RelatedItemsProps) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [results, setResults] = useState<RelatedResult[]>([]);
@@ -149,6 +175,14 @@ export function RelatedItems({
       });
   }, [entityType, entityUuid, limit]);
 
+  const hasLinked = (linkedItems ?? []).length > 0;
+  const hasAiResults = results.length > 0;
+
+  // Hide entirely once loaded if there's nothing to show.
+  if (status !== 'loading' && !hasLinked && !hasAiResults) return null;
+
+  const showAiSubheader = hasLinked && status === 'ready' && hasAiResults;
+
   return (
     <section className={cn('rounded-xl border border-border bg-card', className)}>
       <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
@@ -159,10 +193,70 @@ export function RelatedItems({
         {status === 'loading' && (
           <Loader2 className="ml-auto h-3 w-3 animate-spin text-muted-foreground" aria-hidden />
         )}
+        {onEditLinks && (
+          <button
+            onClick={onEditLinks}
+            className={cn(
+              'flex h-5 w-5 items-center justify-center rounded transition-colors',
+              'text-muted-foreground hover:text-foreground hover:bg-muted/60',
+              status !== 'loading' && 'ml-auto',
+            )}
+            aria-label="Edit linked items"
+            type="button"
+          >
+            <Pencil className="h-3 w-3" aria-hidden />
+          </button>
+        )}
       </header>
 
+      {/* Explicitly linked items */}
+      {hasLinked && (
+        <>
+          <p className="px-4 pt-2.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            Linked
+          </p>
+          <ul className="divide-y divide-border">
+            {(linkedItems ?? []).map((item) => (
+              <li key={item.uuid} className="group flex items-center">
+                <Link
+                  href={bundleHref({ uuid: item.uuid, type: item.type, title: item.title, areas: [], subjects: [], score: 0 })}
+                  className="flex min-w-0 flex-1 items-start gap-3 px-4 py-2.5 transition-colors hover:bg-muted/40"
+                >
+                  <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
+                    {bundleIcon(item.type)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-foreground">{item.title}</span>
+                    <span className="mt-0.5 text-[11px] text-muted-foreground">
+                      {bundleLabel(item.type)}
+                    </span>
+                  </span>
+                </Link>
+                {onRemoveLinkedItem && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemoveLinkedItem(item); }}
+                    className="mr-3 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                    aria-label={`Remove link to ${item.title}`}
+                    type="button"
+                  >
+                    <X className="h-3 w-3" aria-hidden />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/* Sub-header separating linked from AI suggestions */}
+      {showAiSubheader && (
+        <p className="border-t border-border px-4 pt-2.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          AI suggestions
+        </p>
+      )}
+
       {status === 'loading' && (
-        <ul className="divide-y divide-border">
+        <ul className={cn('divide-y divide-border', hasLinked && 'border-t border-border')}>
           {Array.from({ length: Math.min(limit, 3) }).map((_, i) => (
             <li key={i} className="px-4 py-3">
               <div className="h-3.5 w-2/3 animate-pulse rounded bg-muted" />
@@ -172,19 +266,7 @@ export function RelatedItems({
         </ul>
       )}
 
-      {status === 'ready' && results.length === 0 && (
-        <p className="px-4 py-4 text-xs text-muted-foreground">
-          No related items yet. Keep adding notes, decks, or todos and they&apos;ll show up here.
-        </p>
-      )}
-
-      {status === 'error' && (
-        <p className="px-4 py-4 text-xs text-muted-foreground">
-          Couldn&apos;t load related items right now.
-        </p>
-      )}
-
-      {status === 'ready' && results.length > 0 && (
+      {status === 'ready' && hasAiResults && (
         <ul className="divide-y divide-border">
           {results.map((r) => {
             const tooltip = r.card

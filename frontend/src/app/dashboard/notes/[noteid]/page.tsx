@@ -17,11 +17,11 @@ import {
   AreaSubjectMultiSelector,
   AreaSubjectChipList,
 } from '@/components/area-subject-multi-selector';
-import { LinkDialog } from '@/components/link-dialog';
+import { LinkDialog, type KnownLinkedItems, type LinkDialogHandle } from '@/components/link-dialog';
 import { MarkdownToolbar } from '@/components/markdown-toolbar';
 import { NoteAiDialog } from '@/components/note-ai-dialog';
-import { AttachmentsMenu } from '@/components/attachments-menu';
-import { RelatedItems } from '@/components/related-items';
+import { AttachmentsMenu, type AttachmentsMenuHandle } from '@/components/attachments-menu';
+import { RelatedItems, type LinkedItem } from '@/components/related-items';
 import {
   MediaInsertDialog,
   type InsertPayload,
@@ -50,6 +50,7 @@ type MobileTab = 'write' | 'preview';
 
 interface NoteResponse {
   data: JsonApiResource;
+  included?: JsonApiResource[];
 }
 
 type NoteSnapshot = {
@@ -157,12 +158,15 @@ export default function EditNotePage({
     actions: editorActions,
   } = useMarkdownEditor(body, setBody);
   const previewViewportRef = useRef<HTMLDivElement>(null);
+  const linkDialogRef = useRef<LinkDialogHandle>(null);
+  const attachmentsMenuRef = useRef<AttachmentsMenuHandle>(null);
   const { onEditorMouseUp, onPreviewMouseUp } = usePreviewScrollSync(editorRef, previewViewportRef, body);
   const [areaUuids, setAreaUuids] = useState<string[]>([]);
   const [subjectUuids, setSubjectUuids] = useState<string[]>([]);
   const [linkedDeckIds, setLinkedDeckIds] = useState<string[]>([]);
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>([]);
   const [linkedTodoIds, setLinkedTodoIds] = useState<string[]>([]);
+  const [linkedItems, setLinkedItems] = useState<LinkedItem[]>([]);
   const [mobileTab, setMobileTab] = useState<MobileTab>('write');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -240,6 +244,21 @@ export default function EditNotePage({
           setLinkedDeckIds(deckIds);
           setLinkedNoteIds(noteIds);
           setLinkedTodoIds(todoIds);
+          const inc = data.included ?? [];
+          setLinkedItems([
+            ...deckIds.map((id) => {
+              const r = inc.find((x) => x.id === id);
+              return r ? { uuid: id, title: String(r.attributes.title ?? ''), type: 'flashcard_deck' } : null;
+            }),
+            ...noteIds.map((id) => {
+              const r = inc.find((x) => x.id === id);
+              return r ? { uuid: id, title: String(r.attributes.title ?? ''), type: 'study_note' } : null;
+            }),
+            ...todoIds.map((id) => {
+              const r = inc.find((x) => x.id === id);
+              return r ? { uuid: id, title: String(r.attributes.title ?? ''), type: 'todo_list' } : null;
+            }),
+          ].filter((x): x is LinkedItem => x !== null));
           setIsShared(Boolean(note.attributes.field_is_shared));
           setShareToken((note.attributes.field_share_token as string | null) ?? null);
           setIncludeInRag(
@@ -261,6 +280,38 @@ export default function EditNotePage({
       })
       .finally(() => setLoading(false));
   }, [authenticated, noteid]);
+
+  // Re-fetches the note's linked-item metadata and updates `linkedItems`.
+  // Called after a successful save so the Related panel reflects new links
+  // without requiring a full page reload.
+  const refreshLinkedItems = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/notes/${noteid}`);
+      if (!res.ok) return;
+      const data: NoteResponse = await res.json();
+      const note = data.data;
+      const deckIds = toRelIds(note.relationships?.field_linked_decks?.data);
+      const noteIds = toRelIds(note.relationships?.field_linked_notes?.data);
+      const todoIds = toRelIds(note.relationships?.field_linked_todos?.data);
+      const inc = data.included ?? [];
+      setLinkedItems([
+        ...deckIds.map((id) => {
+          const r = inc.find((x) => x.id === id);
+          return r ? { uuid: id, title: String(r.attributes.title ?? ''), type: 'flashcard_deck' } : null;
+        }),
+        ...noteIds.map((id) => {
+          const r = inc.find((x) => x.id === id);
+          return r ? { uuid: id, title: String(r.attributes.title ?? ''), type: 'study_note' } : null;
+        }),
+        ...todoIds.map((id) => {
+          const r = inc.find((x) => x.id === id);
+          return r ? { uuid: id, title: String(r.attributes.title ?? ''), type: 'todo_list' } : null;
+        }),
+      ].filter((x): x is LinkedItem => x !== null));
+    } catch {
+      // non-critical
+    }
+  }, [noteid]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -332,6 +383,11 @@ export default function EditNotePage({
           return;
         }
 
+        const linksChanged =
+          !idListsEqual(d.linkedDeckIds, d.savedSnapshot.linkedDeckIds) ||
+          !idListsEqual(d.linkedNoteIds, d.savedSnapshot.linkedNoteIds) ||
+          !idListsEqual(d.linkedTodoIds, d.savedSnapshot.linkedTodoIds);
+
         const nextSnapshot: NoteSnapshot = {
           title: trimmed,
           body: d.body,
@@ -344,6 +400,10 @@ export default function EditNotePage({
         setSavedSnapshot(nextSnapshot);
         setTitle(trimmed);
 
+        if (linksChanged) {
+          void refreshLinkedItems();
+        }
+
         if (opts.navigateOnSuccess) {
           router.push(`/dashboard/notes?id=${noteid}`);
         }
@@ -353,7 +413,7 @@ export default function EditNotePage({
         setSaving(false);
       }
     },
-    [noteid, router],
+    [noteid, router, refreshLinkedItems],
   );
 
   useEffect(() => {
@@ -541,6 +601,7 @@ export default function EditNotePage({
             <span className="hidden sm:inline">Insert</span>
           </Button>
           <AttachmentsMenu
+            ref={attachmentsMenuRef}
             body={body}
             onInsert={(snippet) => setBody((prev) => addAttachmentToBody(prev, snippet))}
             onRemove={(snippet) => {
@@ -549,14 +610,29 @@ export default function EditNotePage({
             onSearchFile={() => setAttachSearchOpen(true)}
           />
           <LinkDialog
+            ref={linkDialogRef}
             mode="controlled"
             selectedDeckIds={linkedDeckIds}
             selectedNoteIds={linkedNoteIds}
             selectedTodoIds={linkedTodoIds}
-            onChange={(next) => {
+            onChange={(next, knownItems: KnownLinkedItems) => {
               setLinkedDeckIds(next.deck);
               setLinkedNoteIds(next.note);
               setLinkedTodoIds(next.todo);
+              // Immediately update the Related panel using metadata the dialog
+              // resolved while the user was browsing / searching.  Items not
+              // in knownItems (pre-existing links) fall back to the current
+              // display state so their titles are preserved.
+              setLinkedItems((prev) => {
+                const allSelected = [...next.deck, ...next.note, ...next.todo];
+                return allSelected
+                  .map((id) => {
+                    const ki = knownItems[id];
+                    if (ki) return { uuid: id, title: ki.title, type: ki.type };
+                    return prev.find((item) => item.uuid === id) ?? null;
+                  })
+                  .filter((x): x is LinkedItem => x !== null);
+              });
             }}
             excludeSelf={{ type: 'note', id: noteid }}
             contextAreaUuid={areaUuids[0] ?? ''}
@@ -724,15 +800,13 @@ export default function EditNotePage({
               const attachLinks = getAttachmentLinks(body);
               const hasContent = contentPart.trim().length > 0;
               const hasAttachments = attachLinks.length > 0;
-              if (!hasContent && !hasAttachments) {
-                return (
-                  <div className="flex min-h-[12rem] flex-1 items-center justify-center p-8 text-muted-foreground text-sm md:min-h-0">
-                    Preview will appear here as you write.
-                  </div>
-                );
-              }
               return (
                 <>
+                  {!hasContent && !hasAttachments && (
+                    <div className="flex min-h-[12rem] flex-1 items-center justify-center p-8 text-muted-foreground text-sm md:min-h-0">
+                      Preview will appear here as you write.
+                    </div>
+                  )}
                   {hasContent && (
                     <div className="prose prose-sm max-w-none p-6">
                       <MarkdownRenderer brokenUuids={brokenSet}>{contentPart}</MarkdownRenderer>
@@ -746,20 +820,28 @@ export default function EditNotePage({
                           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                             Attachments
                           </span>
-                          <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                          <span className="text-xs text-muted-foreground tabular-nums">
                             {attachLinks.length}
                           </span>
+                          <button
+                            onClick={() => attachmentsMenuRef.current?.openMenu()}
+                            className="ml-auto flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            aria-label="Manage attachments"
+                            type="button"
+                          >
+                            <Pencil className="h-3 w-3" aria-hidden />
+                          </button>
                         </div>
                         <ul className="divide-y divide-border">
                           {attachLinks.map(({ name, url, raw }) => {
                             const Icon = iconForAttachment(name);
                             return (
-                              <li key={raw}>
+                              <li key={raw} className="group flex items-center">
                                 <a
                                   href={url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-muted/50"
+                                  className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-muted/50"
                                 >
                                   <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                                   <span className="min-w-0 flex-1 truncate text-foreground" title={name}>
@@ -767,6 +849,14 @@ export default function EditNotePage({
                                   </span>
                                   <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                 </a>
+                                <button
+                                  onClick={() => setBody((prev) => removeAttachmentFromBody(prev, raw))}
+                                  className="mr-3 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                                  aria-label={`Remove ${name}`}
+                                  type="button"
+                                >
+                                  <X className="h-3 w-3" aria-hidden />
+                                </button>
                               </li>
                             );
                           })}
@@ -775,7 +865,18 @@ export default function EditNotePage({
                     </div>
                   )}
                   <div className="px-6 pb-6">
-                    <RelatedItems entityType="note" entityUuid={noteid} />
+                    <RelatedItems
+                      entityType="note"
+                      entityUuid={noteid}
+                      linkedItems={linkedItems}
+                      onEditLinks={() => linkDialogRef.current?.openDialog()}
+                      onRemoveLinkedItem={(item) => {
+                        if (item.type === 'flashcard_deck') setLinkedDeckIds((p) => p.filter((id) => id !== item.uuid));
+                        else if (item.type === 'study_note') setLinkedNoteIds((p) => p.filter((id) => id !== item.uuid));
+                        else if (item.type === 'todo_list') setLinkedTodoIds((p) => p.filter((id) => id !== item.uuid));
+                        setLinkedItems((p) => p.filter((i) => i.uuid !== item.uuid));
+                      }}
+                    />
                   </div>
                 </>
               );

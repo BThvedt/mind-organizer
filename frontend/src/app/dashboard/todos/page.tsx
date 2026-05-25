@@ -45,10 +45,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { ShareButton } from '@/components/share/share-button';
-import { LinkDialog } from '@/components/link-dialog';
+import { LinkDialog, type LinkDialogHandle } from '@/components/link-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
 import { TodoAiDialog } from '@/components/todo-ai-dialog';
-import { RelatedItems } from '@/components/related-items';
+import { RelatedItems, type LinkedItem } from '@/components/related-items';
 import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
@@ -276,6 +276,7 @@ function TodosPageContent() {
   const [deletingList, setDeletingList] = useState(false);
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const clickedElsewhereRef = useRef(false);
+  const linkDialogRef = useRef<LinkDialogHandle>(null);
 
   // Per-item optimistic toggle tracking
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
@@ -979,6 +980,28 @@ function TodosPageContent() {
 
   const selectedList = selectedId ? (lists.find((l) => l.id === selectedId) ?? null) : null;
 
+  const linkedItems = useMemo((): LinkedItem[] => {
+    if (!selectedList) return [];
+    const deckIds = listLinkedIds(selectedList, 'field_linked_decks');
+    const noteIds = listLinkedIds(selectedList, 'field_linked_notes');
+    const todoIds = listLinkedIds(selectedList, 'field_linked_todos');
+    const items: LinkedItem[] = [];
+    for (const id of deckIds) {
+      const r = included.find((x) => x.id === id && x.type === 'node--flashcard_deck');
+      if (r) items.push({ uuid: id, title: String(r.attributes.title ?? ''), type: 'flashcard_deck' });
+    }
+    for (const id of noteIds) {
+      const r = included.find((x) => x.id === id && x.type === 'node--study_note');
+      if (r) items.push({ uuid: id, title: String(r.attributes.title ?? ''), type: 'study_note' });
+    }
+    for (const id of todoIds) {
+      if (id === selectedList.id) continue;
+      const r = included.find((x) => x.id === id && x.type === 'node--todo_list');
+      if (r) items.push({ uuid: id, title: String(r.attributes.title ?? ''), type: 'todo_list' });
+    }
+    return items;
+  }, [selectedList, included]);
+
   const itemRels: { id: string; meta?: { target_revision_id?: number } }[] = selectedList
     ? (Array.isArray(selectedList.relationships?.field_items?.data)
         ? selectedList.relationships.field_items.data
@@ -1353,6 +1376,7 @@ function TodosPageContent() {
                       />
                       <AttachmentsMenu body={todoAttachmentsBody} onInsert={null} />
                       <LinkDialog
+                        ref={linkDialogRef}
                         mode="uncontrolled"
                         entityType="todo"
                         entityId={selectedList.id}
@@ -1654,7 +1678,30 @@ function TodosPageContent() {
               </form>
 
               <div className="mt-8">
-                <RelatedItems entityType="todo" entityUuid={selectedList.id} />
+                <RelatedItems
+                  entityType="todo"
+                  entityUuid={selectedList.id}
+                  linkedItems={linkedItems}
+                  onEditLinks={() => linkDialogRef.current?.openDialog()}
+                  onRemoveLinkedItem={async (item) => {
+                    const field =
+                      item.type === 'study_note' ? 'field_linked_notes'
+                      : item.type === 'todo_list' ? 'field_linked_todos'
+                      : 'field_linked_decks';
+                    const current = listLinkedIds(selectedList, field);
+                    const next = current.filter((id) => id !== item.uuid);
+                    const patchKey =
+                      item.type === 'study_note' ? 'linkedNoteUuids'
+                      : item.type === 'todo_list' ? 'linkedTodoUuids'
+                      : 'linkedDeckUuids';
+                    await fetch(`/api/todos/${selectedList.id}/links`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ [patchKey]: next }),
+                    }).catch(() => {});
+                    loadLists();
+                  }}
+                />
               </div>
             </div>
             </ScrollArea>

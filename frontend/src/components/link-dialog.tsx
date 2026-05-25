@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -28,6 +28,7 @@ import {
   Link2,
   Loader2,
   Search,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,6 +44,7 @@ import { toRelIds } from '@/lib/json-api';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type LinkTab = 'deck' | 'note' | 'todo';
+type ActiveTab = LinkTab | 'ai';
 
 interface TermRef {
   uuid: string;
@@ -57,18 +59,52 @@ interface SearchResult {
   subjects: TermRef[];
 }
 
+interface RelatedResult {
+  uuid: string;
+  type: string;
+  title: string;
+  areas: TermRef[];
+  subjects: TermRef[];
+  score: number;
+}
+
+function bundleToTab(bundle: string): LinkTab {
+  if (bundle === 'study_note') return 'note';
+  if (bundle === 'todo_list') return 'todo';
+  return 'deck';
+}
+
+// ── AI tab threshold constants ────────────────────────────────────────────────
+// Mirrors RelatedController::DEFAULT_SCORE_THRESHOLD on the backend.
+const AI_THRESHOLD_DEFAULT = 0.60;
+const AI_THRESHOLD_MIN = 0;
+const AI_THRESHOLD_MAX = 0.95;
+const AI_THRESHOLD_STEP = 0.05;
+
 interface LinkedIds {
   deck: string[];
   note: string[];
   todo: string[];
 }
 
+/**
+ * Metadata the dialog has resolved for items the user browsed, searched, or
+ * selected via the AI tab.  Keyed by UUID; type is the Drupal bundle string.
+ */
+export type KnownLinkedItems = Record<string, { title: string; type: string }>;
+
 type ControlledProps = {
   mode: 'controlled';
   selectedDeckIds: string[];
   selectedNoteIds: string[];
   selectedTodoIds: string[];
-  onChange: (next: LinkedIds) => void;
+  /**
+   * Fired when the user clicks Done.  The second argument contains title/type
+   * metadata for every selected item that was visible in the dialog; callers
+   * can use it to update their display state immediately, without waiting for
+   * a server round-trip.
+   */
+  onChange: (next: LinkedIds, knownItems: KnownLinkedItems) => void;
   /** When editing an existing entity, exclude its own ID from the relevant tab. */
   excludeSelf?: { type: LinkTab; id: string };
   contextAreaUuid?: string;
@@ -153,11 +189,18 @@ function todoHref(id: string) {
   return `/dashboard/todos?id=${id}`;
 }
 
+// ── Handle ───────────────────────────────────────────────────────────────────
+
+/** Imperative handle exposed via `ref` — lets parents open the dialog programmatically. */
+export interface LinkDialogHandle {
+  openDialog: () => void;
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function LinkDialog(props: LinkDialogProps) {
+export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function LinkDialog(props, ref) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<LinkTab>('deck');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('deck');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -187,14 +230,37 @@ export function LinkDialog(props: LinkDialogProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
+  // AI suggestions state
+  const [aiResults, setAiResults] = useState<RelatedResult[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiLoaded, setAiLoaded] = useState(false);
+  const [aiThreshold, setAiThreshold] = useState(AI_THRESHOLD_DEFAULT);
+  // Draft tracks the slider position visually; aiThreshold is only committed on mouseup/touchend.
+  const [aiThresholdDraft, setAiThresholdDraft] = useState(AI_THRESHOLD_DEFAULT);
+
   // Accumulates metadata for items we've seen across browse + search across all tabs
   type KnownInfo = { type: LinkTab; title: string; areaName?: string; subjectName?: string };
   const [known, setKnown] = useState<Map<string, KnownInfo>>(new Map());
 
   const isSearchMode = search.trim().length >= 2;
-  const meta = TAB_META[activeTab];
+  const meta = activeTab !== 'ai' ? TAB_META[activeTab] : null;
 
   const excludeSelf = props.mode === 'controlled' ? props.excludeSelf : undefined;
+
+  // Context entity — used to call the related-items endpoint for the AI tab.
+  const contextEntityType: LinkTab | null =
+    props.mode === 'uncontrolled'
+      ? props.entityType
+      : props.mode === 'controlled' && props.excludeSelf
+        ? props.excludeSelf.type
+        : null;
+  const contextEntityId: string | null =
+    props.mode === 'uncontrolled'
+      ? props.entityId
+      : props.mode === 'controlled' && props.excludeSelf
+        ? props.excludeSelf.id
+        : null;
 
   // ── Open / reset ───────────────────────────────────────────────────────────
 
@@ -225,6 +291,11 @@ export function LinkDialog(props: LinkDialogProps) {
         setUrlInput('');
         setUrlError('');
         setSaveError('');
+        setAiResults([]);
+        setAiLoaded(false);
+        setAiError('');
+        setAiThreshold(AI_THRESHOLD_DEFAULT);
+        setAiThresholdDraft(AI_THRESHOLD_DEFAULT);
         return;
       }
 
@@ -235,7 +306,7 @@ export function LinkDialog(props: LinkDialogProps) {
       setFilterAreaId(props.contextAreaUuid ?? '');
       setFilterSubjectId(props.contextAreaUuid ? (props.contextSubjectUuid ?? '') : '');
 
-      if (lists[activeTab].length === 0 && !loadingList[activeTab]) {
+      if (activeTab !== 'ai' && lists[activeTab].length === 0 && !loadingList[activeTab]) {
         void loadList(activeTab);
       }
       setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -278,7 +349,7 @@ export function LinkDialog(props: LinkDialogProps) {
   // Lazy-load a tab's list the first time the user switches to it while open.
   useEffect(() => {
     if (!open) return;
-    if (lists[activeTab].length === 0 && !loadingList[activeTab]) {
+    if (activeTab !== 'ai' && lists[activeTab].length === 0 && !loadingList[activeTab]) {
       void loadList(activeTab);
     }
     // Reset tab-local UI on switch
@@ -292,6 +363,32 @@ export function LinkDialog(props: LinkDialogProps) {
     setFilterSubjectId(props.contextAreaUuid ? (props.contextSubjectUuid ?? '') : '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, open]);
+
+  // Fetch AI suggestions whenever aiLoaded is false and the AI tab is active.
+  // aiLoaded is reset to false when the threshold changes (see slider handler),
+  // which triggers a fresh fetch with the new score_threshold.
+  useEffect(() => {
+    if (!open || activeTab !== 'ai' || aiLoaded || !contextEntityType || !contextEntityId) return;
+    setAiLoading(true);
+    setAiError('');
+    const qs = new URLSearchParams({ limit: '20', score_threshold: String(aiThreshold) });
+    fetch(`/api/search/related/${contextEntityType}/${contextEntityId}?${qs}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error('failed');
+        const data: { results?: RelatedResult[] } = await res.json();
+        const results = Array.isArray(data.results) ? data.results : [];
+        setAiResults(results.filter((r) => r.uuid !== contextEntityId));
+        setAiLoaded(true);
+      })
+      .catch(() => {
+        setAiError("Couldn't load AI suggestions right now.");
+      })
+      .finally(() => {
+        setAiLoading(false);
+      });
+  // contextEntityType and contextEntityId are derived from stable props — no object identity issue
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeTab, aiLoaded, contextEntityType, contextEntityId, aiThreshold]);
 
   const doSearch = useCallback(
     (q: string, tab: LinkTab) => {
@@ -339,6 +436,7 @@ export function LinkDialog(props: LinkDialogProps) {
   );
 
   useEffect(() => {
+    if (activeTab === 'ai') return;
     doSearch(search, activeTab);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -347,10 +445,11 @@ export function LinkDialog(props: LinkDialogProps) {
 
   // ── Derived browse data ────────────────────────────────────────────────────
 
-  const tabItems = lists[activeTab];
-  const tabIncluded = includedMap[activeTab];
+  const tabItems = activeTab !== 'ai' ? lists[activeTab] : [];
+  const tabIncluded = activeTab !== 'ai' ? includedMap[activeTab] : [];
 
   const browseable = useMemo(() => {
+    if (activeTab === 'ai') return [];
     if (excludeSelf && excludeSelf.type === activeTab) {
       return tabItems.filter((item) => item.id !== excludeSelf.id);
     }
@@ -439,7 +538,7 @@ export function LinkDialog(props: LinkDialogProps) {
 
   // Also absorb search results into `known`.
   useEffect(() => {
-    if (searchResults.length === 0) return;
+    if (searchResults.length === 0 || activeTab === 'ai') return;
     setKnown((prev) => {
       const next = new Map(prev);
       searchResults.forEach((r) => {
@@ -456,9 +555,28 @@ export function LinkDialog(props: LinkDialogProps) {
     });
   }, [searchResults, activeTab]);
 
+  // Absorb AI results into `known`.
+  useEffect(() => {
+    if (aiResults.length === 0) return;
+    setKnown((prev) => {
+      const next = new Map(prev);
+      aiResults.forEach((r) => {
+        if (!next.has(r.uuid)) {
+          next.set(r.uuid, {
+            type: bundleToTab(r.type),
+            title: r.title,
+            areaName: r.areas[0]?.name ?? undefined,
+            subjectName: r.subjects[0]?.name ?? undefined,
+          });
+        }
+      });
+      return next;
+    });
+  }, [aiResults]);
+
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  function toggle(id: string, tab: LinkTab = activeTab) {
+  function toggle(id: string, tab: LinkTab = activeTab as LinkTab) {
     setLocal((prev) => {
       const bucket = prev[tab];
       const nextBucket = bucket.includes(id)
@@ -487,15 +605,26 @@ export function LinkDialog(props: LinkDialogProps) {
       setUrlError('You cannot link an item to itself.');
       return;
     }
-    if (!local[activeTab].includes(uuid)) {
-      toggle(uuid, activeTab);
+    if (!local[activeTab as LinkTab].includes(uuid)) {
+      toggle(uuid, activeTab as LinkTab);
     }
     setUrlInput('');
   }
 
   async function handleDone() {
     if (props.mode === 'controlled') {
-      props.onChange(local);
+      // Build a flat map of UUID → {title, type} for every selected item that
+      // the dialog has resolved metadata for.  The caller can use this to
+      // update its display state immediately without waiting for a save.
+      const knownItems: KnownLinkedItems = {};
+      for (const [id, info] of known.entries()) {
+        const bundle =
+          info.type === 'note' ? 'study_note'
+          : info.type === 'todo' ? 'todo_list'
+          : 'flashcard_deck';
+        knownItems[id] = { title: info.title, type: bundle };
+      }
+      props.onChange(local, knownItems);
       setOpen(false);
       return;
     }
@@ -550,7 +679,9 @@ export function LinkDialog(props: LinkDialogProps) {
   // ── Row renderer ───────────────────────────────────────────────────────────
 
   function renderRow(id: string, title: string, areaName?: string, subjectName?: string) {
-    const checked = local[activeTab].includes(id);
+    // renderRow is only called when activeTab is a LinkTab, never 'ai'
+    const tab = activeTab as LinkTab;
+    const checked = local[tab].includes(id);
     return (
       <label
         key={id}
@@ -561,7 +692,7 @@ export function LinkDialog(props: LinkDialogProps) {
       >
         <Checkbox
           checked={checked}
-          onCheckedChange={() => toggle(id)}
+          onCheckedChange={() => toggle(id, tab)}
           className="shrink-0"
         />
         <div className="flex-1 min-w-0">
@@ -572,6 +703,47 @@ export function LinkDialog(props: LinkDialogProps) {
             </p>
           )}
         </div>
+      </label>
+    );
+  }
+
+  function renderAiRow(result: RelatedResult) {
+    const tab = bundleToTab(result.type);
+    const checked = local[tab].includes(result.uuid);
+    const TypeIcon = TAB_META[tab].icon;
+    const typeLabel = tab === 'note' ? 'Note' : tab === 'deck' ? 'Deck' : 'Todo';
+    return (
+      <label
+        key={result.uuid}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors',
+          checked && 'bg-primary/5',
+        )}
+      >
+        <Checkbox
+          checked={checked}
+          onCheckedChange={() => toggle(result.uuid, tab)}
+          className="shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{result.title}</p>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <TypeIcon className="h-3 w-3 shrink-0" aria-hidden />
+            <span>{typeLabel}</span>
+            {result.areas[0] && (
+              <>
+                <span aria-hidden>·</span>
+                <span>{result.areas[0].name}</span>
+              </>
+            )}
+          </p>
+        </div>
+        <span
+          className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
+          aria-label={`${Math.round(result.score * 100)} percent match`}
+        >
+          {Math.round(result.score * 100)}%
+        </span>
       </label>
     );
   }
@@ -634,6 +806,12 @@ export function LinkDialog(props: LinkDialogProps) {
     ? (props as { disabled?: boolean }).disabled
     : false;
 
+  // Expose openDialog() via ref so parents can programmatically open the dialog
+  // (e.g. from the pencil icon in the Related panel).
+  useImperativeHandle(ref, () => ({
+    openDialog: () => void handleOpenChange(true),
+  }), [handleOpenChange]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -665,8 +843,11 @@ export function LinkDialog(props: LinkDialogProps) {
         </DialogHeader>
 
         <div className="flex flex-col gap-3 flex-1 overflow-hidden min-h-0">
-          {/* Search bar */}
-          <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-1.5">
+          {/* Search bar — hidden on AI tab */}
+          <div className={cn(
+            'flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-1.5',
+            activeTab === 'ai' && 'hidden',
+          )}>
             {searchLoading ? (
               <Loader2 className="h-4 w-4 shrink-0 text-muted-foreground animate-spin" />
             ) : (
@@ -676,7 +857,7 @@ export function LinkDialog(props: LinkDialogProps) {
               ref={searchInputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={meta.searchPlaceholder}
+              placeholder={meta?.searchPlaceholder}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             {search && (
@@ -693,7 +874,7 @@ export function LinkDialog(props: LinkDialogProps) {
 
           <Tabs
             value={activeTab}
-            onValueChange={(v) => setActiveTab(v as LinkTab)}
+            onValueChange={(v) => setActiveTab(v as ActiveTab)}
           >
             <TabsList className="w-full">
               <TabsTrigger value="deck">
@@ -720,11 +901,58 @@ export function LinkDialog(props: LinkDialogProps) {
                   </span>
                 )}
               </TabsTrigger>
+              {contextEntityId && (
+                <TabsTrigger value="ai" className="gap-1">
+                  <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                  AI
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
 
+          {/* AI tab — match-strength slider */}
+          {activeTab === 'ai' && contextEntityId && (
+            <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <label
+                  htmlFor="ai-score-threshold"
+                  className="text-xs text-muted-foreground"
+                >
+                  Match strength
+                </label>
+                <span className="font-mono text-xs text-foreground tabular-nums">
+                  {aiThresholdDraft.toFixed(2)}
+                </span>
+              </div>
+              <input
+                id="ai-score-threshold"
+                type="range"
+                min={AI_THRESHOLD_MIN}
+                max={AI_THRESHOLD_MAX}
+                step={AI_THRESHOLD_STEP}
+                value={aiThresholdDraft}
+                onChange={(e) => setAiThresholdDraft(parseFloat(e.target.value))}
+                onMouseUp={(e) => {
+                  const next = parseFloat((e.target as HTMLInputElement).value);
+                  setAiThreshold(next);
+                  setAiLoaded(false);
+                }}
+                onTouchEnd={(e) => {
+                  const next = parseFloat((e.target as HTMLInputElement).value);
+                  setAiThreshold(next);
+                  setAiLoaded(false);
+                }}
+                disabled={aiLoading}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-border accent-primary disabled:opacity-60"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Too many results? Raise the threshold. Too few? Lower it.
+              </p>
+            </div>
+          )}
+
           {/* Browse-mode filters */}
-          {!isSearchMode && !loadingList[activeTab] && uniqueAreas.length > 0 && (
+          {activeTab !== 'ai' && !isSearchMode && !loadingList[activeTab as LinkTab] && uniqueAreas.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <Select
                 value={filterAreaId || '__all__'}
@@ -784,7 +1012,32 @@ export function LinkDialog(props: LinkDialogProps) {
 
           {/* List */}
           <div className="flex-1 overflow-y-auto min-h-0 rounded-md border border-border">
-            {isSearchMode ? (
+            {activeTab === 'ai' ? (
+              aiLoading ? (
+                <div className="p-3 flex flex-col gap-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
+                  ))}
+                </div>
+              ) : aiError ? (
+                <p className="py-12 px-4 text-center text-sm text-muted-foreground">{aiError}</p>
+              ) : aiResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
+                  <Sparkles className="h-5 w-5 opacity-40" aria-hidden />
+                  <span>No related items found yet.</span>
+                  <span className="text-xs">Keep adding content and AI suggestions will appear here.</span>
+                </div>
+              ) : (
+                <>
+                  <p className="px-3 pt-2.5 pb-1 text-xs text-muted-foreground">
+                    Related items found by AI
+                  </p>
+                  <div className="divide-y divide-border">
+                    {aiResults.map((r) => renderAiRow(r))}
+                  </div>
+                </>
+              )
+            ) : isSearchMode ? (
               searchLoading && !searched ? (
                 <div className="p-3 flex flex-col gap-2">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -806,8 +1059,8 @@ export function LinkDialog(props: LinkDialogProps) {
                 </p>
               ) : searchResults.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
-                  <meta.icon className="h-5 w-5 opacity-40" />
-                  <span>No {meta.plural} found for &ldquo;{search.trim()}&rdquo;</span>
+                  {meta && <meta.icon className="h-5 w-5 opacity-40" />}
+                  <span>No {meta?.plural} found for &ldquo;{search.trim()}&rdquo;</span>
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -817,7 +1070,7 @@ export function LinkDialog(props: LinkDialogProps) {
                 </div>
               )
             ) : (
-              loadingList[activeTab] ? (
+              loadingList[activeTab as LinkTab] ? (
                 <div className="p-3 flex flex-col gap-2">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
@@ -825,11 +1078,11 @@ export function LinkDialog(props: LinkDialogProps) {
                 </div>
               ) : visibleItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
-                  <meta.icon className="h-5 w-5 opacity-40" />
+                  {meta && <meta.icon className="h-5 w-5 opacity-40" />}
                   <span>
                     {browseable.length === 0
-                      ? `You have no ${meta.plural} yet.`
-                      : `No ${meta.plural} match the selected filters.`}
+                      ? `You have no ${meta?.plural} yet.`
+                      : `No ${meta?.plural} match the selected filters.`}
                   </span>
                 </div>
               ) : (
@@ -849,27 +1102,29 @@ export function LinkDialog(props: LinkDialogProps) {
           </div>
 
           {/* Paste URL / ID — resolves against the active tab's items */}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Or paste URL / ID</Label>
-            <div className="flex gap-2">
-              <Input
-                value={urlInput}
-                onChange={(e) => { setUrlInput(e.target.value); setUrlError(''); }}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddByUrl()}
-                placeholder="https://… or UUID"
-                className="h-8 text-sm flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAddByUrl}
-                disabled={!urlInput.trim()}
-              >
-                Add
-              </Button>
+          {activeTab !== 'ai' && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs text-muted-foreground">Or paste URL / ID</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={urlInput}
+                  onChange={(e) => { setUrlInput(e.target.value); setUrlError(''); }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddByUrl()}
+                  placeholder="https://… or UUID"
+                  className="h-8 text-sm flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddByUrl}
+                  disabled={!urlInput.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+              {urlError && <p className="text-xs text-destructive">{urlError}</p>}
             </div>
-            {urlError && <p className="text-xs text-destructive">{urlError}</p>}
-          </div>
+          )}
 
           {/* Currently linked (across all tabs) */}
           {totalSelected > 0 && (
@@ -894,4 +1149,4 @@ export function LinkDialog(props: LinkDialogProps) {
       </DialogContent>
     </Dialog>
   );
-}
+});

@@ -33,6 +33,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
+  MATCH_STRENGTH_DEFAULT,
+  MATCH_STRENGTH_MAX,
+  MATCH_STRENGTH_MIN,
+  MATCH_STRENGTH_STEP,
+} from '@/lib/match-strength';
+import { useMatchStrengthPreferences } from '@/hooks/useMatchStrengthPreferences';
+import {
   SESSION_EXPIRED_MESSAGE,
   SEARCH_HTTP_FALLBACK_MESSAGE,
   messageWhenSearchRequestThrows,
@@ -73,13 +80,6 @@ function bundleToTab(bundle: string): LinkTab {
   if (bundle === 'todo_list') return 'todo';
   return 'deck';
 }
-
-// ── AI tab threshold constants ────────────────────────────────────────────────
-// Mirrors RelatedController::DEFAULT_SCORE_THRESHOLD on the backend.
-const AI_THRESHOLD_DEFAULT = 0.60;
-const AI_THRESHOLD_MIN = 0;
-const AI_THRESHOLD_MAX = 0.95;
-const AI_THRESHOLD_STEP = 0.05;
 
 interface LinkedIds {
   deck: string[];
@@ -230,14 +230,22 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
+  const { linkDefault, loaded: prefsLoaded } = useMatchStrengthPreferences();
+
   // AI suggestions state
   const [aiResults, setAiResults] = useState<RelatedResult[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiLoaded, setAiLoaded] = useState(false);
-  const [aiThreshold, setAiThreshold] = useState(AI_THRESHOLD_DEFAULT);
+  const [aiThreshold, setAiThreshold] = useState(MATCH_STRENGTH_DEFAULT);
   // Draft tracks the slider position visually; aiThreshold is only committed on mouseup/touchend.
-  const [aiThresholdDraft, setAiThresholdDraft] = useState(AI_THRESHOLD_DEFAULT);
+  const [aiThresholdDraft, setAiThresholdDraft] = useState(MATCH_STRENGTH_DEFAULT);
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    setAiThreshold(linkDefault);
+    setAiThresholdDraft(linkDefault);
+  }, [prefsLoaded, linkDefault]);
 
   // Accumulates metadata for items we've seen across browse + search across all tabs
   type KnownInfo = { type: LinkTab; title: string; areaName?: string; subjectName?: string };
@@ -294,8 +302,8 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
         setAiResults([]);
         setAiLoaded(false);
         setAiError('');
-        setAiThreshold(AI_THRESHOLD_DEFAULT);
-        setAiThresholdDraft(AI_THRESHOLD_DEFAULT);
+        setAiThreshold(linkDefault);
+        setAiThresholdDraft(linkDefault);
         return;
       }
 
@@ -327,7 +335,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [props, lists, loadingList, activeTab],
+    [props, lists, loadingList, activeTab, linkDefault],
   );
 
   // ── Data loading ───────────────────────────────────────────────────────────
@@ -927,9 +935,9 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
               <input
                 id="ai-score-threshold"
                 type="range"
-                min={AI_THRESHOLD_MIN}
-                max={AI_THRESHOLD_MAX}
-                step={AI_THRESHOLD_STEP}
+                min={MATCH_STRENGTH_MIN}
+                max={MATCH_STRENGTH_MAX}
+                step={MATCH_STRENGTH_STEP}
                 value={aiThresholdDraft}
                 onChange={(e) => setAiThresholdDraft(parseFloat(e.target.value))}
                 onMouseUp={(e) => {

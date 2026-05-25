@@ -49,7 +49,7 @@ class RelatedController extends ControllerBase implements ContainerInjectionInte
   private const DEFAULT_LIMIT = 6;
 
   /** Mirrors SemanticSearchService::DEFAULT_SCORE_THRESHOLD. */
-  private const DEFAULT_SCORE_THRESHOLD = 0.60;
+  private const DEFAULT_SCORE_THRESHOLD = 0.40;
 
   private const MIN_SCORE_THRESHOLD = 0.0;
   private const MAX_SCORE_THRESHOLD = 0.95;

@@ -47,7 +47,7 @@ class SemanticSearchService {
    * to refuse if the SOURCES dont actually answer the question, so
    * over-retrieval there is cheaper than under-retrieval.
    */
-  public const DEFAULT_SCORE_THRESHOLD = 0.60;
+  public const DEFAULT_SCORE_THRESHOLD = 0.40;
 
   private LoggerInterface $logger;
 

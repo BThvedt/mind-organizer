@@ -1,0 +1,26 @@
+uuid: 8f3a2c1e-4b5d-4e6f-9a0b-1c2d3e4f5a04
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.user.field_ask_match_strength
+  module:
+    - user
+id: user.user.field_ask_match_strength
+field_name: field_ask_match_strength
+entity_type: user
+bundle: user
+label: 'Ask AI match strength default'
+description: 'Default semantic match-strength threshold for Ask AI retrieval (0–0.95).'
+required: false
+translatable: false
+default_value:
+  -
+    value: '0.40'
+default_value_callback: ''
+settings:
+  min: '0'
+  max: '0.95'
+  prefix: ''
+  suffix: ''
+field_type: decimal

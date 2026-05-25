@@ -1,5 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { drupalFetch, getCurrentUserUuid } from '@/lib/drupal';
+import {
+  clampMatchStrength,
+  MATCH_STRENGTH_DEFAULT,
+  parseMatchStrength,
+} from '@/lib/match-strength';
+
+type DrupalUserAttributes = {
+  name?: string;
+  mail?: string;
+  created?: string;
+  field_link_match_strength?: unknown;
+  field_ask_match_strength?: unknown;
+};
+
+function profileResponse(uuid: string, attrs: DrupalUserAttributes) {
+  const linkParsed = parseMatchStrength(attrs.field_link_match_strength);
+  const askParsed = parseMatchStrength(attrs.field_ask_match_strength);
+
+  return {
+    uuid,
+    name: attrs.name ?? '',
+    mail: attrs.mail ?? '',
+    created: attrs.created ?? null,
+    linkMatchStrength: linkParsed ?? MATCH_STRENGTH_DEFAULT,
+    askMatchStrength: askParsed ?? MATCH_STRENGTH_DEFAULT,
+  };
+}
 
 export async function GET() {
   const uuid = await getCurrentUserUuid();
@@ -13,17 +40,8 @@ export async function GET() {
   }
 
   const data = await res.json();
-  const attrs = (data.data?.attributes ?? {}) as {
-    name?: string;
-    mail?: string;
-    created?: string;
-  };
-  return NextResponse.json({
-    uuid,
-    name: attrs.name ?? '',
-    mail: attrs.mail ?? '',
-    created: attrs.created ?? null,
-  });
+  const attrs = (data.data?.attributes ?? {}) as DrupalUserAttributes;
+  return NextResponse.json(profileResponse(uuid, attrs));
 }
 
 export async function PATCH(request: NextRequest) {
@@ -44,6 +62,22 @@ export async function PATCH(request: NextRequest) {
       existing: body.currentPassword,
       value: body.newPassword,
     };
+  }
+
+  if (body.linkMatchStrength !== undefined) {
+    const value = parseMatchStrength(body.linkMatchStrength);
+    if (value === null) {
+      return NextResponse.json({ error: 'Invalid link match strength.' }, { status: 422 });
+    }
+    attributes.field_link_match_strength = clampMatchStrength(value);
+  }
+
+  if (body.askMatchStrength !== undefined) {
+    const value = parseMatchStrength(body.askMatchStrength);
+    if (value === null) {
+      return NextResponse.json({ error: 'Invalid Ask AI match strength.' }, { status: 422 });
+    }
+    attributes.field_ask_match_strength = clampMatchStrength(value);
   }
 
   if (Object.keys(attributes).length === 0) {
@@ -69,9 +103,6 @@ export async function PATCH(request: NextRequest) {
   }
 
   const data = await res.json();
-  return NextResponse.json({
-    uuid,
-    name: data.data?.attributes?.name ?? '',
-    mail: data.data?.attributes?.mail ?? '',
-  });
+  const attrs = (data.data?.attributes ?? {}) as DrupalUserAttributes;
+  return NextResponse.json(profileResponse(uuid, attrs));
 }

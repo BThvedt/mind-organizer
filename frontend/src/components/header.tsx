@@ -186,9 +186,9 @@ export function Header({ authenticated, onSignIn, onSignUp, onLogout }: HeaderPr
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Link href="/dashboard/profile" className="flex items-center gap-2 w-full">
+                    <Link href="/dashboard/settings" className="flex items-center gap-2 w-full">
                       <Settings className="h-4 w-4" />
-                      Profile
+                      Settings
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>

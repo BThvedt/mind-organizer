@@ -1,0 +1,20 @@
+uuid: 8f3a2c1e-4b5d-4e6f-9a0b-1c2d3e4f5a02
+langcode: en
+status: true
+dependencies:
+  module:
+    - user
+id: user.field_ask_match_strength
+field_name: field_ask_match_strength
+entity_type: user
+type: decimal
+settings:
+  precision: 3
+  scale: 2
+module: core
+locked: false
+cardinality: 1
+translatable: false
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

@@ -27,6 +27,13 @@ import {
   OFFLINE_ACTION_MESSAGE,
   messageWhenNetworkRequestThrows,
 } from '@/lib/api-client-messages';
+import {
+  MATCH_STRENGTH_DEFAULT,
+  MATCH_STRENGTH_MAX,
+  MATCH_STRENGTH_MIN,
+  MATCH_STRENGTH_STEP,
+} from '@/lib/match-strength';
+import { useMatchStrengthPreferences } from '@/hooks/useMatchStrengthPreferences';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,18 +66,8 @@ interface TaxonomyTerm {
   attributes: { name: string };
 }
 
-// ── Score-threshold tuning ───────────────────────────────────────────────────
-// Kept in sync with `RagController::DEFAULT_RAG_SCORE_THRESHOLD` on the
-// backend. The page-default is what we use when the user hasn't moved the
-// slider yet; nudging it away from the default makes the page send
-// `scoreThreshold` in the request body so the backend treats it as a
-// filter (for empty-state copy purposes) and applies the user's value.
-const SCORE_THRESHOLD_DEFAULT = 0.3;
-const SCORE_THRESHOLD_MIN = 0;
-const SCORE_THRESHOLD_MAX = 0.95;
-const SCORE_THRESHOLD_STEP = 0.05;
-
-// ── SSE parsing ──────────────────────────────────────────────────────────────
+// Score-threshold slider bounds live in `@/lib/match-strength`. The user's
+// saved default comes from their Drupal profile via useMatchStrengthPreferences.
 
 /**
  * Parses a raw SSE byte stream into discrete events. Each yielded event has
@@ -188,6 +185,8 @@ function AskAiPageInner() {
   const [citations, setCitations] = useState<Citation[]>([]);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
+  const { askDefault, loaded: prefsLoaded } = useMatchStrengthPreferences();
+
   // Optional retrieval filters. Empty values mean "no filter on that
   // dimension" and the request body omits them, so a fresh visit to the
   // page behaves exactly as before. Filters apply at submit time only —
@@ -197,9 +196,14 @@ function AskAiPageInner() {
   const [filterSubjectId, setFilterSubjectId] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [filterScoreThreshold, setFilterScoreThreshold] = useState(SCORE_THRESHOLD_DEFAULT);
+  const [filterScoreThreshold, setFilterScoreThreshold] = useState(MATCH_STRENGTH_DEFAULT);
   const [areas, setAreas] = useState<TaxonomyTerm[]>([]);
   const [subjects, setSubjects] = useState<TaxonomyTerm[]>([]);
+
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    setFilterScoreThreshold(askDefault);
+  }, [prefsLoaded, askDefault]);
 
   // Track the active fetch so we can cancel on unmount / new submission.
   const abortRef = useRef<AbortController | null>(null);
@@ -251,7 +255,7 @@ function AskAiPageInner() {
     // content predicate. We only send it when the user moved the slider
     // away from the page default — otherwise the backend default applies
     // and the empty-state for users with no content stays unchanged.
-    const thresholdCustomised = filterScoreThreshold !== SCORE_THRESHOLD_DEFAULT;
+    const thresholdCustomised = filterScoreThreshold !== askDefault;
 
     try {
       const res = await fetch('/api/ai/ask', {
@@ -332,7 +336,7 @@ function AskAiPageInner() {
       if ((err as Error)?.name === 'AbortError') return;
       setStatus({ kind: 'error', message: messageWhenNetworkRequestThrows() });
     }
-  }, [question, isOnline, filterAreaId, filterSubjectId, filterDateFrom, filterDateTo, filterScoreThreshold]);
+  }, [question, isOnline, filterAreaId, filterSubjectId, filterDateFrom, filterDateTo, filterScoreThreshold, askDefault]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     // Cmd/Ctrl-Enter submits.
@@ -406,15 +410,15 @@ function AskAiPageInner() {
     (filterSubjectId && filterAreaId ? 1 : 0) +
     (filterDateFrom ? 1 : 0) +
     (filterDateTo ? 1 : 0) +
-    (filterScoreThreshold !== SCORE_THRESHOLD_DEFAULT ? 1 : 0);
+    (filterScoreThreshold !== askDefault ? 1 : 0);
 
   const clearFilters = useCallback(() => {
     setFilterAreaId('');
     setFilterSubjectId('');
     setFilterDateFrom('');
     setFilterDateTo('');
-    setFilterScoreThreshold(SCORE_THRESHOLD_DEFAULT);
-  }, []);
+    setFilterScoreThreshold(askDefault);
+  }, [askDefault]);
 
   if (!authenticated) return null;
 
@@ -571,9 +575,9 @@ function AskAiPageInner() {
                 <input
                   id="filter-score-threshold"
                   type="range"
-                  min={SCORE_THRESHOLD_MIN}
-                  max={SCORE_THRESHOLD_MAX}
-                  step={SCORE_THRESHOLD_STEP}
+                  min={MATCH_STRENGTH_MIN}
+                  max={MATCH_STRENGTH_MAX}
+                  step={MATCH_STRENGTH_STEP}
                   value={filterScoreThreshold}
                   onChange={(e) => setFilterScoreThreshold(parseFloat(e.target.value))}
                   disabled={streaming}

@@ -3,6 +3,8 @@ langcode: en
 status: true
 dependencies:
   config:
+    - field.field.user.user.field_ask_match_strength
+    - field.field.user.user.field_link_match_strength
     - field.field.user.user.user_picture
     - image.style.thumbnail
   module:
@@ -32,4 +34,6 @@ content:
       progress_indicator: throbber
       preview_image_style: thumbnail
     third_party_settings: {  }
-hidden: {  }
+hidden:
+  field_ask_match_strength: true
+  field_link_match_strength: true

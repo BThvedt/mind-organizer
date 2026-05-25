@@ -99,7 +99,7 @@ class RagController extends ControllerBase implements ContainerInjectionInterfac
    * 0.30 is the practical floor that "just lets RAG see things" without
    * forcing every user to discover the threshold knob to get a first answer.
    */
-  public const DEFAULT_RAG_SCORE_THRESHOLD = 0.30;
+  public const DEFAULT_RAG_SCORE_THRESHOLD = 0.40;
 
   /**
    * Bounds enforced on the caller-supplied `scoreThreshold` knob. Anything

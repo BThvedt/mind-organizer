@@ -4,6 +4,8 @@ import { SerwistProvider } from "./serwist";
 import { AuthProvider } from "@/hooks/useAuth";
 import { OfflineIndicator } from "@/components/offline-indicator";
 import { InstallPromptProvider } from "@/components/install-prompt-provider";
+import { VoiceModeShellProvider } from "@/hooks/useVoiceModeShell";
+import { VoiceModeFab } from "@/components/voice-mode-fab";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -56,8 +58,11 @@ export default function RootLayout({
             disable={process.env.NODE_ENV === 'development'}
           >
             <InstallPromptProvider>
-              {children}
-              <OfflineIndicator />
+              <VoiceModeShellProvider>
+                {children}
+                <OfflineIndicator />
+                <VoiceModeFab />
+              </VoiceModeShellProvider>
             </InstallPromptProvider>
           </SerwistProvider>
         </AuthProvider>

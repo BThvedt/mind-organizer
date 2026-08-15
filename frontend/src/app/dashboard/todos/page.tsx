@@ -44,6 +44,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { useVoiceMode } from '@/hooks/useVoiceMode';
+import { voiceInputProps, voiceModeFocusClassName } from '@/lib/voice-mode';
 import { ShareButton } from '@/components/share/share-button';
 import { LinkDialog, type LinkDialogHandle } from '@/components/link-dialog';
 import { AttachmentsMenu } from '@/components/attachments-menu';
@@ -166,6 +168,13 @@ function listLinkedIds(
   return Array.isArray(rel) ? rel.map((r) => r.id) : [];
 }
 
+/** Minimum rows for todo textareas; grows with newlines. */
+function todoTextareaRows(text: string, min = 2): number {
+  const lineCount = text.split('\n').length;
+  const wrappedEstimate = Math.ceil(text.length / 52);
+  return Math.min(12, Math.max(min, lineCount, wrappedEstimate));
+}
+
 const PRIORITY_OPTIONS: { value: Priority; label: string; triggerColor: string; optionColor: string }[] = [
   { value: '',     label: '—',    triggerColor: 'bg-transparent text-muted-foreground border-border',           optionColor: 'text-muted-foreground hover:bg-muted' },
   { value: 'high', label: 'High', triggerColor: 'bg-red-500 text-white border-red-500',                        optionColor: 'text-red-500 hover:bg-red-500 hover:text-white' },
@@ -239,6 +248,14 @@ export default function TodosPage() {
 function TodosPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { voiceMode, loaded: voiceModeLoaded } = useVoiceMode();
+  const voiceFocusHighlight = voiceModeLoaded && voiceMode;
+  const todoVoiceTextareaClass = cn(
+    'w-full resize-none rounded-md border-2 border-border bg-background px-3 py-2 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none field-sizing-content [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border',
+    voiceFocusHighlight
+      ? voiceModeFocusClassName(true)
+      : 'focus:ring-1 focus:ring-ring'
+  );
 
   const [lists, setLists] = useState<JsonApiResource[]>([]);
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
@@ -274,7 +291,7 @@ function TodosPageContent() {
   const [listDeleteError, setListDeleteError] = useState('');
   const [deletingListId, setDeletingListId] = useState<string | null>(null);
   const [deletingList, setDeletingList] = useState(false);
-  const addItemInputRef = useRef<HTMLInputElement>(null);
+  const addItemInputRef = useRef<HTMLTextAreaElement>(null);
   const clickedElsewhereRef = useRef(false);
   const linkDialogRef = useRef<LinkDialogHandle>(null);
 
@@ -1561,22 +1578,35 @@ function TodosPageContent() {
                           )}
                         </button>
                         {editingId === item.id ? (
-                          <input
+                          <textarea
                             autoFocus
                             value={editingText}
                             onChange={(e) => setEditingText(e.target.value)}
                             onBlur={() => commitEdit(item.id)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') { e.preventDefault(); commitEdit(item.id); }
-                              if (e.key === 'Escape') { setEditingId(null); }
+                              if (e.key === 'Escape') {
+                                setEditingId(null);
+                              }
+                              if (
+                                e.key === 'Enter' &&
+                                (e.metaKey || e.ctrlKey)
+                              ) {
+                                e.preventDefault();
+                                commitEdit(item.id);
+                              }
                             }}
-                            className="flex-1 text-sm bg-transparent border-b border-border outline-none"
+                            rows={todoTextareaRows(editingText)}
+                            {...voiceInputProps(voiceFocusHighlight)}
+                            className={cn(
+                              todoVoiceTextareaClass,
+                              'flex-1 min-h-[2.75rem]'
+                            )}
                           />
                         ) : (
                           <span
                             onClick={() => !completed && startEditing(item)}
                             className={cn(
-                              'flex-1 text-sm',
+                              'flex-1 text-sm whitespace-pre-wrap break-words',
                               completed
                                 ? 'line-through text-muted-foreground'
                                 : 'cursor-text hover:text-foreground'
@@ -1621,7 +1651,8 @@ function TodosPageContent() {
                               onBlur={() => saveNotes(item.id)}
                               placeholder="Add notes…"
                               rows={3}
-                              className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+                              {...voiceInputProps(voiceFocusHighlight)}
+                              className={todoVoiceTextareaClass}
                             />
                           </div>
                         )}
@@ -1636,14 +1667,16 @@ function TodosPageContent() {
 
               {/* Add item form */}
               <form onSubmit={handleAddItem} className="space-y-2">
-                <div className="flex gap-2 items-center">
-                  <Input
+                <div className="flex gap-2 items-start">
+                  <textarea
                     ref={addItemInputRef}
                     value={newItemText}
                     onChange={(e) => setNewItemText(e.target.value)}
                     placeholder="Add an item…"
                     disabled={addingItem}
-                    className="flex-1"
+                    rows={todoTextareaRows(newItemText, 1)}
+                    {...voiceInputProps(voiceFocusHighlight)}
+                    className={cn(todoVoiceTextareaClass, 'flex-1 min-h-9')}
                   />
                   <PriorityDropdown value={newItemPriority} onChange={setNewItemPriority} />
                   <button
@@ -1669,7 +1702,8 @@ function TodosPageContent() {
                     placeholder="Add notes…"
                     rows={3}
                     autoFocus
-                    className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+                    {...voiceInputProps(voiceFocusHighlight)}
+                    className={todoVoiceTextareaClass}
                   />
                 )}
                 {addItemError && (

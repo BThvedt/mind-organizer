@@ -5,6 +5,7 @@ import {
   MATCH_STRENGTH_DEFAULT,
   parseMatchStrength,
 } from '@/lib/match-strength';
+import { parseVoiceMode, voiceModeFromProfile } from '@/lib/voice-mode';
 
 type DrupalUserAttributes = {
   name?: string;
@@ -12,6 +13,7 @@ type DrupalUserAttributes = {
   created?: string;
   field_link_match_strength?: unknown;
   field_ask_match_strength?: unknown;
+  field_voice_mode?: unknown;
 };
 
 function profileResponse(uuid: string, attrs: DrupalUserAttributes) {
@@ -25,6 +27,7 @@ function profileResponse(uuid: string, attrs: DrupalUserAttributes) {
     created: attrs.created ?? null,
     linkMatchStrength: linkParsed ?? MATCH_STRENGTH_DEFAULT,
     askMatchStrength: askParsed ?? MATCH_STRENGTH_DEFAULT,
+    voiceMode: voiceModeFromProfile({ field_voice_mode: attrs.field_voice_mode }),
   };
 }
 
@@ -78,6 +81,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid Ask AI match strength.' }, { status: 422 });
     }
     attributes.field_ask_match_strength = clampMatchStrength(value);
+  }
+
+  if (body.voiceMode !== undefined) {
+    const value = parseVoiceMode(body.voiceMode);
+    if (value === null) {
+      return NextResponse.json({ error: 'Invalid voice mode value.' }, { status: 422 });
+    }
+    attributes.field_voice_mode = value;
   }
 
   if (Object.keys(attributes).length === 0) {

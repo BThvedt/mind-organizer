@@ -5,6 +5,7 @@ dependencies:
   config:
     - field.field.user.user.field_ask_match_strength
     - field.field.user.user.field_link_match_strength
+    - field.field.user.user.field_voice_mode
     - field.field.user.user.user_picture
     - image.style.thumbnail
   module:
@@ -37,3 +38,4 @@ content:
 hidden:
   field_ask_match_strength: true
   field_link_match_strength: true
+  field_voice_mode: true

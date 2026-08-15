@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
+import { invalidateNotesCache } from '@/lib/notes-cache';
 import {
   OFFLINE_ACTION_MESSAGE,
   messageWhenNetworkRequestThrows,
@@ -344,6 +345,9 @@ export function NoteAiDialog({
           );
           return;
         }
+        // The notes sidebar/reader shows this note's linked decks, so the
+        // cached copy of its relationships is now stale.
+        invalidateNotesCache();
         onLinksChange(updatedIds);
       }
 

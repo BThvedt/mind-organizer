@@ -34,11 +34,19 @@ import {
 } from '@/components/entity-delete-dialog';
 import { ArrowLeft, ExternalLink, File as FileIcon, FileArchive, FileCode, FileSpreadsheet, FileText, ImagePlus, Paperclip, Pencil, Eye, Presentation, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useVoiceMode } from '@/hooks/useVoiceMode';
+import {
+  voiceInputProps,
+  voiceModeEditorWrapClassName,
+  voiceModeFocusClassName,
+  voiceModeTextareaOverrideClassName,
+} from '@/lib/voice-mode';
 import type { JsonApiResource } from '@/lib/json-api';
 import { toRelIds } from '@/lib/json-api';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useMediaDropPaste } from '@/hooks/useMediaDropPaste';
 import { useBrokenMedia } from '@/hooks/useBrokenMedia';
+import { invalidateNotesCache } from '@/lib/notes-cache';
 import {
   MUTATION_QUEUED_MESSAGE,
   OFFLINE_ACTION_MESSAGE,
@@ -146,6 +154,8 @@ export default function EditNotePage({
 }) {
   const { noteid } = use(params);
   const router = useRouter();
+  const { voiceMode, loaded: voiceModeLoaded } = useVoiceMode();
+  const voiceFocusHighlight = voiceModeLoaded && voiceMode;
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -400,6 +410,10 @@ export default function EditNotePage({
         setSavedSnapshot(nextSnapshot);
         setTitle(trimmed);
 
+        // Title/body/tags all show in the sidebar list, and a `-changed`
+        // sort reorders it — drop the cached windows.
+        invalidateNotesCache();
+
         if (linksChanged) {
           void refreshLinkedItems();
         }
@@ -455,6 +469,7 @@ export default function EditNotePage({
         }
         setDeleteConfirm(false);
         setDeleteError('');
+        invalidateNotesCache();
         router.push('/dashboard/notes');
         return;
       }
@@ -646,6 +661,8 @@ export default function EditNotePage({
             onChange={({ isShared: next, shareToken: nextToken }) => {
               setIsShared(next);
               setShareToken(nextToken);
+              // The sidebar renders a share indicator per note.
+              invalidateNotesCache();
             }}
             disabled={loading}
           />
@@ -751,6 +768,7 @@ export default function EditNotePage({
               'relative flex min-h-0 flex-col overflow-hidden transition-colors',
               'md:w-1/2 md:flex md:border-r md:border-border',
               mobileTab === 'write' ? 'flex w-full' : 'hidden',
+              voiceFocusHighlight && voiceModeEditorWrapClassName(true),
               isDragging && 'bg-primary/5 ring-2 ring-inset ring-primary/40'
             )}
           >
@@ -767,7 +785,17 @@ export default function EditNotePage({
               onPaste={onPaste}
               onMouseUp={onEditorMouseUp}
               placeholder="Write your notes in Markdown… (drop or paste images / audio to embed)"
-              className="flex-1 resize-none rounded-none border-0 bg-transparent font-mono text-sm leading-relaxed focus-visible:ring-0 p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+              {...voiceInputProps(voiceFocusHighlight)}
+              className={cn(
+                'flex-1 resize-none rounded-none bg-transparent font-mono text-sm leading-relaxed p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border',
+                voiceFocusHighlight
+                  ? cn(
+                      'border-2 border-transparent',
+                      voiceModeFocusClassName(true),
+                      voiceModeTextareaOverrideClassName(true)
+                    )
+                  : 'border-0 focus-visible:ring-0'
+              )}
               disabled={loading}
             />
             {isDragging && (

@@ -20,7 +20,10 @@ import {
   Settings,
   Sparkles,
   Link2,
+  Volume2,
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { invalidateVoiceModeCache } from '@/hooks/useVoiceMode';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/lib/utils';
 import {
@@ -43,6 +46,7 @@ interface ProfileData {
   created?: string | null;
   linkMatchStrength: number;
   askMatchStrength: number;
+  voiceMode: boolean;
 }
 
 type Status =
@@ -257,14 +261,104 @@ function MatchStrengthField({
   );
 }
 
+function VoiceModeSection({
+  profile,
+  isOnline,
+  onVoiceModeSaved,
+}: {
+  profile: ProfileData;
+  isOnline: boolean;
+  onVoiceModeSaved: (voiceMode: boolean) => void;
+}) {
+  const [voiceMode, setVoiceMode] = useState(profile.voiceMode);
+  const [status, setStatus] = useState<Status>({ type: 'idle' });
+
+  useEffect(() => {
+    setVoiceMode(profile.voiceMode);
+  }, [profile.voiceMode]);
+
+  async function handleCheckedChange(checked: boolean) {
+    if (checked === voiceMode) return;
+    if (!isOnline) {
+      setStatus({ type: 'error', message: OFFLINE_ACTION_MESSAGE });
+      return;
+    }
+    const previous = voiceMode;
+    setVoiceMode(checked);
+    setStatus({ type: 'loading' });
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceMode: checked }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const next =
+          typeof (data as { voiceMode?: unknown }).voiceMode === 'boolean'
+            ? (data as { voiceMode: boolean }).voiceMode
+            : checked;
+        setVoiceMode(next);
+        onVoiceModeSaved(next);
+        invalidateVoiceModeCache();
+        setStatus({ type: 'success', message: 'Voice mode updated.' });
+      } else {
+        setVoiceMode(previous);
+        setStatus({
+          type: 'error',
+          message: userFacingMessageForApiError(res, data, 'Failed to save voice mode.'),
+        });
+      }
+    } catch {
+      setVoiceMode(previous);
+      setStatus({
+        type: 'error',
+        message: messageWhenNetworkRequestThrows(),
+      });
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-6">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+          <Volume2 className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold text-foreground">Voice Mode</h2>
+          <p className="text-sm text-muted-foreground">
+            Shows the speaker control and stronger focus highlighting on note, todo, and
+            flashcard text fields.
+          </p>
+        </div>
+        <Switch
+          checked={voiceMode}
+          onCheckedChange={handleCheckedChange}
+          disabled={status.type === 'loading'}
+          aria-label="Voice mode"
+        />
+      </div>
+      <StatusMessage status={status} />
+    </section>
+  );
+}
+
 function PreferencesTab({
   profile,
   isOnline,
   onPreferencesSaved,
+  onVoiceModeSaved,
 }: {
   profile: ProfileData;
   isOnline: boolean;
   onPreferencesSaved: (linkMatchStrength: number, askMatchStrength: number) => void;
+  onVoiceModeSaved: (voiceMode: boolean) => void;
 }) {
   const [linkMatchStrength, setLinkMatchStrength] = useState(profile.linkMatchStrength);
   const [askMatchStrength, setAskMatchStrength] = useState(profile.askMatchStrength);
@@ -332,6 +426,12 @@ function PreferencesTab({
         Default match-strength values for semantic search features. You can still adjust the
         slider on each screen for a one-off query.
       </p>
+
+      <VoiceModeSection
+        profile={profile}
+        isOnline={isOnline}
+        onVoiceModeSaved={onVoiceModeSaved}
+      />
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <section className="rounded-xl border border-border bg-card p-6">
@@ -620,6 +720,9 @@ export default function SettingsPage() {
               isOnline={isOnline}
               onPreferencesSaved={(linkMatchStrength, askMatchStrength) =>
                 setProfile((p) => (p ? { ...p, linkMatchStrength, askMatchStrength } : p))
+              }
+              onVoiceModeSaved={(voiceMode) =>
+                setProfile((p) => (p ? { ...p, voiceMode } : p))
               }
             />
           </TabsContent>

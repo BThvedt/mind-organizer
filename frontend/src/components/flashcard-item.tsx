@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { useVoiceMode } from '@/hooks/useVoiceMode';
+import { voiceInputProps, voiceModeFocusClassName } from '@/lib/voice-mode';
 import {
   MUTATION_QUEUED_MESSAGE,
   userFacingMessageForApiError,
@@ -38,6 +40,8 @@ export function FlashcardItem({
   const [editBack, setEditBack] = useState('');
   const [mutationError, setMutationError] = useState('');
   const frontRef = useRef<HTMLTextAreaElement>(null);
+  const { voiceMode, loaded: voiceModeLoaded } = useVoiceMode();
+  const voiceFocusHighlight = voiceModeLoaded && voiceMode;
 
   const front = card.attributes.field_front as string;
   const back = card.attributes.field_back as string;
@@ -203,7 +207,13 @@ export function FlashcardItem({
             value={editFront}
             onChange={(e) => setEditFront(e.target.value)}
             rows={3}
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            {...voiceInputProps(voiceFocusHighlight)}
+            className={cn(
+              'rounded-lg border-2 border-border bg-background px-3 py-2 text-sm text-foreground resize-none focus:outline-none',
+              voiceFocusHighlight
+                ? voiceModeFocusClassName(true)
+                : 'focus:ring-1 focus:ring-ring'
+            )}
           />
         </div>
 
@@ -213,7 +223,13 @@ export function FlashcardItem({
             value={editBack}
             onChange={(e) => setEditBack(e.target.value)}
             rows={3}
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            {...voiceInputProps(voiceFocusHighlight)}
+            className={cn(
+              'rounded-lg border-2 border-border bg-background px-3 py-2 text-sm text-foreground resize-none focus:outline-none',
+              voiceFocusHighlight
+                ? voiceModeFocusClassName(true)
+                : 'focus:ring-1 focus:ring-ring'
+            )}
           />
         </div>
 

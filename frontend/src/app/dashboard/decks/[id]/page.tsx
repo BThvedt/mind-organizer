@@ -12,6 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, X, Brain, Play, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useVoiceMode } from '@/hooks/useVoiceMode';
+import {
+  voiceInputProps,
+  voiceModeFocusClassName,
+  voiceModeTextareaOverrideClassName,
+} from '@/lib/voice-mode';
 import type { JsonApiResource } from '@/lib/json-api';
 import { toRelIds } from '@/lib/json-api';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -55,6 +61,8 @@ export default function DeckDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { voiceMode, loaded: voiceModeLoaded } = useVoiceMode();
+  const voiceFocusHighlight = voiceModeLoaded && voiceMode;
 
   const [deck, setDeck] = useState<JsonApiResource | null>(null);
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
@@ -620,7 +628,15 @@ export default function DeckDetailPage({
                   onBlur={handleAddCardFrontBlur}
                   placeholder="What is…?"
                   rows={4}
-                  className="resize-none"
+                  {...voiceInputProps(voiceFocusHighlight)}
+                  className={cn(
+                    'resize-none',
+                    voiceFocusHighlight &&
+                      cn(
+                        voiceModeFocusClassName(true),
+                        voiceModeTextareaOverrideClassName(true)
+                      )
+                  )}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -633,7 +649,15 @@ export default function DeckDetailPage({
                   onBlur={handleAddCardBackBlur}
                   placeholder="It is…"
                   rows={4}
-                  className="resize-none"
+                  {...voiceInputProps(voiceFocusHighlight)}
+                  className={cn(
+                    'resize-none',
+                    voiceFocusHighlight &&
+                      cn(
+                        voiceModeFocusClassName(true),
+                        voiceModeTextareaOverrideClassName(true)
+                      )
+                  )}
                 />
               </div>
             </div>

@@ -1,30 +1,101 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { drupalFetch, getCurrentUserUuid } from '@/lib/drupal';
 
+/**
+ * Drupal JSON:API hard-caps `page[limit]` at 50
+ * (`OffsetPage::SIZE_MAX`), so requesting more is silently clamped.
+ */
+const MAX_PAGE_LIMIT = 50;
+
+/** Default keeps pre-pagination callers (link dialog, area pages) unchanged. */
+const DEFAULT_PAGE_LIMIT = 50;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Returns the value only when it is a well-formed UUID, else null. */
+function safeUuid(value: string | null): string | null {
+  return value && UUID_RE.test(value) ? value : null;
+}
+
+/** Parses a non-negative integer query param, falling back on bad input. */
+function parseInteger(value: string | null, fallback: number, max?: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return fallback;
+  return max !== undefined ? Math.min(n, max) : n;
+}
+
+/**
+ * GET /api/notes
+ *
+ * Query params (all optional):
+ *   sort     — `-created` (default) | `-changed` | `-field_last_viewed`
+ *   limit    — page size, 1…50 (default 50)
+ *   offset   — starting offset for pagination (default 0)
+ *   area     — area term UUID; filters to notes tagged with it
+ *   subject  — subject term UUID; filters to notes tagged with it
+ *
+ * Returns the JSON:API `data` / `included` shape unchanged, plus a `meta`
+ * block describing the window so the client can drive infinite scroll.
+ * `hasMore` comes from JSON:API's `links.next` — Drupal does not report a
+ * total count for collections by default.
+ */
 export async function GET(request: NextRequest) {
   const userUuid = await getCurrentUserUuid();
   if (!userUuid) {
     return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
   }
 
-  const sortParam = request.nextUrl.searchParams.get('sort') ?? '-created';
+  const { searchParams } = request.nextUrl;
+
+  const sortParam = searchParams.get('sort') ?? '-created';
   const allowedSorts = ['-created', '-changed', '-field_last_viewed'];
   const sort = allowedSorts.includes(sortParam) ? sortParam : '-created';
+
+  const limit = Math.max(
+    1,
+    parseInteger(searchParams.get('limit'), DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT)
+  );
+  const offset = parseInteger(searchParams.get('offset'), 0);
+
+  const areaUuid = safeUuid(searchParams.get('area'));
+  const subjectUuid = safeUuid(searchParams.get('subject'));
+
+  const filters =
+    (areaUuid ? `&filter[field_area.id][value]=${areaUuid}` : '') +
+    (subjectUuid ? `&filter[field_subject.id][value]=${subjectUuid}` : '');
 
   const res = await drupalFetch(
     `/jsonapi/node/study_note` +
       `?filter[uid.id][value]=${userUuid}` +
       `&include=field_area,field_subject,field_linked_decks,field_linked_notes,field_linked_todos` +
       `&sort=${sort}` +
-      `&page[limit]=50`
+      filters +
+      `&page[offset]=${offset}` +
+      `&page[limit]=${limit}`
   );
 
   if (!res.ok) {
     return NextResponse.json({ error: 'Failed to fetch notes' }, { status: res.status });
   }
 
-  const data = await res.json();
-  return NextResponse.json(data);
+  const data = await res.json() as {
+    data?: unknown[];
+    included?: unknown[];
+    links?: { next?: { href?: string } };
+  };
+
+  return NextResponse.json({
+    ...data,
+    meta: {
+      ...(typeof (data as { meta?: object }).meta === 'object'
+        ? (data as { meta?: object }).meta
+        : {}),
+      offset,
+      limit,
+      hasMore: Boolean(data.links?.next?.href),
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {

@@ -1,6 +1,13 @@
 'use client';
 
-import { Suspense, Fragment, useEffect, useState, useCallback, useMemo } from 'react';
+import {
+  Suspense,
+  Fragment,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, useMarkSignedOut } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -24,6 +31,22 @@ import { MissingMediaIndicator } from '@/components/missing-media-indicator';
 import { ShareIndicator } from '@/components/share-indicator';
 import { AttachmentsIndicator } from '@/components/attachments-indicator';
 import { groupByDateLabel } from '@/lib/date-groups';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import {
+  notesCacheKey,
+  readNotesCache,
+  writeNotesCache,
+  hasTruncatedBody,
+} from '@/lib/notes-cache';
+
+/** Notes fetched per page. Drupal JSON:API caps `page[limit]` at 50. */
+const PAGE_SIZE = 25;
+
+interface NotesListResponse {
+  data?: JsonApiResource[];
+  included?: JsonApiResource[];
+  meta?: { offset?: number; limit?: number; hasMore?: boolean };
+}
 
 function stripMarkdown(md: string): string {
   return md
@@ -65,6 +88,8 @@ function NotesPageContent() {
   const [notes, setNotes] = useState<JsonApiResource[]>([]);
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileShowReader, setMobileShowReader] = useState(false);
   const [filterAreaId, setFilterAreaId] = useState('');
@@ -72,8 +97,46 @@ function NotesPageContent() {
   type SortOption = 'created' | 'changed' | 'field_last_viewed';
   const [sortBy, setSortBy] = useState<SortOption>('created');
 
+  // Filter dropdown options come from the taxonomy endpoints rather than
+  // from the loaded notes: with server-side pagination the loaded window
+  // no longer knows every area/subject the user has.
+  const [areaOptions, setAreaOptions] = useState<{ id: string; name: string }[]>([]);
+  const [subjectOptions, setSubjectOptions] = useState<{ id: string; name: string }[]>([]);
+
+  /**
+   * Full notes fetched on demand for the reader, keyed by UUID. Needed
+   * because a note may be missing from the loaded window (deep link via
+   * `?id=`, or a link to a note on a later page) or may have come from the
+   * cache with a truncated body.
+   */
+  const [noteDetails, setNoteDetails] = useState<Record<string, JsonApiResource>>({});
+
+  // Scroll container + sentinel for infinite scroll.
+  const listViewportRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Increments on every query change (sort/area/subject). Responses whose
+   * id no longer matches are discarded, so a slow page-1 request for the
+   * previous filter can't overwrite the current list.
+   */
+  const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  /** Mirrors the loaded count so `loadMore` doesn't need it as a dep. */
+  const offsetRef = useRef(0);
+  /**
+   * Mirrors `notes` / `included` so page merging can read the current list
+   * synchronously. React state updater callbacks run during render, not at
+   * call time, so their result isn't available for the cache write.
+   */
+  const notesRef = useRef<JsonApiResource[]>([]);
+  const includedRef = useRef<JsonApiResource[]>([]);
+
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
+
+  const sortParam = `-${sortBy}`;
+  const cacheKey = notesCacheKey(sortParam, filterAreaId, filterSubjectId);
 
   // Restore selection from URL on first load
   useEffect(() => {
@@ -84,23 +147,185 @@ function NotesPageContent() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadNotes = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/notes?sort=-${sortBy}`);
-      if (res.ok) {
-        const data = await res.json();
-        setNotes(data.data ?? []);
-        setIncluded(data.included ?? []);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [sortBy]);
+  /** Builds the list URL for a given window of the current query. */
+  const buildUrl = useCallback(
+    (offset: number) => {
+      const params = new URLSearchParams({
+        sort: sortParam,
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+      });
+      if (filterAreaId) params.set('area', filterAreaId);
+      if (filterSubjectId) params.set('subject', filterSubjectId);
+      return `/api/notes?${params.toString()}`;
+    },
+    [sortParam, filterAreaId, filterSubjectId],
+  );
 
+  /**
+   * Loads one page. `reset` replaces the list (new query / revalidation);
+   * otherwise the page is appended, de-duplicated by id — offset paging on
+   * a `-changed` sort can otherwise repeat a row if a note was edited
+   * between requests.
+   */
+  const loadPage = useCallback(
+    async (offset: number, opts: { reset: boolean }) => {
+      const myRequestId = opts.reset ? ++requestIdRef.current : requestIdRef.current;
+
+      if (opts.reset) {
+        abortRef.current?.abort();
+        abortRef.current = new AbortController();
+      }
+      const signal = abortRef.current?.signal;
+
+      if (opts.reset) {
+        setLoading(true);
+        // An in-flight append is now orphaned by the bumped request id and
+        // will skip its own cleanup, so clear its flag here — otherwise
+        // `loadingMore` sticks and blocks all further scroll loading.
+        setLoadingMore(false);
+      } else {
+        setLoadingMore(true);
+      }
+
+      try {
+        const res = await fetch(buildUrl(offset), { signal });
+        if (!res.ok) return;
+        if (requestIdRef.current !== myRequestId) return;
+
+        const data: NotesListResponse = await res.json();
+        if (requestIdRef.current !== myRequestId) return;
+
+        const page = data.data ?? [];
+        const pageIncluded = data.included ?? [];
+        const more = data.meta?.hasMore ?? page.length === PAGE_SIZE;
+
+        let merged: JsonApiResource[];
+        if (opts.reset) {
+          merged = page;
+        } else {
+          const seen = new Set(notesRef.current.map((n) => n.id));
+          merged = [...notesRef.current, ...page.filter((n) => !seen.has(n.id))];
+        }
+
+        let mergedIncluded: JsonApiResource[];
+        if (opts.reset) {
+          mergedIncluded = pageIncluded;
+        } else {
+          const byId = new Map(includedRef.current.map((r) => [r.id, r]));
+          for (const r of pageIncluded) byId.set(r.id, r);
+          mergedIncluded = [...byId.values()];
+        }
+
+        notesRef.current = merged;
+        includedRef.current = mergedIncluded;
+        setNotes(merged);
+        setIncluded(mergedIncluded);
+
+        offsetRef.current = merged.length;
+        setHasMore(more);
+
+        writeNotesCache(cacheKey, {
+          notes: merged,
+          included: mergedIncluded,
+          hasMore: more,
+        });
+      } catch {
+        // Aborted or offline — keep whatever is on screen. The service
+        // worker serves a cached response for GETs when available.
+      } finally {
+        if (requestIdRef.current === myRequestId) {
+          if (opts.reset) setLoading(false);
+          else setLoadingMore(false);
+        }
+      }
+    },
+    [buildUrl, cacheKey],
+  );
+
+  /**
+   * On mount and whenever the query changes: paint from localStorage for
+   * an instant list, then always revalidate page 1 from the network.
+   */
   useEffect(() => {
-    if (authenticated) loadNotes();
-  }, [authenticated, loadNotes]);
+    if (!authenticated) return;
+
+    const cached = readNotesCache(cacheKey);
+    if (cached) {
+      notesRef.current = cached.notes;
+      includedRef.current = cached.included;
+      setNotes(cached.notes);
+      setIncluded(cached.included);
+      setHasMore(cached.hasMore);
+      offsetRef.current = cached.offset;
+      setLoading(false);
+    } else {
+      notesRef.current = [];
+      includedRef.current = [];
+      setNotes([]);
+      setIncluded([]);
+      setHasMore(false);
+      offsetRef.current = 0;
+      setLoading(true);
+    }
+
+    void loadPage(0, { reset: true });
+  }, [authenticated, cacheKey, loadPage]);
+
+  /** Appends the next page; guarded against overlapping requests. */
+  const loadMore = useCallback(() => {
+    if (loading || loadingMore || !hasMore) return;
+    void loadPage(offsetRef.current, { reset: false });
+  }, [loading, loadingMore, hasMore, loadPage]);
+
+  useInfiniteScroll({
+    rootRef: listViewportRef,
+    sentinelRef,
+    hasMore,
+    loading: loading || loadingMore,
+    onLoadMore: loadMore,
+  });
+
+  // Areas for the filter dropdown — loaded once.
+  useEffect(() => {
+    if (!authenticated) return;
+    let cancelled = false;
+    fetch('/api/taxonomy?type=areas')
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((d: { data?: JsonApiResource[] }) => {
+        if (cancelled) return;
+        setAreaOptions(
+          (d.data ?? [])
+            .map((t) => ({ id: t.id, name: String(t.attributes?.name ?? '') }))
+            .filter((t) => t.name)
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authenticated]);
+
+  // Subjects for the selected area.
+  useEffect(() => {
+    if (!authenticated || !filterAreaId) {
+      setSubjectOptions([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/taxonomy?type=subjects&area=${filterAreaId}`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((d: { data?: JsonApiResource[] }) => {
+        if (cancelled) return;
+        setSubjectOptions(
+          (d.data ?? [])
+            .map((t) => ({ id: t.id, name: String(t.attributes?.name ?? '') }))
+            .filter((t) => t.name)
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authenticated, filterAreaId]);
 
   useEffect(() => {
     router.prefetch('/dashboard/notes/new');
@@ -118,53 +343,76 @@ function NotesPageContent() {
     setMobileShowReader(true);
     router.replace(`/dashboard/notes?id=${id}`, { scroll: false });
     fetch(`/api/notes/${id}/last-viewed`, { method: 'POST' })
-      .then(() => { if (sortBy === 'field_last_viewed') void loadNotes(); })
+      .then((res) => {
+        if (!res.ok) return;
+        // Patch + re-sort in memory instead of refetching the list: a
+        // refetch would discard every page loaded so far and reset the
+        // user's scroll position.
+        if (sortBy !== 'field_last_viewed') return;
+        const now = new Date().toISOString();
+        const resorted = notesRef.current
+          .map((n) =>
+            n.id === id
+              ? { ...n, attributes: { ...n.attributes, field_last_viewed: now } }
+              : n,
+          )
+          .sort((a, b) => {
+            const av = (a.attributes.field_last_viewed as string | null) ?? '';
+            const bv = (b.attributes.field_last_viewed as string | null) ?? '';
+            return bv.localeCompare(av);
+          });
+        notesRef.current = resorted;
+        setNotes(resorted);
+      })
       .catch(() => {});
   }
 
-  // ── Filter options derived from loaded data ────────────────────────────────
-
-  const uniqueAreas = useMemo(() => {
-    const seen = new Set<string>();
-    const result: { id: string; name: string }[] = [];
-    notes.forEach((note) => {
-      for (const id of toRelIds(note.relationships?.field_area?.data)) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const name = included.find((r) => r.id === id)?.attributes.name as string | undefined;
-        if (name) result.push({ id, name });
+  /**
+   * Ensures the reader has the complete note. The sidebar window may not
+   * contain it at all (deep link, or a linked note on a later page), and
+   * cached notes carry only a trimmed body.
+   */
+  const ensureFullNote = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/notes/${id}`);
+        if (!res.ok) return;
+        const data: { data?: JsonApiResource; included?: JsonApiResource[] } =
+          await res.json();
+        if (!data.data) return;
+        setNoteDetails((prev) => ({ ...prev, [id]: data.data as JsonApiResource }));
+        if (data.included?.length) {
+          const byId = new Map(includedRef.current.map((r) => [r.id, r]));
+          for (const r of data.included) byId.set(r.id, r);
+          const mergedIncluded = [...byId.values()];
+          includedRef.current = mergedIncluded;
+          setIncluded(mergedIncluded);
+        }
+      } catch {
+        // Reader falls back to the list copy / empty state.
       }
-    });
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [notes, included]);
+    },
+    [],
+  );
 
-  const uniqueSubjectsForArea = useMemo(() => {
-    if (!filterAreaId) return [];
-    const seen = new Set<string>();
-    const result: { id: string; name: string }[] = [];
-    notes.forEach((note) => {
-      const areaIds = toRelIds(note.relationships?.field_area?.data);
-      if (!areaIds.includes(filterAreaId)) return;
-      for (const sId of toRelIds(note.relationships?.field_subject?.data)) {
-        if (seen.has(sId)) continue;
-        seen.add(sId);
-        const name = included.find((r) => r.id === sId)?.attributes.name as string | undefined;
-        if (name) result.push({ id: sId, name });
-      }
-    });
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [notes, included, filterAreaId]);
+  // Fetch the selected note's full record when the list copy is missing or
+  // only holds a cached preview body.
+  useEffect(() => {
+    if (!authenticated || !selectedId) return;
+    if (noteDetails[selectedId]) return;
+    const fromList = notes.find((n) => n.id === selectedId);
+    if (fromList && !hasTruncatedBody(fromList)) return;
+    void ensureFullNote(selectedId);
+  }, [authenticated, selectedId, notes, noteDetails, ensureFullNote]);
 
-  const visibleNotes = useMemo(() => {
-    if (!filterAreaId && !filterSubjectId) return notes;
-    return notes.filter((note) => {
-      const areaIds = toRelIds(note.relationships?.field_area?.data);
-      const subjectIds = toRelIds(note.relationships?.field_subject?.data);
-      if (filterAreaId && !areaIds.includes(filterAreaId)) return false;
-      if (filterSubjectId && !subjectIds.includes(filterSubjectId)) return false;
-      return true;
-    });
-  }, [notes, filterAreaId, filterSubjectId]);
+  // ── Filters ───────────────────────────────────────────────────────────────
+  //
+  // Area/subject filtering is applied by Drupal (see `/api/notes`), so the
+  // loaded list is already scoped — no client-side filtering step here.
+
+  const uniqueAreas = areaOptions;
+  const uniqueSubjectsForArea = subjectOptions;
+  const visibleNotes = notes;
 
   const hasFilters = !!(filterAreaId || filterSubjectId);
 
@@ -175,8 +423,12 @@ function NotesPageContent() {
 
   if (!authenticated) return null;
 
-  // ── Derive data for the selected note from the already-loaded list ─────────
-  const selectedNote = selectedId ? (notes.find((n) => n.id === selectedId) ?? null) : null;
+  // ── Derive data for the selected note ─────────────────────────────────────
+  // Prefer the on-demand full record (complete body) over the list copy,
+  // which may be a cached preview or absent entirely.
+  const selectedNote = selectedId
+    ? (noteDetails[selectedId] ?? notes.find((n) => n.id === selectedId) ?? null)
+    : null;
 
   const selectedAreaIds = selectedNote
     ? toRelIds(selectedNote.relationships?.field_area?.data)
@@ -237,8 +489,10 @@ function NotesPageContent() {
               </Button>
               <h1 className="font-semibold text-sm text-foreground">My Notes</h1>
               {!loading && (
+                /* Drupal reports no total for collections, so show the
+                   loaded count with a "+" while more pages remain. */
                 <span className="text-xs text-muted-foreground">
-                  ({hasFilters ? `${visibleNotes.length} of ${notes.length}` : notes.length})
+                  ({notes.length}{hasMore ? '+' : ''})
                 </span>
               )}
             </div>
@@ -252,9 +506,10 @@ function NotesPageContent() {
             </Button>
           </div>
 
-          {/* Controls: sort + area/subject filters */}
-          {!loading && (
-            <div className="px-3 py-2 border-b border-border flex flex-col gap-1.5 shrink-0">
+          {/* Controls: sort + area/subject filters.
+              Always rendered — changing a filter now triggers a server
+              refetch, so the controls must stay usable while loading. */}
+          <div className="px-3 py-2 border-b border-border flex flex-col gap-1.5 shrink-0">
               <div className="flex items-center gap-2">
                 {uniqueAreas.length > 0 && (
                   <Select
@@ -326,11 +581,10 @@ function NotesPageContent() {
                   Clear filters
                 </button>
               )}
-            </div>
-          )}
+          </div>
 
           {/* Note list */}
-          <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="flex-1 min-h-0" viewportRef={listViewportRef}>
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="px-4 py-3 border-b border-border">
@@ -339,37 +593,42 @@ function NotesPageContent() {
                   <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
                 </div>
               ))
-            ) : notes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-3">
-                <FileText className="h-8 w-8 text-muted-foreground/40" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">No notes yet</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Create your first note to get started.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  nativeButton={false}
-                  render={<Link href="/dashboard/notes/new" />}
-                >
-                  <Plus className="h-4 w-4" />
-                  New note
-                </Button>
-              </div>
             ) : visibleNotes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-3">
-                <FileText className="h-8 w-8 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No notes match the selected filters.</p>
-                <button
-                  onClick={clearFilters}
-                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-                >
-                  Clear filters
-                </button>
-              </div>
+              /* With server-side filtering an empty result means either the
+                 user has no notes at all, or none match the filters. */
+              hasFilters ? (
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-3">
+                  <FileText className="h-8 w-8 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">No notes match the selected filters.</p>
+                  <button
+                    onClick={clearFilters}
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-3">
+                  <FileText className="h-8 w-8 text-muted-foreground/40" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">No notes yet</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Create your first note to get started.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    nativeButton={false}
+                    render={<Link href="/dashboard/notes/new" />}
+                  >
+                    <Plus className="h-4 w-4" />
+                    New note
+                  </Button>
+                </div>
+              )
             ) : (
-              groupByDateLabel(
+              <>
+              {groupByDateLabel(
                 visibleNotes,
                 (note) =>
                   sortBy === 'field_last_viewed'
@@ -456,7 +715,38 @@ function NotesPageContent() {
                 );
               })}
                 </Fragment>
-              ))
+              ))}
+
+              {/* Infinite-scroll sentinel: entering view loads the next
+                  page. The button is a fallback for when the observer
+                  can't fire (and gives keyboard users a way through). */}
+              <div ref={sentinelRef} aria-hidden="true" className="h-px" />
+
+              {loadingMore && (
+                <div className="px-4 py-3 border-b border-border">
+                  <div className="h-3.5 w-3/4 animate-pulse rounded bg-muted mb-2" />
+                  <div className="h-3 w-full animate-pulse rounded bg-muted mb-1" />
+                  <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+                </div>
+              )}
+
+              {hasMore && !loadingMore && (
+                <div className="flex justify-center p-3">
+                  <button
+                    onClick={loadMore}
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
+
+              {!hasMore && notes.length > 0 && (
+                <p className="p-3 text-center text-[11px] text-muted-foreground">
+                  {hasFilters ? 'End of filtered notes' : 'End of notes'}
+                </p>
+              )}
+              </>
             )}
           </ScrollArea>
         </aside>

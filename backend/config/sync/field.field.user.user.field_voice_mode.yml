@@ -1,0 +1,22 @@
+uuid: b2c3d4e5-f6a7-4890-b123-456789abcdef
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.user.field_voice_mode
+  module:
+    - user
+id: user.user.field_voice_mode
+field_name: field_voice_mode
+entity_type: user
+bundle: user
+label: 'Voice mode'
+description: 'When on, shows the voice input control and stronger focus highlighting on note, todo, and flashcard text fields.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

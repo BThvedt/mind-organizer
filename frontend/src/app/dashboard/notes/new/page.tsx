@@ -22,13 +22,23 @@ import { LinkDialog } from '@/components/link-dialog';
 import { MarkdownToolbar } from '@/components/markdown-toolbar';
 import { ArrowLeft, Save, Eye, Pencil, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useVoiceMode } from '@/hooks/useVoiceMode';
+import {
+  voiceInputProps,
+  voiceModeEditorWrapClassName,
+  voiceModeFocusClassName,
+  voiceModeTextareaOverrideClassName,
+} from '@/lib/voice-mode';
 import { userFacingMessageForApiError } from '@/lib/api-client-messages';
 import { useMediaDropPaste } from '@/hooks/useMediaDropPaste';
+import { invalidateNotesCache } from '@/lib/notes-cache';
 
 type MobileTab = 'write' | 'preview';
 
 export default function NewNotePage() {
   const router = useRouter();
+  const { voiceMode, loaded: voiceModeLoaded } = useVoiceMode();
+  const voiceFocusHighlight = voiceModeLoaded && voiceMode;
 
   // Form state
   const [title, setTitle] = useState('');
@@ -116,6 +126,10 @@ export default function NewNotePage() {
         setQueued(true);
         return;
       }
+
+      // A new note shifts every paginated offset — drop the sidebar cache
+      // so /dashboard/notes rebuilds its list from the server.
+      invalidateNotesCache();
 
       router.push('/dashboard/notes');
     } catch {
@@ -278,6 +292,7 @@ export default function NewNotePage() {
               'md:w-1/2 md:flex md:border-r md:border-border',
               // Mobile: show only when write tab active
               mobileTab === 'write' ? 'flex w-full' : 'hidden',
+              voiceFocusHighlight && voiceModeEditorWrapClassName(true),
               isDragging && 'bg-primary/5 ring-2 ring-inset ring-primary/40'
             )}
           >
@@ -293,7 +308,17 @@ export default function NewNotePage() {
               onPaste={onPaste}
               onMouseUp={onEditorMouseUp}
               placeholder="Write your notes in Markdown… (drop or paste images / audio to embed)"
-              className="flex-1 resize-none rounded-none border-0 bg-transparent font-mono text-sm leading-relaxed focus-visible:ring-0 p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+              {...voiceInputProps(voiceFocusHighlight)}
+              className={cn(
+                'flex-1 resize-none rounded-none bg-transparent font-mono text-sm leading-relaxed p-4 h-full [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border',
+                voiceFocusHighlight
+                  ? cn(
+                      'border-2 border-transparent',
+                      voiceModeFocusClassName(true),
+                      voiceModeTextareaOverrideClassName(true)
+                    )
+                  : 'border-0 focus-visible:ring-0'
+              )}
             />
             {isDragging && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/5 backdrop-blur-[1px]">

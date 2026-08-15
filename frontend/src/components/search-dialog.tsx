@@ -15,6 +15,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useVoiceMode } from '@/hooks/useVoiceMode';
+import { useVoiceModeShell } from '@/hooks/useVoiceModeShell';
+import { voiceInputProps, voiceModeFocusClassName } from '@/lib/voice-mode';
 import {
   SESSION_EXPIRED_MESSAGE,
   SEARCH_HTTP_FALLBACK_MESSAGE,
@@ -83,6 +86,10 @@ const SEMANTIC_MIN_SCORE = 0.6;
 const SEMANTIC_REORDER_STRONG_SCORE = 0.8;
 
 export function SearchDialog({ open, onClose }: SearchDialogProps) {
+  const { setSearchDialogOpen } = useVoiceModeShell();
+  const { voiceMode, loaded: voiceModeLoaded } = useVoiceMode();
+  const voiceFocusHighlight = voiceModeLoaded && voiceMode;
+
   const [query, setQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterAreaId, setFilterAreaId] = useState('');
@@ -132,6 +139,11 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    setSearchDialogOpen(open);
+    return () => setSearchDialogOpen(false);
+  }, [open, setSearchDialogOpen]);
 
   // Focus input and load areas when dialog opens; reset state on close
   useEffect(() => {
@@ -302,7 +314,15 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
                 ? 'Search or ask a question…'
                 : 'Search notes, decks, and todo lists…'
             }
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            {...voiceInputProps(voiceFocusHighlight)}
+            className={cn(
+              'flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground',
+              voiceFocusHighlight &&
+                cn(
+                  'rounded-md border-2 border-transparent px-2 py-1',
+                  voiceModeFocusClassName(true)
+                )
+            )}
           />
           {query && (
             <button

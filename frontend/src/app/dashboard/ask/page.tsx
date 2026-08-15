@@ -23,6 +23,12 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useVoiceMode } from '@/hooks/useVoiceMode';
+import {
+  voiceInputProps,
+  voiceModeFocusClassName,
+  voiceModeTextareaOverrideClassName,
+} from '@/lib/voice-mode';
 import {
   OFFLINE_ACTION_MESSAGE,
   messageWhenNetworkRequestThrows,
@@ -186,6 +192,8 @@ function AskAiPageInner() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   const { askDefault, loaded: prefsLoaded } = useMatchStrengthPreferences();
+  const { voiceMode, loaded: voiceModeLoaded } = useVoiceMode();
+  const voiceFocusHighlight = voiceModeLoaded && voiceMode;
 
   // Optional retrieval filters. Empty values mean "no filter on that
   // dimension" and the request body omits them, so a fresh visit to the
@@ -454,9 +462,17 @@ function AskAiPageInner() {
             onKeyDown={onKeyDown}
             placeholder="What would you like to know?"
             rows={3}
-            className="resize-none"
             disabled={streaming}
             autoFocus
+            {...voiceInputProps(voiceFocusHighlight)}
+            className={cn(
+              'resize-none',
+              voiceFocusHighlight &&
+                cn(
+                  voiceModeFocusClassName(true),
+                  voiceModeTextareaOverrideClassName(true)
+                )
+            )}
           />
 
           {/*

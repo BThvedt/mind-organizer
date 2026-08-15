@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FileText, ArrowLeft, Plus, Pencil, Layers, ChevronLeft, CheckSquare, X } from 'lucide-react';
+import { FileText, ArrowLeft, Plus, Pencil, Layers, ChevronLeft, CheckSquare, X, Maximize2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/json-api';
@@ -662,12 +662,20 @@ function NotesPageContent() {
                 const isSelected = selectedId === note.id;
 
                 return (
-                  <button
+                  <div
                     key={note.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectNote(note.id)}
                     onDoubleClick={() => router.push(`/dashboard/notes/${note.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        selectNote(note.id);
+                      }
+                    }}
                     className={cn(
-                      'w-full text-left px-4 py-3 border-b border-border transition-colors',
+                      'group relative w-full text-left px-4 py-3 border-b border-border transition-colors cursor-pointer',
                       isSelected
                         ? 'bg-muted'
                         : 'hover:bg-muted/50'
@@ -693,7 +701,7 @@ function NotesPageContent() {
                       )}
                     </div>
                     {preview && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed pr-6">
                         {preview}
                       </p>
                     )}
@@ -711,7 +719,22 @@ function NotesPageContent() {
                         ))}
                       </div>
                     )}
-                  </button>
+
+                    {/* Full-screen view — hidden until hover, absolutely
+                        positioned so it doesn't shift the row's layout. */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/dashboard/notes/${note.id}/view`);
+                      }}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                      className="absolute bottom-1.5 right-1.5 rounded-md p-1 text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label="Open full-screen view"
+                      title="Open full-screen view"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 );
               })}
                 </Fragment>

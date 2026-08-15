@@ -138,7 +138,10 @@ function parseOneEvent(raw: string): { event: string; data: unknown } | null {
 function citationHref(c: Citation): string {
   switch (c.type) {
     case 'study_note':
-      return `/dashboard/notes/${c.uuid}`;
+      // Same convention as the search dialog: land on the notes list with
+      // this note preselected in the reader panel, rather than jumping
+      // straight into the editor.
+      return `/dashboard/notes?id=${c.uuid}`;
     case 'flashcard_deck':
       return `/dashboard/decks/${c.uuid}`;
     case 'todo_list':

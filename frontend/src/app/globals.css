@@ -353,3 +353,16 @@ html .ML__container {
   from { transform: translateX(-105px); opacity: 0; }
   to   { transform: translateX(0px);    opacity: 1; }
 }
+
+/* Notes sidebar — brief highlight when a note scrolls into view after a
+   "jump to note" (opened via Search or Ask AI, then loaded into a fresh
+   window). Pulses the accent color a couple of times before settling
+   back to the normal selected-row background. */
+@keyframes note-jump-highlight {
+  0%, 100% { background-color: transparent; }
+  15%, 45% { background-color: var(--accent); }
+  30%, 60% { background-color: transparent; }
+}
+.note-jump-highlight {
+  animation: note-jump-highlight 2.2s ease-in-out;
+}

@@ -42,10 +42,26 @@ import {
 /** Notes fetched per page. Drupal JSON:API caps `page[limit]` at 50. */
 const PAGE_SIZE = 25;
 
+/**
+ * When jumping to a note that isn't in the loaded window (opened via
+ * Search or Ask AI), how many notes on either side to load alongside it —
+ * enough context to scroll around without an immediate extra fetch.
+ */
+const JUMP_WINDOW_BEFORE = 20;
+const JUMP_WINDOW_AFTER = 9;
+
+/** How long the highlight pulse stays visible on a jumped-to note. */
+const HIGHLIGHT_DURATION_MS = 2200;
+
 interface NotesListResponse {
   data?: JsonApiResource[];
   included?: JsonApiResource[];
   meta?: { offset?: number; limit?: number; hasMore?: boolean };
+}
+
+interface NotePositionResponse {
+  offset?: number;
+  error?: 'not_found' | 'excluded_by_filter';
 }
 
 function stripMarkdown(md: string): string {
@@ -89,8 +105,14 @@ function NotesPageContent() {
   const [included, setIncluded] = useState<JsonApiResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingPrevious, setLoadingPrevious] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Note to visually pulse once it scrolls into view after a jump. */
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  /** Shown near the filter bar when a jump target is hidden by filters. */
+  const [hiddenByFilterNote, setHiddenByFilterNote] = useState<{ id: string } | null>(null);
   const [mobileShowReader, setMobileShowReader] = useState(false);
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterSubjectId, setFilterSubjectId] = useState('');
@@ -125,12 +147,27 @@ function NotesPageContent() {
   /** Mirrors the loaded count so `loadMore` doesn't need it as a dep. */
   const offsetRef = useRef(0);
   /**
+   * Absolute offset of the first loaded row in the current query's sort
+   * order. Zero for a normal page-1 load; non-zero after a "jump to note"
+   * loads a window centred elsewhere in the list. Upward infinite scroll
+   * fetches the previous page ending at this offset.
+   */
+  const windowStartOffsetRef = useRef(0);
+  /**
    * Mirrors `notes` / `included` so page merging can read the current list
    * synchronously. React state updater callbacks run during render, not at
    * call time, so their result isn't available for the cache write.
    */
   const notesRef = useRef<JsonApiResource[]>([]);
   const includedRef = useRef<JsonApiResource[]>([]);
+  /** Scroll container for the sidebar list, used to preserve scroll
+   *  position when prepending older notes above the current window. */
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  /** Guards against re-triggering the jump-to-note flow for the same id. */
+  const jumpedForIdRef = useRef<string | null>(null);
+  /** DOM nodes for each rendered row, keyed by note id — used to scroll a
+   *  jumped-to note into view once it renders. */
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const authenticated = useAuth();
   const markSignedOut = useMarkSignedOut();
@@ -138,21 +175,28 @@ function NotesPageContent() {
   const sortParam = `-${sortBy}`;
   const cacheKey = notesCacheKey(sortParam, filterAreaId, filterSubjectId);
 
-  // Restore selection from URL on first load
+  // Sync selection from the URL. Re-runs whenever `?id=` changes, not just
+  // on mount — Search and Ask AI navigate here with `router.push`/`<Link>`,
+  // which is a client-side soft navigation on this same route (no remount),
+  // so a mount-only effect would silently miss it until a hard refresh.
   useEffect(() => {
     const id = searchParams.get('id');
-    if (id) {
+    if (id && id !== selectedId) {
       setSelectedId(id);
       setMobileShowReader(true);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Only `id` should drive this — `selectedId` is read for comparison,
+    // not as a trigger, otherwise selecting a note in the sidebar (which
+    // also updates the URL) would immediately re-run this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   /** Builds the list URL for a given window of the current query. */
   const buildUrl = useCallback(
-    (offset: number) => {
+    (offset: number, limit: number = PAGE_SIZE) => {
       const params = new URLSearchParams({
         sort: sortParam,
-        limit: String(PAGE_SIZE),
+        limit: String(limit),
         offset: String(offset),
       });
       if (filterAreaId) params.set('area', filterAreaId);
@@ -167,9 +211,21 @@ function NotesPageContent() {
    * otherwise the page is appended, de-duplicated by id — offset paging on
    * a `-changed` sort can otherwise repeat a row if a note was edited
    * between requests.
+   *
+   * `limit` lets a one-off "jump to note" fetch request a wider window
+   * than the normal page size. `windowStart`, when given, records the
+   * absolute offset of the first row in the *resulting* list — needed so
+   * a jump (which doesn't start at offset 0) can still support loading
+   * older notes above it later. Caching is skipped whenever the resulting
+   * window doesn't start at 0, so the localStorage "page 1" entry used
+   * for instant paint on a normal visit is never overwritten with an
+   * off-center window.
    */
   const loadPage = useCallback(
-    async (offset: number, opts: { reset: boolean }) => {
+    async (
+      offset: number,
+      opts: { reset: boolean; limit?: number; windowStart?: number },
+    ) => {
       const myRequestId = opts.reset ? ++requestIdRef.current : requestIdRef.current;
 
       if (opts.reset) {
@@ -189,7 +245,7 @@ function NotesPageContent() {
       }
 
       try {
-        const res = await fetch(buildUrl(offset), { signal });
+        const res = await fetch(buildUrl(offset, opts.limit), { signal });
         if (!res.ok) return;
         if (requestIdRef.current !== myRequestId) return;
 
@@ -198,7 +254,8 @@ function NotesPageContent() {
 
         const page = data.data ?? [];
         const pageIncluded = data.included ?? [];
-        const more = data.meta?.hasMore ?? page.length === PAGE_SIZE;
+        const requestedLimit = opts.limit ?? PAGE_SIZE;
+        const more = data.meta?.hasMore ?? page.length === requestedLimit;
 
         let merged: JsonApiResource[];
         if (opts.reset) {
@@ -222,14 +279,20 @@ function NotesPageContent() {
         setNotes(merged);
         setIncluded(mergedIncluded);
 
-        offsetRef.current = merged.length;
+        const windowStart = opts.windowStart ?? windowStartOffsetRef.current;
+        windowStartOffsetRef.current = windowStart;
+        setHasPrevious(windowStart > 0);
+
+        offsetRef.current = windowStart + merged.length;
         setHasMore(more);
 
-        writeNotesCache(cacheKey, {
-          notes: merged,
-          included: mergedIncluded,
-          hasMore: more,
-        });
+        if (windowStart === 0) {
+          writeNotesCache(cacheKey, {
+            notes: merged,
+            included: mergedIncluded,
+            hasMore: more,
+          });
+        }
       } catch {
         // Aborted or offline — keep whatever is on screen. The service
         // worker serves a cached response for GETs when available.
@@ -251,6 +314,13 @@ function NotesPageContent() {
     if (!authenticated) return;
 
     const cached = readNotesCache(cacheKey);
+    windowStartOffsetRef.current = 0;
+    setHasPrevious(false);
+    // A new query invalidates any pending "jump to note" for the previous
+    // one — the effect below will re-evaluate once this page settles.
+    jumpedForIdRef.current = null;
+    setHiddenByFilterNote(null);
+
     if (cached) {
       notesRef.current = cached.notes;
       includedRef.current = cached.included;
@@ -269,21 +339,89 @@ function NotesPageContent() {
       setLoading(true);
     }
 
-    void loadPage(0, { reset: true });
+    void loadPage(0, { reset: true, windowStart: 0 });
   }, [authenticated, cacheKey, loadPage]);
 
-  /** Appends the next page; guarded against overlapping requests. */
+  /** Appends the next page below; guarded against overlapping requests. */
   const loadMore = useCallback(() => {
-    if (loading || loadingMore || !hasMore) return;
+    if (loading || loadingMore || loadingPrevious || !hasMore) return;
     void loadPage(offsetRef.current, { reset: false });
-  }, [loading, loadingMore, hasMore, loadPage]);
+  }, [loading, loadingMore, loadingPrevious, hasMore, loadPage]);
 
   useInfiniteScroll({
     rootRef: listViewportRef,
     sentinelRef,
     hasMore,
-    loading: loading || loadingMore,
+    loading: loading || loadingMore || loadingPrevious,
     onLoadMore: loadMore,
+  });
+
+  /**
+   * Prepends the page immediately above the current window, preserving
+   * scroll position (the standard "load older content upward" trick: grow
+   * the content above the viewport, then subtract exactly that much from
+   * scrollTop so nothing visibly jumps).
+   */
+  const loadPrevious = useCallback(async () => {
+    if (loading || loadingMore || loadingPrevious || !hasPrevious) return;
+    const viewport = listViewportRef.current;
+    const startOffset = windowStartOffsetRef.current;
+    const take = Math.min(PAGE_SIZE, startOffset);
+    if (take <= 0) return;
+    const fetchOffset = startOffset - take;
+
+    const myRequestId = requestIdRef.current;
+    setLoadingPrevious(true);
+    const prevScrollHeight = viewport?.scrollHeight ?? 0;
+    const prevScrollTop = viewport?.scrollTop ?? 0;
+
+    try {
+      const res = await fetch(buildUrl(fetchOffset, take));
+      if (!res.ok) return;
+      if (requestIdRef.current !== myRequestId) return;
+
+      const data: NotesListResponse = await res.json();
+      if (requestIdRef.current !== myRequestId) return;
+
+      const page = data.data ?? [];
+      const pageIncluded = data.included ?? [];
+
+      const seen = new Set(notesRef.current.map((n) => n.id));
+      const merged = [...page.filter((n) => !seen.has(n.id)), ...notesRef.current];
+
+      const byId = new Map(includedRef.current.map((r) => [r.id, r]));
+      for (const r of pageIncluded) byId.set(r.id, r);
+      const mergedIncluded = [...byId.values()];
+
+      notesRef.current = merged;
+      includedRef.current = mergedIncluded;
+      setNotes(merged);
+      setIncluded(mergedIncluded);
+
+      windowStartOffsetRef.current = fetchOffset;
+      setHasPrevious(fetchOffset > 0);
+      offsetRef.current = fetchOffset + merged.length;
+
+      // Restore the visual scroll position: the viewport grew above the
+      // fold by however many pixels the prepended rows added.
+      requestAnimationFrame(() => {
+        if (!viewport) return;
+        const grew = viewport.scrollHeight - prevScrollHeight;
+        viewport.scrollTop = prevScrollTop + grew;
+      });
+    } catch {
+      // Aborted or offline — leave the list as-is.
+    } finally {
+      if (requestIdRef.current === myRequestId) setLoadingPrevious(false);
+    }
+  }, [loading, loadingMore, loadingPrevious, hasPrevious, buildUrl]);
+
+  useInfiniteScroll({
+    rootRef: listViewportRef,
+    sentinelRef: topSentinelRef,
+    hasMore: hasPrevious,
+    loading: loading || loadingMore || loadingPrevious,
+    onLoadMore: loadPrevious,
   });
 
   // Areas for the filter dropdown — loaded once.
@@ -404,6 +542,64 @@ function NotesPageContent() {
     if (fromList && !hasTruncatedBody(fromList)) return;
     void ensureFullNote(selectedId);
   }, [authenticated, selectedId, notes, noteDetails, ensureFullNote]);
+
+  /**
+   * "Jump to note" — when a note is selected (typically via `?id=` from
+   * Search or Ask AI) but isn't anywhere in the currently loaded sidebar
+   * window, look up its position in the active sort/filter order and load
+   * a window centred on it, so the sidebar can highlight it in context
+   * instead of leaving the list looking unrelated to what's open.
+   */
+  useEffect(() => {
+    if (!authenticated || !selectedId || loading) return;
+    if (jumpedForIdRef.current === selectedId) return;
+    if (notesRef.current.some((n) => n.id === selectedId)) return;
+
+    jumpedForIdRef.current = selectedId;
+    setHiddenByFilterNote(null);
+
+    const params = new URLSearchParams({ sort: sortParam });
+    if (filterAreaId) params.set('area', filterAreaId);
+    if (filterSubjectId) params.set('subject', filterSubjectId);
+
+    fetch(`/api/notes/${selectedId}/position?${params.toString()}`)
+      .then(async (res) => {
+        if (jumpedForIdRef.current !== selectedId) return;
+        const data: NotePositionResponse = await res.json().catch(() => ({}));
+        if (!res.ok || data.offset === undefined) {
+          if (data.error === 'excluded_by_filter') {
+            setHiddenByFilterNote({ id: selectedId });
+          }
+          // Otherwise (not_found / network issue): nothing to highlight —
+          // the reader still shows the note via `ensureFullNote`.
+          return;
+        }
+
+        const windowStart = Math.max(0, data.offset - JUMP_WINDOW_BEFORE);
+        const take = data.offset - windowStart + 1 + JUMP_WINDOW_AFTER;
+
+        setHighlightId(selectedId);
+        void loadPage(windowStart, {
+          reset: true,
+          limit: take,
+          windowStart,
+        });
+      })
+      .catch(() => {
+        // Offline or request failure — leave the sidebar as-is.
+      });
+  }, [authenticated, selectedId, loading, sortParam, filterAreaId, filterSubjectId, loadPage]);
+
+  // Once the jumped-to note actually renders, scroll it into view and
+  // clear the highlight after the pulse animation finishes.
+  useEffect(() => {
+    if (!highlightId) return;
+    const el = rowRefs.current.get(highlightId);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center' });
+    const timer = setTimeout(() => setHighlightId(null), HIGHLIGHT_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [highlightId, notes]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
   //
@@ -581,10 +777,41 @@ function NotesPageContent() {
                   Clear filters
                 </button>
               )}
+
+              {/* Shown when a note opened from Search / Ask AI doesn't
+                  match the active filters — it can't be highlighted in
+                  this list without either widening or clearing them. */}
+              {hiddenByFilterNote && (
+                <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground">
+                  <span>This note is hidden by your current filters.</span>
+                  <button
+                    onClick={() => {
+                      clearFilters();
+                      setHiddenByFilterNote(null);
+                    }}
+                    className="shrink-0 font-medium text-foreground underline underline-offset-2 hover:text-primary transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
           </div>
 
           {/* Note list */}
           <ScrollArea className="flex-1 min-h-0" viewportRef={listViewportRef}>
+            {/* Upward infinite-scroll sentinel: entering view loads the
+                notes immediately above the current window. Only relevant
+                after a "jump to note" landed somewhere past offset 0. */}
+            {!loading && hasPrevious && (
+              <div ref={topSentinelRef} aria-hidden="true" className="h-px" />
+            )}
+            {loadingPrevious && (
+              <div className="px-4 py-3 border-b border-border">
+                <div className="h-3.5 w-3/4 animate-pulse rounded bg-muted mb-2" />
+                <div className="h-3 w-full animate-pulse rounded bg-muted mb-1" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+              </div>
+            )}
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="px-4 py-3 border-b border-border">
@@ -664,6 +891,10 @@ function NotesPageContent() {
                 return (
                   <div
                     key={note.id}
+                    ref={(el) => {
+                      if (el) rowRefs.current.set(note.id, el);
+                      else rowRefs.current.delete(note.id);
+                    }}
                     role="button"
                     tabIndex={0}
                     onClick={() => selectNote(note.id)}
@@ -678,7 +909,8 @@ function NotesPageContent() {
                       'group relative w-full text-left px-4 py-3 border-b border-border transition-colors cursor-pointer',
                       isSelected
                         ? 'bg-muted'
-                        : 'hover:bg-muted/50'
+                        : 'hover:bg-muted/50',
+                      highlightId === note.id && 'note-jump-highlight'
                     )}
                   >
                     <div className="flex items-baseline justify-between gap-2 mb-1">

@@ -10,3 +10,17 @@ study_search.search:
       - oauth2
       - cookie
   methods: [GET]
+
+study_search.note_position:
+  path: '/api/study/notes/{uuid}/position'
+  defaults:
+    _controller: '\Drupal\study_search\Controller\NotePositionController::position'
+    _title: 'Note position'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    uuid: '[0-9a-fA-F-]{36}'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]

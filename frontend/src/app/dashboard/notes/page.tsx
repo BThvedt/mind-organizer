@@ -176,14 +176,31 @@ function NotesPageContent() {
   const cacheKey = notesCacheKey(sortParam, filterAreaId, filterSubjectId);
 
   // Sync selection from the URL. Re-runs whenever `?id=` changes, not just
-  // on mount — Search and Ask AI navigate here with `router.push`/`<Link>`,
-  // which is a client-side soft navigation on this same route (no remount),
-  // so a mount-only effect would silently miss it until a hard refresh.
+  // on mount — Search, Ask AI, and the Back button on the edit/full-view
+  // pages all navigate here with `router.push`/`<Link>`, which can be a
+  // client-side soft navigation on this same route (no remount), so a
+  // mount-only effect would silently miss it until a hard refresh.
+  //
+  // This is also the ONLY place that scrolls/highlights the selected row
+  // (below and in the "jump to note" effect). A plain sidebar click sets
+  // `selectedId` directly in `selectNote` *before* the URL catches up, so
+  // by the time this effect runs `id` already equals `selectedId` and it
+  // no-ops — the list stays exactly where the user left it. Only a
+  // genuinely external navigation (arriving fresh, or coming back from
+  // the editor/full-view) changes `selectedId` here, which is precisely
+  // when we want to scroll the note into view.
   useEffect(() => {
     const id = searchParams.get('id');
-    if (id && id !== selectedId) {
-      setSelectedId(id);
-      setMobileShowReader(true);
+    if (!id || id === selectedId) return;
+
+    setSelectedId(id);
+    setMobileShowReader(true);
+
+    // Already loaded in the sidebar — just bring it into view; no fetch
+    // needed. If it's NOT loaded, the "jump to note" effect below (keyed
+    // on `selectedId`) fetches a window centred on it instead.
+    if (notesRef.current.some((n) => n.id === id)) {
+      setHighlightId(id);
     }
     // Only `id` should drive this — `selectedId` is read for comparison,
     // not as a trigger, otherwise selecting a note in the sidebar (which
@@ -590,33 +607,39 @@ function NotesPageContent() {
       });
   }, [authenticated, selectedId, loading, sortParam, filterAreaId, filterSubjectId, loadPage]);
 
-  // Once the jumped-to note actually renders, scroll it into view (near
-  // the top of the viewport, so there's visible context below it) and
-  // clear the highlight after the pulse animation finishes.
+  // Once the jumped-to note actually renders, scroll it into view near
+  // the top of the viewport — but not glued to the very top edge. When
+  // there are one or more notes above it, scroll to an anchor row up to
+  // two positions earlier instead, so the jumped-to note lands as roughly
+  // the 2nd/3rd visible row with a bit of preceding context still shown.
+  // If it's already the very first note, there's nothing above to show,
+  // so it's scrolled flush to the top as before.
   useEffect(() => {
     if (!highlightId) return;
     const el = rowRefs.current.get(highlightId);
     if (!el) return;
-    el.scrollIntoView({ block: 'start' });
+
     const viewport = listViewportRef.current;
-    if (viewport) viewport.scrollTop -= 8; // small breathing room above the row
+    const idx = notes.findIndex((n) => n.id === highlightId);
+
+    if (idx <= 0) {
+      // The very first note in the list — scroll all the way to the top
+      // directly. `scrollIntoView` on the row itself would align just below
+      // the sticky date-group header sitting right above it (the header
+      // occupies its own layout space, so aligning the row's top edge to
+      // the viewport's top edge leaves the header pinned above, pushing
+      // the row down a bit) — setting scrollTop to 0 sidesteps that.
+      if (viewport) viewport.scrollTop = 0;
+    } else {
+      const precedingId = notes[Math.max(0, idx - 2)].id;
+      const anchor = rowRefs.current.get(precedingId) ?? el;
+      anchor.scrollIntoView({ block: 'start' });
+      if (viewport) viewport.scrollTop -= 8; // small breathing room above the anchor row
+    }
+
     const timer = setTimeout(() => setHighlightId(null), HIGHLIGHT_DURATION_MS);
     return () => clearTimeout(timer);
   }, [highlightId, notes]);
-
-  /**
-   * When a note that's already loaded in the sidebar is selected (e.g. via
-   * Search/Ask AI, or simply re-selecting one that's scrolled out of view)
-   * but isn't the target of an in-flight "jump to note" fetch, just scroll
-   * it into view and pulse the highlight — no fetch needed, since the row
-   * already exists in the DOM.
-   */
-  useEffect(() => {
-    if (!selectedId || loading) return;
-    if (jumpedForIdRef.current === selectedId) return;
-    if (!notesRef.current.some((n) => n.id === selectedId)) return;
-    setHighlightId(selectedId);
-  }, [selectedId, loading]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
   //

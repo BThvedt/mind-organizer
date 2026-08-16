@@ -27,12 +27,20 @@ import {
   type InsertPayload,
 } from '@/components/media-insert-dialog';
 import { UnsavedChangesGuard } from '@/components/unsaved-changes-guard';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ShareButton } from '@/components/share/share-button';
 import {
   EntityDeleteDialog,
   type EntityDeleteConfirmOptions,
 } from '@/components/entity-delete-dialog';
-import { ArrowLeft, ExternalLink, File as FileIcon, FileArchive, FileCode, FileSpreadsheet, FileText, ImagePlus, Paperclip, Pencil, Eye, Presentation, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, File as FileIcon, FileArchive, FileCode, FileSpreadsheet, FileText, ImagePlus, Maximize2, Paperclip, Pencil, Eye, Presentation, Save, Trash2, X, ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useVoiceMode } from '@/hooks/useVoiceMode';
 import {
@@ -186,6 +194,10 @@ export default function EditNotePage({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  // Confirmation before navigating to the read-only view while there are
+  // unsaved changes — offers Save & View / Discard & View / Cancel.
+  const [viewConfirmOpen, setViewConfirmOpen] = useState(false);
+
   const [insertOpen, setInsertOpen] = useState(false);
   const [attachSearchOpen, setAttachSearchOpen] = useState(false);
 
@@ -330,7 +342,7 @@ export default function EditNotePage({
   }
 
   const saveNote = useCallback(
-    async (opts: { navigateOnSuccess: boolean; onlyIfDirty?: boolean }) => {
+    async (opts: { navigateOnSuccess: boolean; onlyIfDirty?: boolean; navigateTo?: string }) => {
       const d = draftRef.current;
       if (d.loading || !d.savedSnapshot) return;
       if (d.saving) return;
@@ -419,7 +431,7 @@ export default function EditNotePage({
         }
 
         if (opts.navigateOnSuccess) {
-          router.push(`/dashboard/notes?id=${noteid}`);
+          router.push(opts.navigateTo ?? `/dashboard/notes?id=${noteid}`);
         }
       } catch {
         setQueued(true);
@@ -437,6 +449,23 @@ export default function EditNotePage({
     }, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, [authenticated, loading, saveNote]);
+
+  const viewHref = `/dashboard/notes/${noteid}/view`;
+
+  /**
+   * "Full-screen view" button next to Save. Mirrors the notes-list expand
+   * icon, but the editor can have unsaved changes the reader would then
+   * silently omit — so with a dirty draft this opens a confirm dialog
+   * (Save & View / Discard & View / Cancel) instead of navigating straight
+   * away.
+   */
+  function handleViewClick() {
+    if (isDirty) {
+      setViewConfirmOpen(true);
+      return;
+    }
+    router.push(viewHref);
+  }
 
   async function handleDelete(opts: EntityDeleteConfirmOptions) {
     setDeleteError('');
@@ -589,6 +618,16 @@ export default function EditNotePage({
           >
             <Save className="h-4 w-4" />
             {saving ? 'Saving…' : 'Save'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleViewClick}
+            className="text-muted-foreground hover:text-foreground"
+            disabled={loading}
+          >
+            <Maximize2 className="h-4 w-4" />
+            <span className="sr-only">Open full-screen view</span>
           </Button>
         </div>
 
@@ -912,6 +951,52 @@ export default function EditNotePage({
           </ScrollArea>
         </div>
       </div>
+
+      <Dialog
+        open={viewConfirmOpen}
+        onOpenChange={(open) => setViewConfirmOpen(open)}
+      >
+        <DialogContent showCloseButton={false} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>You have unsaved changes</DialogTitle>
+            <DialogDescription>
+              The full-screen view shows the saved version of this note. Save your
+              changes first, or discard them and view the note as it was last saved?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setViewConfirmOpen(false)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setViewConfirmOpen(false);
+                router.push(viewHref);
+              }}
+              disabled={saving}
+            >
+              Discard &amp; view
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setViewConfirmOpen(false);
+                void saveNote({ navigateOnSuccess: true, navigateTo: viewHref });
+              }}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save & view'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <EntityDeleteDialog
         open={deleteConfirm}

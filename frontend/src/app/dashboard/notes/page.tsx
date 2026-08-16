@@ -590,16 +590,33 @@ function NotesPageContent() {
       });
   }, [authenticated, selectedId, loading, sortParam, filterAreaId, filterSubjectId, loadPage]);
 
-  // Once the jumped-to note actually renders, scroll it into view and
+  // Once the jumped-to note actually renders, scroll it into view (near
+  // the top of the viewport, so there's visible context below it) and
   // clear the highlight after the pulse animation finishes.
   useEffect(() => {
     if (!highlightId) return;
     const el = rowRefs.current.get(highlightId);
     if (!el) return;
-    el.scrollIntoView({ block: 'center' });
+    el.scrollIntoView({ block: 'start' });
+    const viewport = listViewportRef.current;
+    if (viewport) viewport.scrollTop -= 8; // small breathing room above the row
     const timer = setTimeout(() => setHighlightId(null), HIGHLIGHT_DURATION_MS);
     return () => clearTimeout(timer);
   }, [highlightId, notes]);
+
+  /**
+   * When a note that's already loaded in the sidebar is selected (e.g. via
+   * Search/Ask AI, or simply re-selecting one that's scrolled out of view)
+   * but isn't the target of an in-flight "jump to note" fetch, just scroll
+   * it into view and pulse the highlight — no fetch needed, since the row
+   * already exists in the DOM.
+   */
+  useEffect(() => {
+    if (!selectedId || loading) return;
+    if (jumpedForIdRef.current === selectedId) return;
+    if (!notesRef.current.some((n) => n.id === selectedId)) return;
+    setHighlightId(selectedId);
+  }, [selectedId, loading]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
   //

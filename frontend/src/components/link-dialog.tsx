@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type UIEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -189,6 +189,9 @@ function todoHref(id: string) {
   return `/dashboard/todos?id=${id}`;
 }
 
+/** Page size for the "show all for area/subject" list's incremental rendering. */
+const SHOW_ALL_PAGE_SIZE = 15;
+
 // ── Handle ───────────────────────────────────────────────────────────────────
 
 /** Imperative handle exposed via `ref` — lets parents open the dialog programmatically. */
@@ -215,6 +218,17 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
   const [searchLoading, setSearchLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [searchError, setSearchError] = useState('');
+  // Whether the user has actually run a search / changed filters during this
+  // dialog session. Used to pick a helpful empty-state message: a fresh open
+  // with nothing visible should prompt to search rather than claim filters
+  // excluded everything.
+  const [searchedOnce, setSearchedOnce] = useState(false);
+  const [filtersTouched, setFiltersTouched] = useState(false);
+  // "Show all for area/subject" mode — entered via the link shown in the
+  // search empty state. Lists every item in the filtered scope (excluding
+  // already-linked ones), rendered progressively with infinite scroll.
+  const [showAll, setShowAll] = useState(false);
+  const [showAllCount, setShowAllCount] = useState(SHOW_ALL_PAGE_SIZE);
 
   // Browse filters (per tab)
   const [filterAreaId, setFilterAreaId] = useState('');
@@ -296,6 +310,9 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
         setSearchResults([]);
         setSearched(false);
         setSearchError('');
+        setSearchedOnce(false);
+        setFiltersTouched(false);
+        setShowAll(false);
         setUrlInput('');
         setUrlError('');
         setSaveError('');
@@ -361,6 +378,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
       void loadList(activeTab);
     }
     // Reset tab-local UI on switch
+    setShowAll(false);
     setSearch('');
     setSearchResults([]);
     setSearched(false);
@@ -437,6 +455,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
         } finally {
           setSearchLoading(false);
           setSearched(true);
+          setSearchedOnce(true);
         }
       }, 300);
     },
@@ -450,6 +469,11 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [search, activeTab, doSearch]);
+
+  // Typing a new search leaves "show all" mode.
+  useEffect(() => {
+    if (isSearchMode) setShowAll(false);
+  }, [isSearchMode]);
 
   // ── Derived browse data ────────────────────────────────────────────────────
 
@@ -504,6 +528,58 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
       return true;
     });
   }, [browseable, filterAreaId, filterSubjectId]);
+
+  // Search results carry their own area/subject term refs, so the same filters
+  // can narrow them down without another server round-trip.
+  const filteredSearchResults = useMemo(() => {
+    return searchResults.filter((r) => {
+      if (filterAreaId && !r.areas.some((a) => a.uuid === filterAreaId)) return false;
+      if (filterAreaId && filterSubjectId && !r.subjects.some((s) => s.uuid === filterSubjectId)) return false;
+      return true;
+    });
+  }, [searchResults, filterAreaId, filterSubjectId]);
+
+  // Display names for the selected filters — used by the "Or show all for…"
+  // affordance and the show-all list header, so they track the dropdowns live.
+  const filterAreaName = filterAreaId
+    ? (uniqueAreas.find((a) => a.id === filterAreaId)?.name ?? 'this area')
+    : '';
+  const filterSubjectName = filterAreaId && filterSubjectId
+    ? (uniqueSubjectsForArea.find((s) => s.id === filterSubjectId)?.name ?? 'this subject')
+    : '';
+  const filterScopeLabel = [filterAreaName, filterSubjectName].filter(Boolean).join(' · ');
+
+  // Everything in the current filter scope that isn't linked yet. Excludes the
+  // links that existed when the dialog opened (not draft selections made here),
+  // so rows don't vanish while the user checks them.
+  const showAllItems = useMemo(() => {
+    if (!showAll || activeTab === 'ai') return [];
+    const linked = new Set(original[activeTab]);
+    return visibleItems.filter((item) => !linked.has(item.id));
+  }, [showAll, activeTab, visibleItems, original]);
+
+  function enterShowAll() {
+    setShowAll(true);
+    setShowAllCount(SHOW_ALL_PAGE_SIZE);
+    // Leave search mode but keep the area/subject filters applied.
+    setSearch('');
+    setSearchResults([]);
+    setSearched(false);
+    setSearchError('');
+  }
+
+  // Infinite scroll for the show-all list: when the user nears the bottom of
+  // the scroll container, reveal the next page of items.
+  function handleListScroll(e: UIEvent<HTMLDivElement>) {
+    if (!showAll) return;
+    const el = e.currentTarget;
+    if (
+      showAllCount < showAllItems.length &&
+      el.scrollTop + el.clientHeight >= el.scrollHeight - 48
+    ) {
+      setShowAllCount((c) => c + SHOW_ALL_PAGE_SIZE);
+    }
+  }
 
   function itemMeta(item: JsonApiResource) {
     const areaIds = toRelIds(item.relationships?.field_area?.data);
@@ -959,12 +1035,13 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
             </div>
           )}
 
-          {/* Browse-mode filters */}
-          {activeTab !== 'ai' && !isSearchMode && !loadingList[activeTab as LinkTab] && uniqueAreas.length > 0 && (
+          {/* Area/subject filters — shown while browsing and searching alike */}
+          {activeTab !== 'ai' && !loadingList[activeTab as LinkTab] && uniqueAreas.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <Select
                 value={filterAreaId || '__all__'}
                 onValueChange={(v) => {
+                  setFiltersTouched(true);
                   setFilterAreaId(!v || v === '__all__' ? '' : v);
                   setFilterSubjectId('');
                 }}
@@ -987,7 +1064,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
               {filterAreaId && (
                 <Select
                   value={filterSubjectId || '__all__'}
-                  onValueChange={(v) => setFilterSubjectId(!v || v === '__all__' ? '' : v)}
+                  onValueChange={(v) => { setFiltersTouched(true); setFilterSubjectId(!v || v === '__all__' ? '' : v); }}
                 >
                   <SelectTrigger className="h-7 w-auto min-w-28 text-xs">
                     <span className={cn('truncate', !filterSubjectId && 'text-muted-foreground')}>
@@ -1019,7 +1096,10 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
           )}
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto min-h-0 rounded-md border border-border">
+          <div
+            onScroll={handleListScroll}
+            className="flex-1 overflow-y-auto min-h-0 rounded-md border border-border [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border"
+          >
             {activeTab === 'ai' ? (
               aiLoading ? (
                 <div className="p-3 flex flex-col gap-2">
@@ -1065,17 +1145,66 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
                 >
                   {searchError}
                 </p>
-              ) : searchResults.length === 0 ? (
+              ) : filteredSearchResults.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
                   {meta && <meta.icon className="h-5 w-5 opacity-40" />}
-                  <span>No {meta?.plural} found for &ldquo;{search.trim()}&rdquo;</span>
+                  <span>
+                    {searchResults.length > 0
+                      ? <>No {meta?.plural} match &ldquo;{search.trim()}&rdquo; with the selected filters.</>
+                      : <>No {meta?.plural} found for &ldquo;{search.trim()}&rdquo;</>}
+                  </span>
+                  {filterAreaId && (
+                    <button
+                      onClick={enterShowAll}
+                      className="text-xs text-primary underline-offset-2 transition-colors hover:underline"
+                      type="button"
+                    >
+                      Or show all for {filterAreaName}
+                      {filterSubjectName ? ` and ${filterSubjectName}` : ''}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {searchResults.map((r) =>
+                  {filteredSearchResults.map((r) =>
                     renderRow(r.uuid, r.title, r.areas[0]?.name, r.subjects[0]?.name),
                   )}
                 </div>
+              )
+            ) : showAll ? (
+              showAllItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-sm text-muted-foreground gap-2">
+                  {meta && <meta.icon className="h-5 w-5 opacity-40" />}
+                  <span>
+                    {visibleItems.length === 0
+                      ? hasFilters
+                        ? `No ${meta?.plural} in ${filterScopeLabel}.`
+                        : `You have no ${meta?.plural} yet.`
+                      : `Everything ${filterScopeLabel ? `in ${filterScopeLabel} ` : ''}is already linked.`}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <p className="px-3 pt-2.5 pb-1 text-xs text-muted-foreground">
+                    All {meta?.plural} in {filterScopeLabel || 'all areas'} ({showAllItems.length})
+                  </p>
+                  <div className="divide-y divide-border">
+                    {showAllItems.slice(0, showAllCount).map((item) => {
+                      const { areaName, subjectName } = itemMeta(item);
+                      return renderRow(
+                        item.id,
+                        item.attributes.title as string,
+                        areaName,
+                        subjectName,
+                      );
+                    })}
+                  </div>
+                  {showAllCount < showAllItems.length && (
+                    <div className="py-3 text-center text-xs text-muted-foreground">
+                      Scroll for more…
+                    </div>
+                  )}
+                </>
               )
             ) : (
               loadingList[activeTab as LinkTab] ? (
@@ -1090,7 +1219,9 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
                   <span>
                     {browseable.length === 0
                       ? `You have no ${meta?.plural} yet.`
-                      : `No ${meta?.plural} match the selected filters.`}
+                      : filtersTouched || searchedOnce
+                        ? `No ${meta?.plural} match the selected filters.`
+                        : 'Enter a search term to find results'}
                   </span>
                 </div>
               ) : (
@@ -1138,7 +1269,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
           {totalSelected > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs text-muted-foreground">Currently linked</Label>
-              <div className="flex flex-col gap-1 max-h-36 overflow-y-auto">
+              <div className="flex flex-col gap-1 max-h-36 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border">
                 {(['deck', 'note', 'todo'] as LinkTab[]).flatMap((tab) =>
                   local[tab].map((id) => <LinkedChip key={`${tab}:${id}`} id={id} />),
                 )}

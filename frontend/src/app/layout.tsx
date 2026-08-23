@@ -56,6 +56,10 @@ export default function RootLayout({
             swUrl="/serwist/sw.js"
             // Service worker + Serwist's history hooks fight Turbopack/HMR in dev (wrong routes, panics).
             disable={process.env.NODE_ENV === 'development'}
+            // Don't hard-reload the page on every `online` event — it discards
+            // in-progress note edits and trips the beforeunload guard.
+            // Reconnection is handled by OfflineIndicator (replays queued mutations).
+            reloadOnOnline={false}
           >
             <InstallPromptProvider>
               <VoiceModeShellProvider>

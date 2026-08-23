@@ -1713,8 +1713,6 @@ function TodosPageContent() {
 
               <div className="mt-8">
                 <RelatedItems
-                  entityType="todo"
-                  entityUuid={selectedList.id}
                   linkedItems={linkedItems}
                   onEditLinks={() => linkDialogRef.current?.openDialog()}
                   onRemoveLinkedItem={async (item) => {

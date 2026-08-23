@@ -933,8 +933,6 @@ export default function EditNotePage({
                   )}
                   <div className="px-6 pb-6">
                     <RelatedItems
-                      entityType="note"
-                      entityUuid={noteid}
                       linkedItems={linkedItems}
                       onEditLinks={() => linkDialogRef.current?.openDialog()}
                       onRemoveLinkedItem={(item) => {

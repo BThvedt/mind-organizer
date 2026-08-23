@@ -740,8 +740,6 @@ export default function DeckDetailPage({
         {!loading && (
           <div className="mt-8">
             <RelatedItems
-              entityType="deck"
-              entityUuid={id}
               linkedItems={linkedItems}
               onEditLinks={() => linkDialogRef.current?.openDialog()}
               onRemoveLinkedItem={async (item) => {

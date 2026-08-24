@@ -519,6 +519,24 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }, [browseable, tabIncluded, filterAreaId]);
 
+  // Keep filter state in sync with what the dropdowns display. A preset
+  // area/subject (from the note's context) can be stale — e.g. the note's
+  // subject doesn't apply to any browsable item in the selected area — in
+  // which case the dropdown shows "All subjects" while visibleItems would
+  // still be filtered by that invisible subject. Drop selections that no
+  // longer resolve to a real option, once the tab's list has loaded (the
+  // loadingList guard keeps the preset alive while the list is still being
+  // fetched and the option lists are empty).
+  useEffect(() => {
+    if (activeTab === 'ai' || loadingList[activeTab]) return;
+    if (filterAreaId && !uniqueAreas.some((a) => a.id === filterAreaId)) {
+      setFilterAreaId('');
+      setFilterSubjectId('');
+    } else if (filterAreaId && filterSubjectId && !uniqueSubjectsForArea.some((s) => s.id === filterSubjectId)) {
+      setFilterSubjectId('');
+    }
+  }, [activeTab, loadingList, filterAreaId, filterSubjectId, uniqueAreas, uniqueSubjectsForArea]);
+
   const visibleItems = useMemo(() => {
     return browseable.filter((item) => {
       const areaIds = toRelIds(item.relationships?.field_area?.data);

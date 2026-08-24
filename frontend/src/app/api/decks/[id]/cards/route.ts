@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { drupalFetch, getCurrentUserUuid } from '@/lib/drupal';
+import type { JsonApiResource } from '@/lib/json-api';
+
+/** Drupal JSON:API hard-caps `page[limit]` at 50 (`OffsetPage::SIZE_MAX`). */
+const PAGE_LIMIT = 50;
 
 export async function GET(
   _request: NextRequest,
@@ -7,18 +11,43 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const res = await drupalFetch(
+  const base =
     `/jsonapi/node/flashcard` +
-      `?filter[field_deck.id][value]=${id}` +
-      `&sort=created` +
-      `&page[limit]=200`
-  );
+    `?filter[field_deck.id][value]=${id}` +
+    `&sort=created` +
+    `&page[limit]=${PAGE_LIMIT}`;
 
-  if (!res.ok) {
-    return NextResponse.json({ error: 'Failed to fetch cards' }, { status: res.status });
+  // Paginate through every page so decks larger than one page are fully loaded.
+  const allCards: JsonApiResource[] = [];
+  let nextPath: string | null = base;
+
+  while (nextPath) {
+    const res = await drupalFetch(nextPath);
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Failed to fetch cards' }, { status: res.status });
+    }
+
+    const json = await res.json() as {
+      data?: JsonApiResource[];
+      included?: JsonApiResource[];
+      links?: { next?: { href?: string } };
+    };
+
+    allCards.push(...(json.data ?? []));
+
+    const nextHref = json.links?.next?.href ?? null;
+    if (nextHref) {
+      // Strip the Drupal base URL — drupalFetch prepends it
+      const DRUPAL_BASE = process.env.NEXT_PUBLIC_DRUPAL_BASE_URL ?? '';
+      nextPath = nextHref.startsWith(DRUPAL_BASE)
+        ? nextHref.slice(DRUPAL_BASE.length)
+        : nextHref;
+    } else {
+      nextPath = null;
+    }
   }
 
-  return NextResponse.json(await res.json());
+  return NextResponse.json({ data: allCards });
 }
 
 export async function POST(

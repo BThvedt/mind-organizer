@@ -47,6 +47,7 @@ import {
 } from '@/lib/api-client-messages';
 import type { JsonApiResource } from '@/lib/json-api';
 import { toRelIds } from '@/lib/json-api';
+import type { TaxonomyTerm } from '@/components/area-subject-selector';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -233,6 +234,13 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
   // Browse filters (per tab)
   const [filterAreaId, setFilterAreaId] = useState('');
   const [filterSubjectId, setFilterSubjectId] = useState('');
+  // Full taxonomy lists — same source as the area/subject selectors on the note
+  // edit screen, so the filter dropdowns show every area (and every subject of
+  // the selected area), not just terms present in the current tab's items.
+  const [taxonomyAreas, setTaxonomyAreas] = useState<TaxonomyTerm[]>([]);
+  const [taxonomySubjects, setTaxonomySubjects] = useState<TaxonomyTerm[]>([]);
+  const [taxonomyAreasLoading, setTaxonomyAreasLoading] = useState(false);
+  const [taxonomySubjectsLoading, setTaxonomySubjectsLoading] = useState(false);
 
   // Selection state — three buckets, copied from props on open
   const [local, setLocal] = useState<LinkedIds>({ deck: [], note: [], todo: [] });
@@ -390,6 +398,48 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, open]);
 
+  // ── Taxonomy (full area/subject lists for the filter dropdowns) ─────────────
+
+  // Fetch every area once per dialog session.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setTaxonomyAreasLoading(true);
+    fetch('/api/taxonomy?type=areas')
+      .then((r) => r.json())
+      .then((d: { data?: TaxonomyTerm[] }) => {
+        if (!cancelled) setTaxonomyAreas(d.data ?? []);
+      })
+      .finally(() => {
+        if (!cancelled) setTaxonomyAreasLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // Fetch the full subject list whenever the selected area changes — mirrors
+  // the area/subject selector behavior on the note edit screen.
+  useEffect(() => {
+    if (!open || !filterAreaId) {
+      setTaxonomySubjects([]);
+      return;
+    }
+    let cancelled = false;
+    setTaxonomySubjectsLoading(true);
+    fetch(`/api/taxonomy?type=subjects&area=${filterAreaId}`)
+      .then((r) => r.json())
+      .then((d: { data?: TaxonomyTerm[] }) => {
+        if (!cancelled) setTaxonomySubjects(d.data ?? []);
+      })
+      .finally(() => {
+        if (!cancelled) setTaxonomySubjectsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, filterAreaId]);
+
   // Fetch AI suggestions whenever aiLoaded is false and the AI tab is active.
   // aiLoaded is reset to false when the threshold changes (see slider handler),
   // which triggers a fresh fetch with the new score_threshold.
@@ -417,7 +467,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
   }, [open, activeTab, aiLoaded, contextEntityType, contextEntityId, aiThreshold]);
 
   const doSearch = useCallback(
-    (q: string, tab: LinkTab) => {
+    (q: string, tab: LinkTab, area: string, subject: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (q.trim().length < 2) {
         setSearchResults([]);
@@ -431,6 +481,8 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
         setSearchError('');
         try {
           const params = new URLSearchParams({ q: q.trim(), type: TAB_META[tab].searchType });
+          if (area) params.set('area', area);
+          if (subject) params.set('subject', subject);
           const res = await fetch(`/api/search?${params}`);
           if (res.ok) {
             const data = await res.json();
@@ -464,11 +516,11 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
 
   useEffect(() => {
     if (activeTab === 'ai') return;
-    doSearch(search, activeTab);
+    doSearch(search, activeTab, filterAreaId, filterSubjectId);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [search, activeTab, doSearch]);
+  }, [search, activeTab, filterAreaId, filterSubjectId, doSearch]);
 
   // Typing a new search leaves "show all" mode.
   useEffect(() => {
@@ -488,54 +540,49 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
     return tabItems;
   }, [tabItems, excludeSelf, activeTab]);
 
-  const uniqueAreas = useMemo(() => {
-    const seen = new Set<string>();
-    const result: { id: string; name: string }[] = [];
-    browseable.forEach((item) => {
-      for (const id of toRelIds(item.relationships?.field_area?.data)) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const name = tabIncluded.find((r) => r.id === id)?.attributes.name as string | undefined;
-        if (name) result.push({ id, name });
-      }
-    });
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [browseable, tabIncluded]);
+  const areaOptions = useMemo(
+    () =>
+      taxonomyAreas
+        .map((t) => ({ id: t.id, name: t.attributes.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [taxonomyAreas],
+  );
 
-  const uniqueSubjectsForArea = useMemo(() => {
-    if (!filterAreaId) return [];
-    const seen = new Set<string>();
-    const result: { id: string; name: string }[] = [];
-    browseable.forEach((item) => {
-      const areaIds = toRelIds(item.relationships?.field_area?.data);
-      if (!areaIds.includes(filterAreaId)) return;
-      for (const sId of toRelIds(item.relationships?.field_subject?.data)) {
-        if (seen.has(sId)) continue;
-        seen.add(sId);
-        const name = tabIncluded.find((r) => r.id === sId)?.attributes.name as string | undefined;
-        if (name) result.push({ id: sId, name });
-      }
-    });
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [browseable, tabIncluded, filterAreaId]);
+  const subjectOptions = useMemo(
+    () =>
+      taxonomySubjects
+        .map((t) => ({ id: t.id, name: t.attributes.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [taxonomySubjects],
+  );
 
-  // Keep filter state in sync with what the dropdowns display. A preset
-  // area/subject (from the note's context) can be stale — e.g. the note's
-  // subject doesn't apply to any browsable item in the selected area — in
-  // which case the dropdown shows "All subjects" while visibleItems would
-  // still be filtered by that invisible subject. Drop selections that no
-  // longer resolve to a real option, once the tab's list has loaded (the
-  // loadingList guard keeps the preset alive while the list is still being
-  // fetched and the option lists are empty).
+  // Keep filter state in sync with the dropdown options. A preset
+  // area/subject (from the note's context) can be stale — e.g. the term was
+  // deleted — so drop selections that don't resolve to a real taxonomy term.
+  // The loading guards keep the preset alive while the taxonomy lists are
+  // still being fetched.
   useEffect(() => {
-    if (activeTab === 'ai' || loadingList[activeTab]) return;
-    if (filterAreaId && !uniqueAreas.some((a) => a.id === filterAreaId)) {
+    if (activeTab === 'ai') return;
+    if (!taxonomyAreasLoading && filterAreaId && !areaOptions.some((a) => a.id === filterAreaId)) {
       setFilterAreaId('');
       setFilterSubjectId('');
-    } else if (filterAreaId && filterSubjectId && !uniqueSubjectsForArea.some((s) => s.id === filterSubjectId)) {
+    } else if (
+      !taxonomySubjectsLoading &&
+      filterAreaId &&
+      filterSubjectId &&
+      !subjectOptions.some((s) => s.id === filterSubjectId)
+    ) {
       setFilterSubjectId('');
     }
-  }, [activeTab, loadingList, filterAreaId, filterSubjectId, uniqueAreas, uniqueSubjectsForArea]);
+  }, [
+    activeTab,
+    taxonomyAreasLoading,
+    taxonomySubjectsLoading,
+    filterAreaId,
+    filterSubjectId,
+    areaOptions,
+    subjectOptions,
+  ]);
 
   const visibleItems = useMemo(() => {
     return browseable.filter((item) => {
@@ -547,8 +594,9 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
     });
   }, [browseable, filterAreaId, filterSubjectId]);
 
-  // Search results carry their own area/subject term refs, so the same filters
-  // can narrow them down without another server round-trip.
+  // Search results are re-fetched server-side whenever the area/subject
+  // filters change, but the request is debounced — this client-side pass
+  // narrows the previous results immediately while the new ones load.
   const filteredSearchResults = useMemo(() => {
     return searchResults.filter((r) => {
       if (filterAreaId && !r.areas.some((a) => a.uuid === filterAreaId)) return false;
@@ -560,20 +608,19 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
   // Display names for the selected filters — used by the "Or show all for…"
   // affordance and the show-all list header, so they track the dropdowns live.
   const filterAreaName = filterAreaId
-    ? (uniqueAreas.find((a) => a.id === filterAreaId)?.name ?? 'this area')
+    ? (areaOptions.find((a) => a.id === filterAreaId)?.name ?? 'this area')
     : '';
   const filterSubjectName = filterAreaId && filterSubjectId
-    ? (uniqueSubjectsForArea.find((s) => s.id === filterSubjectId)?.name ?? 'this subject')
+    ? (subjectOptions.find((s) => s.id === filterSubjectId)?.name ?? 'this subject')
     : '';
   const filterScopeLabel = [filterAreaName, filterSubjectName].filter(Boolean).join(' · ');
 
   // Only offer "show all" when the area filter is genuinely active — i.e., the
   // area (preset from the note's context or picked in the dropdown) actually
-  // appears in the filter dropdown. When the preset area has no items in this
-  // tab, the dropdown shows "All areas" and the link must stay hidden.
-  const areaFilterActive = !!filterAreaId && uniqueAreas.some((a) => a.id === filterAreaId);
+  // appears in the filter dropdown's taxonomy options.
+  const areaFilterActive = !!filterAreaId && areaOptions.some((a) => a.id === filterAreaId);
   const subjectFilterActive =
-    areaFilterActive && !!filterSubjectId && uniqueSubjectsForArea.some((s) => s.id === filterSubjectId);
+    areaFilterActive && !!filterSubjectId && subjectOptions.some((s) => s.id === filterSubjectId);
 
   // Shared "Or show all for…" affordance — rendered in the search AND browse
   // empty states alike, whenever an area filter is visibly selected.
@@ -1081,26 +1128,30 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
           )}
 
           {/* Area/subject filters — shown while browsing and searching alike */}
-          {activeTab !== 'ai' && !loadingList[activeTab as LinkTab] && uniqueAreas.length > 0 && (
+          {activeTab !== 'ai' && areaOptions.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <Select
                 value={filterAreaId || '__all__'}
                 onValueChange={(v) => {
                   setFiltersTouched(true);
-                  setFilterAreaId(!v || v === '__all__' ? '' : v);
+                  const next = !v || v === '__all__' ? '' : v;
+                  setFilterAreaId(next);
                   setFilterSubjectId('');
+                  // Clearing the area resets the search term — the results
+                  // were scoped to that area, so start fresh.
+                  if (!next) setSearch('');
                 }}
               >
                 <SelectTrigger className="h-7 w-auto min-w-28 text-xs">
                   <span className={cn('truncate', !filterAreaId && 'text-muted-foreground')}>
                     {filterAreaId
-                      ? (uniqueAreas.find((a) => a.id === filterAreaId)?.name ?? 'All areas')
+                      ? (areaOptions.find((a) => a.id === filterAreaId)?.name ?? 'All areas')
                       : 'All areas'}
                   </span>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All areas</SelectItem>
-                  {uniqueAreas.map((a) => (
+                  {areaOptions.map((a) => (
                     <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1114,13 +1165,13 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
                   <SelectTrigger className="h-7 w-auto min-w-28 text-xs">
                     <span className={cn('truncate', !filterSubjectId && 'text-muted-foreground')}>
                       {filterSubjectId
-                        ? (uniqueSubjectsForArea.find((s) => s.id === filterSubjectId)?.name ?? 'All subjects')
+                        ? (subjectOptions.find((s) => s.id === filterSubjectId)?.name ?? 'All subjects')
                         : 'All subjects'}
                     </span>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">All subjects</SelectItem>
-                    {uniqueSubjectsForArea.map((s) => (
+                    {subjectOptions.map((s) => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1129,7 +1180,11 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
 
               {hasFilters && (
                 <button
-                  onClick={() => { setFilterAreaId(''); setFilterSubjectId(''); }}
+                  onClick={() => {
+                    setFilterAreaId('');
+                    setFilterSubjectId('');
+                    setSearch('');
+                  }}
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                   type="button"
                 >

@@ -549,6 +549,19 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
     : '';
   const filterScopeLabel = [filterAreaName, filterSubjectName].filter(Boolean).join(' · ');
 
+  // Shared "Or show all for…" affordance — rendered in the search AND browse
+  // empty states alike, whenever an area filter is active.
+  const showAllLink = filterAreaId ? (
+    <button
+      onClick={enterShowAll}
+      className="text-xs text-primary underline-offset-2 transition-colors hover:underline"
+      type="button"
+    >
+      Or show all for {filterAreaName}
+      {filterSubjectName ? ` and ${filterSubjectName}` : ''}
+    </button>
+  ) : null;
+
   // Everything in the current filter scope that isn't linked yet. Excludes the
   // links that existed when the dialog opened (not draft selections made here),
   // so rows don't vanish while the user checks them.
@@ -566,6 +579,12 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
     setSearchResults([]);
     setSearched(false);
     setSearchError('');
+  }
+
+  // Leave the show-all view and return to the regular filtered browse list.
+  function exitShowAll() {
+    setShowAll(false);
+    setShowAllCount(SHOW_ALL_PAGE_SIZE);
   }
 
   // Infinite scroll for the show-all list: when the user nears the bottom of
@@ -1153,16 +1172,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
                       ? <>No {meta?.plural} match &ldquo;{search.trim()}&rdquo; with the selected filters.</>
                       : <>No {meta?.plural} found for &ldquo;{search.trim()}&rdquo;</>}
                   </span>
-                  {filterAreaId && (
-                    <button
-                      onClick={enterShowAll}
-                      className="text-xs text-primary underline-offset-2 transition-colors hover:underline"
-                      type="button"
-                    >
-                      Or show all for {filterAreaName}
-                      {filterSubjectName ? ` and ${filterSubjectName}` : ''}
-                    </button>
-                  )}
+                  {showAllLink}
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -1182,12 +1192,30 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
                         : `You have no ${meta?.plural} yet.`
                       : `Everything ${filterScopeLabel ? `in ${filterScopeLabel} ` : ''}is already linked.`}
                   </span>
+                  <button
+                    onClick={exitShowAll}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    type="button"
+                  >
+                    <X className="h-3 w-3" />
+                    Back
+                  </button>
                 </div>
               ) : (
                 <>
-                  <p className="px-3 pt-2.5 pb-1 text-xs text-muted-foreground">
-                    All {meta?.plural} in {filterScopeLabel || 'all areas'} ({showAllItems.length})
-                  </p>
+                  <div className="flex items-center justify-between gap-2 px-3 pt-2.5 pb-1">
+                    <p className="text-xs text-muted-foreground">
+                      All {meta?.plural} in {filterScopeLabel || 'all areas'} ({showAllItems.length})
+                    </p>
+                    <button
+                      onClick={exitShowAll}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      type="button"
+                    >
+                      <X className="h-3 w-3" />
+                      Back
+                    </button>
+                  </div>
                   <div className="divide-y divide-border">
                     {showAllItems.slice(0, showAllCount).map((item) => {
                       const { areaName, subjectName } = itemMeta(item);
@@ -1223,6 +1251,7 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
                         ? `No ${meta?.plural} match the selected filters.`
                         : 'Enter a search term to find results'}
                   </span>
+                  {showAllLink}
                 </div>
               ) : (
                 <div className="divide-y divide-border">

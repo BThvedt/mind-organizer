@@ -549,16 +549,24 @@ export const LinkDialog = forwardRef<LinkDialogHandle, LinkDialogProps>(function
     : '';
   const filterScopeLabel = [filterAreaName, filterSubjectName].filter(Boolean).join(' · ');
 
+  // Only offer "show all" when the area filter is genuinely active — i.e., the
+  // area (preset from the note's context or picked in the dropdown) actually
+  // appears in the filter dropdown. When the preset area has no items in this
+  // tab, the dropdown shows "All areas" and the link must stay hidden.
+  const areaFilterActive = !!filterAreaId && uniqueAreas.some((a) => a.id === filterAreaId);
+  const subjectFilterActive =
+    areaFilterActive && !!filterSubjectId && uniqueSubjectsForArea.some((s) => s.id === filterSubjectId);
+
   // Shared "Or show all for…" affordance — rendered in the search AND browse
-  // empty states alike, whenever an area filter is active.
-  const showAllLink = filterAreaId ? (
+  // empty states alike, whenever an area filter is visibly selected.
+  const showAllLink = areaFilterActive ? (
     <button
       onClick={enterShowAll}
       className="text-xs text-primary underline-offset-2 transition-colors hover:underline"
       type="button"
     >
       Or show all for {filterAreaName}
-      {filterSubjectName ? ` and ${filterSubjectName}` : ''}
+      {subjectFilterActive ? ` and ${filterSubjectName}` : ''}
     </button>
   ) : null;
 

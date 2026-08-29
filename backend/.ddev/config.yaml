@@ -13,6 +13,7 @@ use_dns_when_possible: true
 composer_version: "2"
 web_environment:
     - ANTHROPIC_API_KEY=your-key-here
+    - OPENAI_API_KEY=your-key-here
     - VOYAGE_API_KEY=your-key-here
     - QDRANT_URL=http://qdrant:6333
     - AWS_REGION=your-region

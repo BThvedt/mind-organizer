@@ -13,6 +13,7 @@ import type { JsonApiResource } from '@/lib/json-api';
 import { toStringArray } from '@/lib/json-api';
 import { MissingMediaIndicator } from '@/components/missing-media-indicator';
 import { AttachmentsIndicator } from '@/components/attachments-indicator';
+import { FlashcardAudioIndicator } from '@/components/flashcard-audio-indicator';
 
 interface FlashcardItemProps {
   card: JsonApiResource;
@@ -47,6 +48,9 @@ export function FlashcardItem({
   const back = card.attributes.field_back as string;
   const missingMediaCount = toStringArray(card.attributes.field_missing_media).length;
   const hasAttachments = !!card.attributes.field_has_attachments;
+  const frontAudioUuid = (card.attributes.field_front_audio as string | undefined) ?? null;
+  const backAudioUuid = (card.attributes.field_back_audio as string | undefined) ?? null;
+  const missingAudioUuids = new Set(toStringArray(card.attributes.field_missing_media));
 
   const draftRef = useRef({
     editFront: '',
@@ -339,6 +343,28 @@ export function FlashcardItem({
       <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap pr-16">
         {flipped ? back : front}
       </p>
+
+      {/* Audio indicator — bottom-right */}
+      <div className="absolute bottom-4 right-4 flex items-center gap-1">
+        <FlashcardAudioIndicator
+          cardId={card.id}
+          audioUuid={flipped ? backAudioUuid : frontAudioUuid}
+          isMissing={missingAudioUuids.has(flipped ? (backAudioUuid ?? '') : (frontAudioUuid ?? ''))}
+          face={flipped ? 'back' : 'front'}
+          onAudioChanged={(face, newAudioUuid) => {
+            const updated = {
+              ...card,
+              attributes: {
+                ...card.attributes,
+                ...(face === 'front'
+                  ? { field_front_audio: newAudioUuid }
+                  : { field_back_audio: newAudioUuid }),
+              },
+            };
+            onUpdated?.(updated);
+          }}
+        />
+      </div>
 
       {/* Flip hint */}
       <p className="mt-3 text-[11px] text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">

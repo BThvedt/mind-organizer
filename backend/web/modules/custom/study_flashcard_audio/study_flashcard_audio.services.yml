@@ -1,0 +1,10 @@
+services:
+  study_flashcard_audio.generator:
+    class: Drupal\study_flashcard_audio\Service\AudioGenerationService
+    arguments:
+      - '@media_functionality.s3'
+      - '@media_functionality.usage_tracker'
+      - '@entity_type.manager'
+      - '@uuid'
+      - '@database'
+      - '@logger.factory'

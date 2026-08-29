@@ -1,0 +1,137 @@
+<?php
+
+/**
+ * @file
+ * Hooks for study_flashcard_audio.
+ *
+ * Integrates with the media_functionality usage tracker so that audio
+ * UUIDs stored in field_front_audio / field_back_audio are treated as
+ * media references. If the corresponding asset gets soft-deleted,
+ * field_missing_media on the card (and via the deck→cards cascade) will
+ * reflect it.
+ *
+ * Runs AFTER media_functionality's hook_node_presave (Drupal module weight).
+ * Re-calls the usage tracker with audio UUIDs appended so they are
+ * discovered alongside the card-body media references.
+ */
+
+declare(strict_types=1);
+
+use Drupal\node\NodeInterface;
+
+/**
+ * Implements hook_node_presave().
+ *
+ * Runs after media_functionality's presave. Calls the usage tracker a
+ * second time with audio UUIDs appended, then recomputes
+ * field_missing_media so soft-deleted audio assets are reflected.
+ */
+function study_flashcard_audio_node_presave(NodeInterface $node): void {
+  if ($node->bundle() !== 'flashcard') {
+    return;
+  }
+  if (!$node->hasField('field_front_audio') && !$node->hasField('field_back_audio')) {
+    return;
+  }
+
+  /** @var \Drupal\media_functionality\Service\UsageTracker $tracker */
+  $tracker = \Drupal::service('media_functionality.usage_tracker');
+
+  $frontAudio = !$node->get('field_front_audio')->isEmpty()
+    ? (string) $node->get('field_front_audio')->value
+    : '';
+  $backAudio = !$node->get('field_back_audio')->isEmpty()
+    ? (string) $node->get('field_back_audio')->value
+    : '';
+
+  $audioAltText = '';
+  if ($frontAudio !== '') {
+    $audioAltText .= "/api/media/{$frontAudio}\n";
+  }
+  if ($backAudio !== '') {
+    $audioAltText .= "/api/media/{$backAudio}\n";
+  }
+  if ($audioAltText === '') {
+    return;
+  }
+
+  $front = $node->hasField('field_front') && !$node->get('field_front')->isEmpty()
+    ? (string) $node->get('field_front')->value : '';
+  $back = $node->hasField('field_back') && !$node->get('field_back')->isEmpty()
+    ? (string) $node->get('field_back')->value : '';
+
+  $combined = $front . "\n" . $back . "\n" . $audioAltText;
+
+  $tracker->syncForEntity(
+    'node--flashcard',
+    (string) $node->uuid(),
+    (string) $node->getTitle(),
+    $combined
+  );
+
+  $referenced = $tracker->extractAssetUuids($combined);
+  if ($node->hasField('field_missing_media')) {
+    $missing = $tracker->deletedAmong($referenced);
+    $current = array_map(
+      static fn ($item) => (string) $item['value'],
+      $node->get('field_missing_media')->getValue()
+    );
+    sort($missing);
+    sort($current);
+    if ($current !== $missing) {
+      $node->set('field_missing_media', $missing);
+    }
+  }
+}
+
+/**
+ * Implements hook_node_insert().
+ */
+function study_flashcard_audio_node_insert(NodeInterface $node): void {
+  _study_flashcard_audio_sync_usage($node);
+}
+
+/**
+ * Implements hook_node_update().
+ */
+function study_flashcard_audio_node_update(NodeInterface $node): void {
+  _study_flashcard_audio_sync_usage($node);
+}
+
+/**
+ * Syncs audio UUIDs into the usage tracker on insert/update.
+ */
+function _study_flashcard_audio_sync_usage(NodeInterface $node): void {
+  if ($node->bundle() !== 'flashcard') {
+    return;
+  }
+  if (!$node->hasField('field_front_audio') && !$node->hasField('field_back_audio')) {
+    return;
+  }
+
+  /** @var \Drupal\media_functionality\Service\UsageTracker $tracker */
+  $tracker = \Drupal::service('media_functionality.usage_tracker');
+
+  $frontAudio = !$node->get('field_front_audio')->isEmpty()
+    ? (string) $node->get('field_front_audio')->value : '';
+  $backAudio = !$node->get('field_back_audio')->isEmpty()
+    ? (string) $node->get('field_back_audio')->value : '';
+
+  $text = '';
+  if ($frontAudio !== '') {
+    $text .= "/api/media/{$frontAudio}\n";
+  }
+  if ($backAudio !== '') {
+    $text .= "/api/media/{$backAudio}\n";
+  }
+  if ($text === '') {
+    return;
+  }
+
+  $tracker->syncForEntity(
+    'node--flashcard',
+    (string) $node->uuid(),
+    (string) $node->getTitle(),
+    $text
+  );
+}

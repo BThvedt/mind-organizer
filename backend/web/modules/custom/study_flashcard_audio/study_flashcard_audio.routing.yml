@@ -1,0 +1,39 @@
+study_flashcard_audio.generate:
+  path: '/api/study/flashcard-audio/generate'
+  defaults:
+    _controller: '\Drupal\study_flashcard_audio\Controller\FlashcardAudioController::generate'
+    _title: 'Generate flashcard audio'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [POST]
+
+study_flashcard_audio.delete:
+  path: '/api/study/flashcard-audio/{uuid}/delete'
+  defaults:
+    _controller: '\Drupal\study_flashcard_audio\Controller\FlashcardAudioController::delete'
+    _title: 'Delete flashcard audio'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    uuid: '[0-9a-f\-]+'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [DELETE]
+
+study_flashcard_audio.list:
+  path: '/api/study/flashcard-audio'
+  defaults:
+    _controller: '\Drupal\study_flashcard_audio\Controller\FlashcardAudioController::list'
+    _title: 'List flashcard audio files'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth:
+      - oauth2
+      - cookie
+  methods: [GET]

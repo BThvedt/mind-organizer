@@ -1,0 +1,123 @@
+<?php
+
+/**
+ * @file
+ * Install and uninstall hooks for study_flashcard_audio.
+ *
+ * Creates the `field_front_audio` and `field_back_audio` string fields
+ * on the flashcard node type. Each stores a single UUID referencing a
+ * media_functionality_asset row (the TTS-generated audio file for that face).
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_install().
+ */
+function study_flashcard_audio_install(): void {
+  $fieldStorage = \Drupal::entityTypeManager()
+    ->getStorage('field_storage_config');
+  $fieldStorage2 = \Drupal::entityTypeManager()
+    ->getStorage('field_config');
+
+  // --- field_front_audio (string, cardinality 1) ---
+  $frontStorage = $fieldStorage->load('node.field_front_audio');
+  if (!$frontStorage) {
+    $frontStorage = $fieldStorage->create([
+      'id' => 'node.field_front_audio',
+      'field_name' => 'field_front_audio',
+      'entity_type' => 'node',
+      'type' => 'string',
+      'settings' => [
+        'max_length' => 36,
+        'case_sensitive' => TRUE,
+        'is_ascii' => TRUE,
+      ],
+      'cardinality' => 1,
+      'locked' => FALSE,
+      'translatable' => FALSE,
+    ]);
+    $frontStorage->save();
+  }
+
+  $frontField = $fieldStorage2->load('node.flashcard.field_front_audio');
+  if (!$frontField) {
+    $frontField = $fieldStorage2->create([
+      'id' => 'node.flashcard.field_front_audio',
+      'field_name' => 'field_front_audio',
+      'entity_type' => 'node',
+      'bundle' => 'flashcard',
+      'label' => 'Front Audio',
+      'description' => 'UUID of the TTS-generated audio for the front (question) face.',
+      'required' => FALSE,
+      'translatable' => TRUE,
+      'settings' => [],
+    ]);
+    $frontField->save();
+  }
+
+  // --- field_back_audio (string, cardinality 1) ---
+  $backStorage = $fieldStorage->load('node.field_back_audio');
+  if (!$backStorage) {
+    $backStorage = $fieldStorage->create([
+      'id' => 'node.field_back_audio',
+      'field_name' => 'field_back_audio',
+      'entity_type' => 'node',
+      'type' => 'string',
+      'settings' => [
+        'max_length' => 36,
+        'case_sensitive' => TRUE,
+        'is_ascii' => TRUE,
+      ],
+      'cardinality' => 1,
+      'locked' => FALSE,
+      'translatable' => FALSE,
+    ]);
+    $backStorage->save();
+  }
+
+  $backField = $fieldStorage2->load('node.flashcard.field_back_audio');
+  if (!$backField) {
+    $backField = $fieldStorage2->create([
+      'id' => 'node.flashcard.field_back_audio',
+      'field_name' => 'field_back_audio',
+      'entity_type' => 'node',
+      'bundle' => 'flashcard',
+      'label' => 'Back Audio',
+      'description' => 'UUID of the TTS-generated audio for the back (answer) face.',
+      'required' => FALSE,
+      'translatable' => TRUE,
+      'settings' => [],
+    ]);
+    $backField->save();
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function study_flashcard_audio_uninstall(): void {
+  $fieldStorage = \Drupal::entityTypeManager()
+    ->getStorage('field_storage_config');
+  $fieldStorage2 = \Drupal::entityTypeManager()
+    ->getStorage('field_config');
+
+  $toDelete = [
+    'node.flashcard.field_front_audio',
+    'node.flashcard.field_back_audio',
+  ];
+  foreach ($toDelete as $id) {
+    $field = $fieldStorage2->load($id);
+    if ($field) {
+      $field->delete();
+    }
+  }
+
+  // Delete the shared storage definitions (safe: no other bundle uses them).
+  foreach (['node.field_front_audio', 'node.field_back_audio'] as $id) {
+    $storage = $fieldStorage->load($id);
+    if ($storage) {
+      $storage->delete();
+    }
+  }
+}

@@ -1,0 +1,8 @@
+name: 'Flashcard Audio'
+type: module
+description: 'Generates and manages TTS audio files for flashcard faces using OpenAI TTS, storing them as media assets.'
+package: 'Mind Organizer'
+core_version_requirement: ^10 || ^11
+dependencies:
+  - drupal:node
+  - media_functionality:media_functionality

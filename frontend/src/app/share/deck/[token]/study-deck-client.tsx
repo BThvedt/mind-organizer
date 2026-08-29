@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Check,
@@ -40,6 +42,7 @@ export function StudyDeckClient({ deck }: { deck: SharedDeck }) {
   const [outgoing, setOutgoing] = useState<{ index: number; revealed: boolean } | null>(null);
   const [slideDir, setSlideDir] = useState<'forward' | 'back'>('forward');
   const [lockedHeight, setLockedHeight] = useState<number | null>(null);
+  const [wrapMode, setWrapMode] = useState(false);
   const slideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
 
@@ -72,16 +75,24 @@ export function StudyDeckClient({ deck }: { deck: SharedDeck }) {
   );
 
   const goBack = useCallback(() => {
-    if (index > 0) navigateWithAnim('back', index - 1);
-  }, [index, navigateWithAnim]);
+    if (index > 0) {
+      navigateWithAnim('back', index - 1);
+    } else if (wrapMode) {
+      navigateWithAnim('back', total - 1);
+    }
+  }, [index, wrapMode, total, navigateWithAnim]);
 
   const goForward = useCallback(() => {
     if (index + 1 >= total) {
-      setDone(true);
+      if (wrapMode) {
+        navigateWithAnim('forward', 0);
+      } else {
+        setDone(true);
+      }
     } else {
       navigateWithAnim('forward', index + 1);
     }
-  }, [index, total, navigateWithAnim]);
+  }, [index, total, wrapMode, navigateWithAnim]);
 
   const record = useCallback(
     (result: Result) => {
@@ -458,7 +469,7 @@ export function StudyDeckClient({ deck }: { deck: SharedDeck }) {
         <div className="flex items-center gap-6">
           <button
             onClick={goBack}
-            disabled={index === 0}
+            disabled={!wrapMode && index === 0}
             className="flex items-center gap-1 text-sm text-muted-foreground disabled:opacity-30 hover:text-foreground transition-colors"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -471,6 +482,21 @@ export function StudyDeckClient({ deck }: { deck: SharedDeck }) {
             Next
             <ChevronRight className="h-4 w-4" />
           </button>
+        </div>
+{/* Wrap around toggle */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="wrap-mode"
+            checked={wrapMode}
+            onCheckedChange={(v) => setWrapMode(v === true)}
+            className="bg-muted border-muted-foreground/30 data-checked:bg-muted data-checked:border-muted-foreground/30 data-checked:text-muted-foreground/50"
+          />
+          <Label
+            htmlFor="wrap-mode"
+            className="text-sm text-muted-foreground/50 cursor-pointer select-none font-normal"
+          >
+            Wrap around (loop from end → start)
+          </Label>
         </div>
       </div>
     </div>

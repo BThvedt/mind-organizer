@@ -7,9 +7,10 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Check, X, RotateCcw, ChevronLeft, ChevronRight, Shuffle } from 'lucide-react';
+import { ArrowLeft, Check, X, RotateCcw, ChevronLeft, ChevronRight, Shuffle, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { JsonApiResource } from '@/lib/json-api';
+import { toStringArray } from '@/lib/json-api';
 import { logSession } from '@/lib/sessions';
 
 type Result = 'correct' | 'incorrect';
@@ -62,6 +63,8 @@ export default function StudyPage({
   const [lockedHeight, setLockedHeight] = useState<number | null>(null);
   const slideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioPlaying, setAudioPlaying] = useState(false);
 
   const authenticated = useAuth();
 
@@ -93,6 +96,25 @@ export default function StudyPage({
   const incorrectCount = [...results.values()].filter((v) => v === 'incorrect').length;
   const progressPercent = total > 0 ? Math.round((index / total) * 100) : 0;
 
+  // Current-side audio
+  const frontAudioUuid = (currentCard?.attributes.field_front_audio as string | undefined) ?? null;
+  const backAudioUuid = (currentCard?.attributes.field_back_audio as string | undefined) ?? null;
+  const missingAudioUuids = currentCard
+    ? new Set(toStringArray(currentCard.attributes.field_missing_media))
+    : new Set<string>();
+  const activeAudioUuid = currentCard
+    ? (revealed ? backAudioUuid : frontAudioUuid)
+    : null;
+  const activeAudioExists = activeAudioUuid !== null && !missingAudioUuids.has(activeAudioUuid);
+
+  function stopAudio() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setAudioPlaying(false);
+  }
+
   const flip = useCallback(() => {
     if (slideTimerRef.current !== null) return;
     setRevealed((r) => !r);
@@ -103,6 +125,7 @@ export default function StudyPage({
   const navigateWithAnim = useCallback(
     (direction: 'forward' | 'back', newIndex: number) => {
       if (slideTimerRef.current !== null) return;
+      stopAudio();
       // Lock the stage height before adding the second card so the grid cell
       // can't resize mid-animation (cards with different text lengths would
       // otherwise cause a subtle vertical jump).
@@ -129,6 +152,7 @@ export default function StudyPage({
   }, [index, wrapMode, total, navigateWithAnim]);
 
   const goForward = useCallback(() => {
+    stopAudio();
     if (index + 1 >= total) {
       if (wrapMode) {
         navigateWithAnim('forward', 0);
@@ -150,6 +174,7 @@ export default function StudyPage({
   );
 
   const shuffleRemaining = useCallback(() => {
+    stopAudio();
     setSessionCards((prev) => {
       const visited = prev.slice(0, index + 1);
       const remaining = fisherYates(prev.slice(index + 1));
@@ -187,6 +212,7 @@ export default function StudyPage({
   }, []);
 
   const restartAll = useCallback(() => {
+    stopAudio();
     logCurrentSession();
     resetAnimState();
     setSessionCards(cards);
@@ -199,6 +225,7 @@ export default function StudyPage({
   }, [cards, logCurrentSession, resetAnimState]);
 
   const restartMissed = useCallback(() => {
+    stopAudio();
     const missed = sessionCards.filter((c) => results.get(c.id) !== 'correct');
     if (missed.length === 0) return;
     logCurrentSession();
@@ -334,6 +361,14 @@ export default function StudyPage({
   const back = currentCard.attributes.field_back as string;
   const cardResult = results.get(currentCard.id);
   const remainingCount = total - index - 1;
+
+  const handlePlayAudio = useCallback(() => {
+    if (!activeAudioExists || !activeAudioUuid) return;
+    if (!audioRef.current) return;
+    audioRef.current.src = `/api/media/${activeAudioUuid}/file`;
+    audioRef.current.play().catch(() => setAudioPlaying(false));
+    setAudioPlaying(true);
+  }, [activeAudioExists, activeAudioUuid]);
 
   return (
     <div className="flex h-dvh flex-col select-none">
@@ -583,6 +618,36 @@ export default function StudyPage({
           >
             Wrap around (loop from end → start)
           </Label>
+        </div>
+
+        {/* Audio play button — always visible, muted/hidden when current side has no audio */}
+        <audio
+          ref={audioRef}
+          className="hidden"
+          onEnded={() => setAudioPlaying(false)}
+        />
+        <div className="flex items-center justify-center">
+          <button
+            type="button"
+            onClick={activeAudioExists ? handlePlayAudio : undefined}
+            disabled={!activeAudioExists}
+            aria-label={
+              activeAudioExists
+                ? `${revealed ? 'Back' : 'Front'} audio`
+                : 'No audio for this side'
+            }
+            className={cn(
+              'flex items-center justify-center rounded-full p-2 transition-colors',
+              activeAudioExists
+                ? [
+                    'text-muted-foreground hover:text-foreground',
+                    audioPlaying && 'text-primary',
+                  ]
+                : 'text-muted-foreground/15 cursor-default',
+            )}
+          >
+            <Volume2 className={cn('h-4 w-4', audioPlaying && 'animate-pulse')} />
+          </button>
         </div>
       </div>
     </div>
